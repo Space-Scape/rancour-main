@@ -1,6 +1,4 @@
 import os
-import json
-import base64
 import discord
 from discord.ext import commands, tasks
 from discord.ui import Modal, TextInput, View, Button
@@ -12,11 +10,22 @@ import asyncio
 # Google Sheets Setup
 SCOPE = ["https://spreadsheets.google.com/feeds", 'https://www.googleapis.com/auth/drive']
 
-# Decode the environment variable
-credentials_json = base64.b64decode(os.getenv('GOOGLE_CREDENTIALS_JSON')).decode('utf-8')
+# Reconstruct the credentials.json content from environment variables
+credentials_dict = {
+    "type": os.getenv('GOOGLE_TYPE'),
+    "project_id": os.getenv('GOOGLE_PROJECT_ID'),
+    "private_key_id": os.getenv('GOOGLE_PRIVATE_KEY_ID'),
+    "private_key": os.getenv('GOOGLE_PRIVATE_KEY').replace("\\n", "\n"),  # Ensure newline characters are properly formatted
+    "client_email": os.getenv('GOOGLE_CLIENT_EMAIL'),
+    "client_id": os.getenv('GOOGLE_CLIENT_ID'),
+    "auth_uri": os.getenv('GOOGLE_AUTH_URI'),
+    "token_uri": os.getenv('GOOGLE_TOKEN_URI'),
+    "auth_provider_x509_cert_url": os.getenv('GOOGLE_AUTH_PROVIDER_X509_CERT_URL'),
+    "client_x509_cert_url": os.getenv('GOOGLE_CLIENT_X509_CERT_URL')
+}
 
-# Load the credentials from the decoded JSON
-CREDS = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(credentials_json), SCOPE)
+# Authorize the credentials
+CREDS = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, SCOPE)
 
 CLIENT = gspread.authorize(CREDS)
 DROP_SHEET = CLIENT.open("Image Upload Test").worksheet("Drop Submissions")
