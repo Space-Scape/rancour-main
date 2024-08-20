@@ -1,3 +1,6 @@
+import os
+import json
+import base64
 import discord
 from discord.ext import commands, tasks
 from discord.ui import Modal, TextInput, View, Button
@@ -5,11 +8,16 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import asyncio
-import os
 
 # Google Sheets Setup
 SCOPE = ["https://spreadsheets.google.com/feeds", 'https://www.googleapis.com/auth/drive']
-CREDS = ServiceAccountCredentials.from_json_keyfile_name('credentials.json', SCOPE)
+
+# Decode the environment variable
+credentials_json = base64.b64decode(os.getenv('GOOGLE_CREDENTIALS_JSON')).decode('utf-8')
+
+# Load the credentials from the decoded JSON
+CREDS = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(credentials_json), SCOPE)
+
 CLIENT = gspread.authorize(CREDS)
 DROP_SHEET = CLIENT.open("Image Upload Test").worksheet("Drop Submissions")
 HIGHSCORE_SHEET = CLIENT.open("Image Upload Test").worksheet("Hiscores")
