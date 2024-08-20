@@ -312,7 +312,7 @@ async def on_message(message):
     await bot.process_commands(message)
 
 # Purge speed-times channel every hour
-@tasks.loop(hours=1)
+@tasks.loop(hours=3)
 async def purge_speed_times():
     channel = discord.utils.get(bot.get_all_channels(), name="speed-times")
     if channel:
