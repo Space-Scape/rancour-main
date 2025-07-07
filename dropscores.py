@@ -1,27 +1,17 @@
 import os
 import discord
 from discord.ext import commands
-from discord.ui import Modal, TextInput, View, Button
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-
-# Google Sheets Setup
-
-
-
-import discord
-from discord.ext import commands
 from discord import app_commands
-import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import json
-import os
+import gspread
 
-# -------- Load Google Sheet Credentials --------
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = os.getenv()
-sheet_client = gspread.authorize(creds)
-sheet = sheet_client.open("Bandos Drops").sheet1
+# ---------------------------
+# 🔷 Google Sheets Setup
+# ---------------------------
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
 
 credentials_dict = {
     "type": os.getenv('GOOGLE_TYPE'),
@@ -35,41 +25,64 @@ credentials_dict = {
     "auth_provider_x509_cert_url": os.getenv('GOOGLE_AUTH_PROVIDER_X509_CERT_URL'),
     "client_x509_cert_url": os.getenv('GOOGLE_CLIENT_X509_CERT_URL'),
     "universe_domain": os.getenv('GOOGLE_UNIVERSE_DOMAIN'),
-    "sheet_id": os.getenv('GOOGLE_SHEET_ID')
 }
 
-# -------- Bot Setup --------
+creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
+sheet_client = gspread.authorize(creds)
+
+sheet_name = os.getenv("GOOGLE_SHEET_NAME", "Bandos Drops")
+sheet = sheet_client.open(sheet_name).sheet1
+
+# ---------------------------
+# 🔷 Discord Bot Setup
+# ---------------------------
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
-# In-memory channel tracking (persist as needed)
+# In-memory channel IDs
 channel_config = {
     "submission": None,
     "review": None,
     "log": None
 }
 
-# -------- Channel Set Commands --------
+# Required role for setting channels
+REQUIRED_ROLE_NAME = "Drop Manager"
+
+def user_has_role(user: discord.Member, role_name: str) -> bool:
+    return any(role.name == role_name for role in user.roles)
+
+# ---------------------------
+# 🔷 Set Channel Commands
+# ---------------------------
 @tree.command(name="setsubmissionchannel", description="Set the submission channel")
-@app_commands.checks.has_permissions(administrator=True)
 async def set_submission(interaction: discord.Interaction):
+    if not isinstance(interaction.user, discord.Member) or not user_has_role(interaction.user, REQUIRED_ROLE_NAME):
+        await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
+        return
     channel_config["submission"] = interaction.channel.id
     await interaction.response.send_message("✅ This channel set as the submission channel.", ephemeral=True)
 
 @tree.command(name="setreviewchannel", description="Set the review channel")
-@app_commands.checks.has_permissions(administrator=True)
 async def set_review(interaction: discord.Interaction):
+    if not isinstance(interaction.user, discord.Member) or not user_has_role(interaction.user, REQUIRED_ROLE_NAME):
+        await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
+        return
     channel_config["review"] = interaction.channel.id
     await interaction.response.send_message("✅ This channel set as the review channel.", ephemeral=True)
 
 @tree.command(name="setlogchannel", description="Set the log channel")
-@app_commands.checks.has_permissions(administrator=True)
 async def set_log(interaction: discord.Interaction):
+    if not isinstance(interaction.user, discord.Member) or not user_has_role(interaction.user, REQUIRED_ROLE_NAME):
+        await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
+        return
     channel_config["log"] = interaction.channel.id
     await interaction.response.send_message("✅ This channel set as the log channel.", ephemeral=True)
 
-# -------- Drop Submission Command --------
+# ---------------------------
+# 🔷 Drop Submission Logic
+# ---------------------------
 class DropSelection(discord.ui.Select):
     def __init__(self, user: discord.User, attachment: discord.Attachment):
         self.user = user
@@ -117,7 +130,9 @@ async def bandos(interaction: discord.Interaction, screenshot: discord.Attachmen
     view = DropView(interaction.user, screenshot)
     await interaction.response.send_message("📝 Please select the drop received from the dropdown below.", view=view, ephemeral=True)
 
-# -------- Buttons for Approve / Reject --------
+# ---------------------------
+# 🔷 Review Buttons
+# ---------------------------
 class DropReviewButtons(discord.ui.View):
     def __init__(self, user: discord.User, drop: str, image_url: str):
         super().__init__(timeout=None)
@@ -128,20 +143,30 @@ class DropReviewButtons(discord.ui.View):
     @discord.ui.button(label="Approve ✅", style=discord.ButtonStyle.green)
     async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
         log_channel = bot.get_channel(channel_config["log"])
-        await log_channel.send(f"✅ **Approved**: {self.drop} for {self.user.mention}")
+        if log_channel:
+            await log_channel.send(f"✅ **Approved**: {self.drop} for {self.user.mention}")
 
-        # Append to Google Sheet
         sheet.append_row([str(self.user.id), self.drop, self.image_url])
         await interaction.response.send_message("Approved and logged.", ephemeral=True)
 
     @discord.ui.button(label="Reject ❌", style=discord.ButtonStyle.red)
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
         log_channel = bot.get_channel(channel_config["log"])
-        await log_channel.send(f"❌ **Rejected**: {self.drop} for {self.user.mention}")
+        if log_channel:
+            await log_channel.send(f"❌ **Rejected**: {self.drop} for {self.user.mention}")
         await interaction.response.send_message("Submission rejected.", ephemeral=True)
 
+# ---------------------------
+# 🔷 On Ready
+# ---------------------------
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user.name}")
+    print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
+    await tree.sync()
+    print(f"✅ Commands synced.")
 
+# ---------------------------
+# 🔷 Run Bot
+# ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
