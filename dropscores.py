@@ -40,45 +40,58 @@ intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
-# In-memory channel IDs
 channel_config = {
     "submission": None,
     "review": None,
     "log": None
 }
 
-# Required role for setting channels
 REQUIRED_ROLE_NAME = "Drop Manager"
 
 def user_has_role(user: discord.Member, role_name: str) -> bool:
     return any(role.name == role_name for role in user.roles)
 
 # ---------------------------
-# 🔷 Set Channel Commands
+# 🔷 Channel Set Logic
 # ---------------------------
-@tree.command(name="setsubmissionchannel", description="Set the submission channel")
-async def set_submission(interaction: discord.Interaction):
-    if not isinstance(interaction.user, discord.Member) or not user_has_role(interaction.user, REQUIRED_ROLE_NAME):
-        await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
+async def set_channel_logic(interaction_or_ctx, channel_type: str):
+    user = getattr(interaction_or_ctx, 'user', interaction_or_ctx.author)
+    if not isinstance(user, discord.Member) or not user_has_role(user, REQUIRED_ROLE_NAME):
+        await interaction_or_ctx.response.send_message("❌ You do not have permission to use this command.", ephemeral=True) \
+            if hasattr(interaction_or_ctx, 'response') else \
+            await interaction_or_ctx.send("❌ You do not have permission to use this command.")
         return
-    channel_config["submission"] = interaction.channel.id
-    await interaction.response.send_message("✅ This channel set as the submission channel.", ephemeral=True)
+    channel_config[channel_type] = interaction_or_ctx.channel.id
+    msg = f"✅ This channel set as the **{channel_type}** channel."
+    await interaction_or_ctx.response.send_message(msg, ephemeral=True) \
+        if hasattr(interaction_or_ctx, 'response') else \
+        await interaction_or_ctx.send(msg)
+
+# Slash commands
+@tree.command(name="setsubmissionchannel", description="Set the submission channel")
+async def slash_set_submission(interaction: discord.Interaction):
+    await set_channel_logic(interaction, "submission")
 
 @tree.command(name="setreviewchannel", description="Set the review channel")
-async def set_review(interaction: discord.Interaction):
-    if not isinstance(interaction.user, discord.Member) or not user_has_role(interaction.user, REQUIRED_ROLE_NAME):
-        await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
-        return
-    channel_config["review"] = interaction.channel.id
-    await interaction.response.send_message("✅ This channel set as the review channel.", ephemeral=True)
+async def slash_set_review(interaction: discord.Interaction):
+    await set_channel_logic(interaction, "review")
 
 @tree.command(name="setlogchannel", description="Set the log channel")
-async def set_log(interaction: discord.Interaction):
-    if not isinstance(interaction.user, discord.Member) or not user_has_role(interaction.user, REQUIRED_ROLE_NAME):
-        await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
-        return
-    channel_config["log"] = interaction.channel.id
-    await interaction.response.send_message("✅ This channel set as the log channel.", ephemeral=True)
+async def slash_set_log(interaction: discord.Interaction):
+    await set_channel_logic(interaction, "log")
+
+# Prefix commands
+@bot.command(name="setsubmissionchannel")
+async def prefix_set_submission(ctx):
+    await set_channel_logic(ctx, "submission")
+
+@bot.command(name="setreviewchannel")
+async def prefix_set_review(ctx):
+    await set_channel_logic(ctx, "review")
+
+@bot.command(name="setlogchannel")
+async def prefix_set_log(ctx):
+    await set_channel_logic(ctx, "log")
 
 # ---------------------------
 # 🔷 Drop Submission Logic
@@ -120,15 +133,30 @@ class DropView(discord.ui.View):
         super().__init__()
         self.add_item(DropSelection(user, attachment))
 
-@tree.command(name="bandos", description="Submit a drop from Bandos")
-@app_commands.describe(screenshot="Attach a screenshot of the drop")
-async def bandos(interaction: discord.Interaction, screenshot: discord.Attachment):
-    if channel_config["submission"] != interaction.channel.id:
-        await interaction.response.send_message("❌ You can only use this command in the designated drop submission channel.", ephemeral=True)
+async def bandos_logic(interaction_or_ctx, screenshot):
+    if channel_config["submission"] != interaction_or_ctx.channel.id:
+        msg = "❌ You can only use this command in the designated drop submission channel."
+        await interaction_or_ctx.response.send_message(msg, ephemeral=True) \
+            if hasattr(interaction_or_ctx, 'response') else \
+            await interaction_or_ctx.send(msg)
         return
 
-    view = DropView(interaction.user, screenshot)
-    await interaction.response.send_message("📝 Please select the drop received from the dropdown below.", view=view, ephemeral=True)
+    view = DropView(interaction_or_ctx.user if hasattr(interaction_or_ctx, 'user') else interaction_or_ctx.author, screenshot)
+    await interaction_or_ctx.response.send_message("📝 Please select the drop received from the dropdown below.", view=view, ephemeral=True) \
+        if hasattr(interaction_or_ctx, 'response') else \
+        await interaction_or_ctx.send("📝 Please select the drop received from the dropdown below.", view=view)
+
+@tree.command(name="bandos", description="Submit a drop from Bandos")
+@app_commands.describe(screenshot="Attach a screenshot of the drop")
+async def slash_bandos(interaction: discord.Interaction, screenshot: discord.Attachment):
+    await bandos_logic(interaction, screenshot)
+
+@bot.command(name="bandos")
+async def prefix_bandos(ctx):
+    if not ctx.message.attachments:
+        await ctx.send("❌ Please attach a screenshot with your command.")
+        return
+    await bandos_logic(ctx, ctx.message.attachments[0])
 
 # ---------------------------
 # 🔷 Review Buttons
@@ -163,10 +191,7 @@ class DropReviewButtons(discord.ui.View):
 async def on_ready():
     print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
     await tree.sync()
-    print(f"✅ Commands synced.")
+    print(f"✅ Slash commands synced.")
 
-# ---------------------------
-# 🔷 Run Bot
-# ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
 
