@@ -30,8 +30,8 @@ credentials_dict = {
 creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
 sheet_client = gspread.authorize(creds)
 
-sheet_name = os.getenv("GOOGLE_SHEET_NAME", "Bandos Drops")
-sheet = sheet_client.open(sheet_name).sheet1
+sheet_id = os.getenv("GOOGLE_SHEET_ID")
+sheet = sheet_client.open_by_key(sheet_id).sheet1
 
 # ---------------------------
 # 🔷 Discord Bot Setup
