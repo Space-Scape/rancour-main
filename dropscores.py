@@ -19,7 +19,7 @@ import os
 
 # -------- Load Google Sheet Credentials --------
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("google_creds.json", scope)
+creds = os.getenv()
 sheet_client = gspread.authorize(creds)
 sheet = sheet_client.open("Bandos Drops").sheet1
 
