@@ -4,7 +4,6 @@ from discord.ext import commands
 from discord.ui import Modal, TextInput, View, Button
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
 
 # Google Sheets Setup
 SCOPE = ["https://spreadsheets.google.com/feeds", 'https://www.googleapis.com/auth/drive']
