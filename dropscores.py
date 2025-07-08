@@ -57,6 +57,12 @@ boss_drops = {
     "Bandos": ["Bandos Chestplate", "Bandos Tassets", "Bandos Boots", "Godsword Shard 1", "Godsword Shard 2", "Godsword Shard 3", "Bandos Hilt"],
     "Zulrah": ["Tanzanite Fang", "Magic Fang", "Serpentine Visage", "Uncut Onyx"],
     "Corporeal Beast": ["Elysian Sigil", "Spectral Sigil", "Arcane Sigil", "Spirit Shield"]
+    "Barrows": ["Ahrim’s hood", "Ahrim’s robetop", "Ahrim’s robeskirt", "Ahrim’s staff",”Karil’s coif”, “Karil’s leathertop”, “Karil’s leatherskirt”, “Karil’s crossbow”, “Dharok’s helm”, “Dharok’s platebody”, Dharok’s platelegs”, Dharok’s greataxe”, “Guthan’s helm”, “guthan’s platebody”, “Guthan’s chainskirt”, “Guthan’s warspear”, “torag’s helm”, “Torag’s platebody”, “Torag’s platelegs”, “Torag’s hammer”, “Verac’s helm”, “Verac’s brassard”, “Verac’s plateskirt”, “Verac’s flail”],
+    "Scurrius": ["Scurrius’ spine", "Scurry"],
+    "Giant mole": ["Baby mole", "Mole skin", "Mole claw"],
+    "Deranged Archaeologist": ["Steel ring"],
+    "Dagannoth kings": ["Pet dagannoth supreme", "Archers ring", "Dragon axe", "Seercull", “Pet dagannoth rex”, “Berserker ring”, “Warrior ring”, “Pet dagannoth prime”, “Seers ring”, “Mud battlestaff”],
+
     # Add more bosses as needed
 }
 
