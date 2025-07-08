@@ -7,7 +7,7 @@ import gspread
 from datetime import datetime, timezone
 
 # ---------------------------
-# 🔷 Google Sheets Setup
+# 🔹 Google Sheets Setup
 # ---------------------------
 scope = [
     "https://spreadsheets.google.com/feeds",
@@ -35,7 +35,7 @@ sheet_id = os.getenv("GOOGLE_SHEET_ID")
 sheet = sheet_client.open_by_key(sheet_id).sheet1
 
 # ---------------------------
-# 🔷 Discord Bot Setup
+# 🔹 Discord Bot Setup
 # ---------------------------
 intents = discord.Intents.default()
 intents.members = True
@@ -43,7 +43,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
 # ---------------------------
-# 🔷 Channel IDs + Role
+# 🔹 Channel IDs + Role
 # ---------------------------
 SUBMISSION_CHANNEL_ID = 1391921214909579336
 REVIEW_CHANNEL_ID = 1391921254034047066
@@ -51,62 +51,71 @@ LOG_CHANNEL_ID = 1391921275332722749
 REQUIRED_ROLE_NAME = "Drop Manager"
 
 # ---------------------------
-# 🔷 Drop Submission Command
+# 🔹 Boss-Drop Mapping
 # ---------------------------
-class DropSelection(discord.ui.Select):
-    def __init__(self, user: discord.User, attachment: discord.Attachment):
+boss_drops = {
+    "Bandos": ["Bandos Chestplate", "Bandos Tassets", "Bandos Boots", "Godsword Shard 1", "Godsword Shard 2", "Godsword Shard 3", "Bandos Hilt"],
+    "Zulrah": ["Tanzanite Fang", "Magic Fang", "Serpentine Visage", "Uncut Onyx"],
+    "Corporeal Beast": ["Elysian Sigil", "Spectral Sigil", "Arcane Sigil", "Spirit Shield"]
+}
+
+# ---------------------------
+# 🔹 Dynamic Drop Submission
+# ---------------------------
+class BossSelect(discord.ui.Select):
+    def __init__(self, user, screenshot):
         self.user = user
-        self.attachment = attachment
+        self.screenshot = screenshot
+        options = [discord.SelectOption(label=boss) for boss in boss_drops.keys()]
+        super().__init__(placeholder="Select a boss", options=options)
 
-        options = [
-            discord.SelectOption(label="Bandos Chestplate"),
-            discord.SelectOption(label="Bandos Tassets"),
-            discord.SelectOption(label="Bandos Boots"),
-            discord.SelectOption(label="Godsword Shard 1"),
-            discord.SelectOption(label="Godsword Shard 2"),
-            discord.SelectOption(label="Godsword Shard 3"),
-            discord.SelectOption(label="Bandos Hilt")
-        ]
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.edit_message(view=DropView(self.user, self.screenshot, self.values[0]))
 
-        super().__init__(placeholder="Select your Bandos drop", min_values=1, max_values=1, options=options)
+
+class DropSelect(discord.ui.Select):
+    def __init__(self, user, screenshot, boss):
+        self.user = user
+        self.screenshot = screenshot
+        self.boss = boss
+        options = [discord.SelectOption(label=drop) for drop in boss_drops[boss]]
+        super().__init__(placeholder=f"Select a drop from {boss}", options=options)
 
     async def callback(self, interaction: discord.Interaction):
         review_channel = bot.get_channel(REVIEW_CHANNEL_ID)
-        if not review_channel:
-            await interaction.response.send_message("❌ Review channel not found.", ephemeral=True)
-            return
-
-        embed = discord.Embed(title="Bandos Drop Submission", colour=discord.Colour.blue())
+        embed = discord.Embed(title=f"{self.boss} Drop Submission", colour=discord.Colour.blurple())
         embed.add_field(name="Submitted For", value=f"{self.user.display_name} ({self.user.id})", inline=False)
         embed.add_field(name="Drop Received", value=self.values[0], inline=False)
-        embed.set_image(url=self.attachment.url)
+        embed.set_image(url=self.screenshot.url)
 
-        view = DropReviewButtons(self.user, self.values[0], self.attachment.url)
+        view = DropReviewButtons(self.user, self.values[0], self.screenshot.url)
         await review_channel.send(embed=embed, view=view)
-        await interaction.response.send_message("✅ Submission sent for review.", ephemeral=True)
+        await interaction.response.send_message("✅ Submitted for review.", ephemeral=True)
+
+
+class BossView(discord.ui.View):
+    def __init__(self, user, screenshot):
+        super().__init__()
+        self.add_item(BossSelect(user, screenshot))
+
 
 class DropView(discord.ui.View):
-    def __init__(self, user, attachment):
+    def __init__(self, user, screenshot, boss):
         super().__init__()
-        self.add_item(DropSelection(user, attachment))
+        self.add_item(DropSelect(user, screenshot, boss))
 
-@tree.command(name="bandos", description="Submit a drop from Bandos")
-@app_commands.describe(screenshot="Attach a screenshot of the drop")
-async def slash_bandos(interaction: discord.Interaction, screenshot: discord.Attachment):
+
+@tree.command(name="submitdrop", description="Submit a boss drop for review")
+@app_commands.describe(screenshot="Attach a screenshot of your drop")
+async def submit_drop(interaction: discord.Interaction, screenshot: discord.Attachment):
     if interaction.channel.id != SUBMISSION_CHANNEL_ID:
-        await interaction.response.send_message(
-            "❌ You can only use this command in the designated drop submission channel.",
-            ephemeral=True
-        )
+        await interaction.response.send_message("❌ This command can only be used in the drop submission channel.", ephemeral=True)
         return
 
-    view = DropView(interaction.user, screenshot)
-    await interaction.response.send_message(
-        "📝 Please select the drop received from the dropdown below.", view=view, ephemeral=True
-    )
+    await interaction.response.send_message("Select the boss you received the drop from:", view=BossView(interaction.user, screenshot), ephemeral=True)
 
 # ---------------------------
-# 🔷 Review Buttons
+# 🔹 Review Buttons
 # ---------------------------
 class DropReviewButtons(discord.ui.View):
     def __init__(self, user: discord.User, drop: str, image_url: str):
@@ -126,21 +135,17 @@ class DropReviewButtons(discord.ui.View):
 
         log_channel = bot.get_channel(LOG_CHANNEL_ID)
         if log_channel:
-            await log_channel.send(
-                f"✅ **Approved**: {self.drop} for {self.submitted_user.mention} by {interaction.user.mention}"
-            )
+            await log_channel.send(f"✅ **Approved**: {self.drop} for {self.submitted_user.mention} by {interaction.user.mention}")
 
-        # Append to sheet
         sheet.append_row([
-            interaction.user.display_name,                        # Approved by
-            self.submitted_user.display_name,                     # Submitted for
-            str(self.submitted_user.id),                          # Submitted for Discord ID
-            self.drop,                                            # Drop Received
-            self.image_url,                                       # Screenshot Link
-            datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")  # Date/Time
+            interaction.user.display_name,
+            self.submitted_user.display_name,
+            str(self.submitted_user.id),
+            self.drop,
+            self.image_url,
+            datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         ])
 
-        # Disable buttons
         for child in self.children:
             child.disabled = True
 
@@ -155,11 +160,8 @@ class DropReviewButtons(discord.ui.View):
 
         log_channel = bot.get_channel(LOG_CHANNEL_ID)
         if log_channel:
-            await log_channel.send(
-                f"❌ **Rejected**: {self.drop} for {self.submitted_user.mention} by {interaction.user.mention}"
-            )
+            await log_channel.send(f"❌ **Rejected**: {self.drop} for {self.submitted_user.mention} by {interaction.user.mention}")
 
-        # Disable buttons
         for child in self.children:
             child.disabled = True
 
@@ -167,7 +169,7 @@ class DropReviewButtons(discord.ui.View):
         await interaction.response.send_message("❌ Submission rejected.", ephemeral=True)
 
 # ---------------------------
-# 🔷 On Ready
+# 🔹 On Ready
 # ---------------------------
 @bot.event
 async def on_ready():
