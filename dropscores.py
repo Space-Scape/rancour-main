@@ -57,20 +57,62 @@ boss_drops = {
     "Bandos": ["Bandos Chestplate", "Bandos Tassets", "Bandos Boots", "Godsword Shard 1", "Godsword Shard 2", "Godsword Shard 3", "Bandos Hilt"],
     "Zulrah": ["Tanzanite Fang", "Magic Fang", "Serpentine Visage", "Uncut Onyx"],
     "Corporeal Beast": ["Elysian Sigil", "Spectral Sigil", "Arcane Sigil", "Spirit Shield"]
+    # Add more bosses as needed
 }
 
 # ---------------------------
 # 🔹 Dynamic Drop Submission
 # ---------------------------
 class BossSelect(discord.ui.Select):
-    def __init__(self, user, screenshot):
+    def __init__(self, user, screenshot, page, max_pages):
         self.user = user
         self.screenshot = screenshot
-        options = [discord.SelectOption(label=boss) for boss in boss_drops.keys()]
+        self.page = page
+        self.max_pages = max_pages
+        bosses = list(boss_drops.keys())
+        start = page * 25
+        end = start + 25
+        options = [discord.SelectOption(label=boss) for boss in bosses[start:end]]
         super().__init__(placeholder="Select a boss", options=options)
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.edit_message(view=DropView(self.user, self.screenshot, self.values[0]))
+
+
+class BossView(discord.ui.View):
+    def __init__(self, user, screenshot, page=0):
+        super().__init__()
+        self.user = user
+        self.screenshot = screenshot
+        self.page = page
+        max_pages = (len(boss_drops) - 1) // 25
+        self.add_item(BossSelect(user, screenshot, page, max_pages))
+        if page > 0:
+            self.add_item(PreviousPageButton(user, screenshot, page))
+        if page < max_pages:
+            self.add_item(NextPageButton(user, screenshot, page))
+
+
+class PreviousPageButton(discord.ui.Button):
+    def __init__(self, user, screenshot, page):
+        super().__init__(label="◀️ Previous", style=discord.ButtonStyle.secondary)
+        self.user = user
+        self.screenshot = screenshot
+        self.page = page
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.edit_message(view=BossView(self.user, self.screenshot, self.page - 1))
+
+
+class NextPageButton(discord.ui.Button):
+    def __init__(self, user, screenshot, page):
+        super().__init__(label="Next ▶️", style=discord.ButtonStyle.secondary)
+        self.user = user
+        self.screenshot = screenshot
+        self.page = page
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.edit_message(view=BossView(self.user, self.screenshot, self.page + 1))
 
 
 class DropSelect(discord.ui.Select):
@@ -91,12 +133,6 @@ class DropSelect(discord.ui.Select):
         view = DropReviewButtons(self.user, self.values[0], self.screenshot.url)
         await review_channel.send(embed=embed, view=view)
         await interaction.response.send_message("✅ Submitted for review.", ephemeral=True)
-
-
-class BossView(discord.ui.View):
-    def __init__(self, user, screenshot):
-        super().__init__()
-        self.add_item(BossSelect(user, screenshot))
 
 
 class DropView(discord.ui.View):
@@ -135,7 +171,12 @@ class DropReviewButtons(discord.ui.View):
 
         log_channel = bot.get_channel(LOG_CHANNEL_ID)
         if log_channel:
-            await log_channel.send(f"✅ **Approved**: {self.drop} for {self.submitted_user.mention} by {interaction.user.mention}")
+            embed = discord.Embed(title="Drop Approved", colour=discord.Colour.green())
+            embed.add_field(name="Approved By", value=interaction.user.display_name, inline=False)
+            embed.add_field(name="Drop For", value=self.submitted_user.mention, inline=False)
+            embed.add_field(name="Drop", value=self.drop, inline=False)
+            embed.set_image(url=self.image_url)
+            await log_channel.send(embed=embed)
 
         sheet.append_row([
             interaction.user.display_name,
@@ -160,7 +201,12 @@ class DropReviewButtons(discord.ui.View):
 
         log_channel = bot.get_channel(LOG_CHANNEL_ID)
         if log_channel:
-            await log_channel.send(f"❌ **Rejected**: {self.drop} for {self.submitted_user.mention} by {interaction.user.mention}")
+            embed = discord.Embed(title="Drop Rejected", colour=discord.Colour.red())
+            embed.add_field(name="Rejected By", value=interaction.user.display_name, inline=False)
+            embed.add_field(name="Drop For", value=self.submitted_user.mention, inline=False)
+            embed.add_field(name="Drop", value=self.drop, inline=False)
+            embed.set_image(url=self.image_url)
+            await log_channel.send(embed=embed)
 
         for child in self.children:
             child.disabled = True
