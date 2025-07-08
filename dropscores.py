@@ -4,6 +4,7 @@ from discord.ext import commands
 from discord import app_commands
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
+from datetime import datetime
 
 # ---------------------------
 # 🔷 Google Sheets Setup
@@ -37,41 +38,17 @@ sheet = sheet_client.open_by_key(sheet_id).sheet1
 # 🔷 Discord Bot Setup
 # ---------------------------
 intents = discord.Intents.default()
+intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
-channel_config = {
-    "submission": None,
-    "review": None,
-    "log": None
-}
-
+# ---------------------------
+# 🔷 Channel IDs + Role
+# ---------------------------
+SUBMISSION_CHANNEL_ID = 1391921214909579336
+REVIEW_CHANNEL_ID = 1391921254034047066
+LOG_CHANNEL_ID = 1391921275332722749
 REQUIRED_ROLE_NAME = "Drop Manager"
-
-def user_has_role(user: discord.Member, role_name: str) -> bool:
-    return any(role.name == role_name for role in user.roles)
-
-# ---------------------------
-# 🔷 Channel Set Commands
-# ---------------------------
-async def set_channel(interaction: discord.Interaction, channel_type: str):
-    if not user_has_role(interaction.user, REQUIRED_ROLE_NAME):
-        await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
-        return
-    channel_config[channel_type] = interaction.channel.id
-    await interaction.response.send_message(f"✅ This channel set as the **{channel_type}** channel.", ephemeral=True)
-
-@tree.command(name="setsubmissionchannel", description="Set the drop submission channel")
-async def slash_set_submission(interaction: discord.Interaction):
-    await set_channel(interaction, "submission")
-
-@tree.command(name="setreviewchannel", description="Set the drop review channel")
-async def slash_set_review(interaction: discord.Interaction):
-    await set_channel(interaction, "review")
-
-@tree.command(name="setlogchannel", description="Set the drop log channel")
-async def slash_set_log(interaction: discord.Interaction):
-    await set_channel(interaction, "log")
 
 # ---------------------------
 # 🔷 Drop Submission Command
@@ -94,14 +71,14 @@ class DropSelection(discord.ui.Select):
         super().__init__(placeholder="Select your Bandos drop", min_values=1, max_values=1, options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        review_channel = bot.get_channel(channel_config["review"])
+        review_channel = bot.get_channel(REVIEW_CHANNEL_ID)
         if not review_channel:
-            await interaction.response.send_message("❌ Review channel not set.", ephemeral=True)
+            await interaction.response.send_message("❌ Review channel not found.", ephemeral=True)
             return
 
         embed = discord.Embed(title="Bandos Drop Submission", colour=discord.Colour.blue())
-        embed.add_field(name="User", value=f"{self.user.name} ({self.user.id})", inline=False)
-        embed.add_field(name="Drop", value=self.values[0], inline=False)
+        embed.add_field(name="Submitted For", value=f"{self.user.display_name} ({self.user.id})", inline=False)
+        embed.add_field(name="Drop Received", value=self.values[0], inline=False)
         embed.set_image(url=self.attachment.url)
 
         view = DropReviewButtons(self.user, self.values[0], self.attachment.url)
@@ -116,12 +93,17 @@ class DropView(discord.ui.View):
 @tree.command(name="bandos", description="Submit a drop from Bandos")
 @app_commands.describe(screenshot="Attach a screenshot of the drop")
 async def slash_bandos(interaction: discord.Interaction, screenshot: discord.Attachment):
-    if channel_config["submission"] != interaction.channel.id:
-        await interaction.response.send_message("❌ You can only use this command in the designated drop submission channel.", ephemeral=True)
+    if interaction.channel.id != SUBMISSION_CHANNEL_ID:
+        await interaction.response.send_message(
+            "❌ You can only use this command in the designated drop submission channel.",
+            ephemeral=True
+        )
         return
 
     view = DropView(interaction.user, screenshot)
-    await interaction.response.send_message("📝 Please select the drop received from the dropdown below.", view=view, ephemeral=True)
+    await interaction.response.send_message(
+        "📝 Please select the drop received from the dropdown below.", view=view, ephemeral=True
+    )
 
 # ---------------------------
 # 🔷 Review Buttons
@@ -129,28 +111,45 @@ async def slash_bandos(interaction: discord.Interaction, screenshot: discord.Att
 class DropReviewButtons(discord.ui.View):
     def __init__(self, user: discord.User, drop: str, image_url: str):
         super().__init__(timeout=None)
-        self.user = user
+        self.submitted_user = user
         self.drop = drop
         self.image_url = image_url
 
-@discord.ui.button(label="Approve ✅", style=discord.ButtonStyle.green)
-async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
-    log_channel = bot.get_channel(channel_config["log"])
-    if log_channel:
-        await log_channel.send(f"✅ **Approved**: {self.drop} for {self.user.mention}")
-    username = (
-        f"{self.user.name}#{self.user.discriminator}"
-        if self.user.discriminator != "0" else self.user.name
-    )
-    sheet.append_row([username, str(self.user.id), self.drop, self.image_url])
-    await interaction.response.send_message("Approved and logged.", ephemeral=True)
+    def has_drop_manager_role(self, member: discord.Member) -> bool:
+        return any(role.name == REQUIRED_ROLE_NAME for role in member.roles)
+
+    @discord.ui.button(label="Approve ✅", style=discord.ButtonStyle.green)
+    async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self.has_drop_manager_role(interaction.user):
+            await interaction.response.send_message("❌ You do not have permission to approve.", ephemeral=True)
+            return
+
+        log_channel = bot.get_channel(LOG_CHANNEL_ID)
+        if log_channel:
+            await log_channel.send(f"✅ **Approved**: {self.drop} for {self.submitted_user.mention} by {interaction.user.mention}")
+
+        # Append to sheet
+        sheet.append_row([
+            self.submitted_user.display_name,                # Submitted For
+            str(self.submitted_user.id),                    # Submitted For Discord ID
+            self.drop,                                      # Drop Received
+            self.image_url,                                 # Screenshot Link
+            interaction.user.display_name,                  # Approved By
+            datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S") # Date/Time
+        ])
+        await interaction.response.send_message("✅ Approved and logged.", ephemeral=True)
 
     @discord.ui.button(label="Reject ❌", style=discord.ButtonStyle.red)
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
-        log_channel = bot.get_channel(channel_config["log"])
+        if not self.has_drop_manager_role(interaction.user):
+            await interaction.response.send_message("❌ You do not have permission to reject.", ephemeral=True)
+            return
+
+        log_channel = bot.get_channel(LOG_CHANNEL_ID)
         if log_channel:
-            await log_channel.send(f"❌ **Rejected**: {self.drop} for {self.user.mention}")
-        await interaction.response.send_message("Submission rejected.", ephemeral=True)
+            await log_channel.send(f"❌ **Rejected**: {self.drop} for {self.submitted_user.mention} by {interaction.user.mention}")
+
+        await interaction.response.send_message("❌ Submission rejected.", ephemeral=True)
 
 # ---------------------------
 # 🔷 On Ready
@@ -162,5 +161,6 @@ async def on_ready():
     print(f"✅ Synced {len(synced)} slash commands.")
 
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
 
 
