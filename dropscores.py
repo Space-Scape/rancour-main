@@ -126,17 +126,20 @@ class DropReviewButtons(discord.ui.View):
 
         log_channel = bot.get_channel(LOG_CHANNEL_ID)
         if log_channel:
-            await log_channel.send(f"✅ **Approved**: {self.drop} for {self.submitted_user.mention} by {interaction.user.mention}")
+            await log_channel.send(
+                f"✅ **Approved**: {self.drop} for {self.submitted_user.mention} by {interaction.user.mention}"
+            )
 
-        # Append to sheet
+        # Append correct row
         sheet.append_row([
-            self.submitted_user.display_name,                # Submitted For
-            str(self.submitted_user.id),                    # Submitted For Discord ID
-            self.drop,                                      # Drop Received
-            self.image_url,                                 # Screenshot Link
-            interaction.user.display_name,                  # Approved By
-            datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S") # Date/Time
+            interaction.user.display_name,                        # Approved by
+            self.submitted_user.display_name,                     # Submitted for
+            str(self.submitted_user.id),                          # Submitted for Discord ID
+            self.drop,                                            # Drop Received
+            self.image_url,                                       # Screenshot Link
+            datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")      # Date/Time
         ])
+
         await interaction.response.send_message("✅ Approved and logged.", ephemeral=True)
 
     @discord.ui.button(label="Reject ❌", style=discord.ButtonStyle.red)
@@ -147,7 +150,9 @@ class DropReviewButtons(discord.ui.View):
 
         log_channel = bot.get_channel(LOG_CHANNEL_ID)
         if log_channel:
-            await log_channel.send(f"❌ **Rejected**: {self.drop} for {self.submitted_user.mention} by {interaction.user.mention}")
+            await log_channel.send(
+                f"❌ **Rejected**: {self.drop} for {self.submitted_user.mention} by {interaction.user.mention}"
+            )
 
         await interaction.response.send_message("❌ Submission rejected.", ephemeral=True)
 
