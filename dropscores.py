@@ -54,14 +54,32 @@ REQUIRED_ROLE_NAME = "Drop Manager"
 # 🔹 Boss-Drop Mapping
 # ---------------------------
 boss_drops = {
-    "Bandos": ["Bandos Chestplate", "Bandos Tassets", "Bandos Boots", "Godsword Shard 1", "Godsword Shard 2", "Godsword Shard 3", "Bandos Hilt"],
-    "Zulrah": ["Tanzanite Fang", "Magic Fang", "Serpentine Visage", "Uncut Onyx"],
-    "Corporeal Beast": ["Elysian Sigil", "Spectral Sigil", "Arcane Sigil", "Spirit Shield"]
-    "Barrows": ["Ahrim’s hood", "Ahrim’s robetop", "Ahrim’s robeskirt", "Ahrim’s staff",”Karil’s coif”, “Karil’s leathertop”, “Karil’s leatherskirt”, “Karil’s crossbow”, “Dharok’s helm”, “Dharok’s platebody”, Dharok’s platelegs”, Dharok’s greataxe”, “Guthan’s helm”, “guthan’s platebody”, “Guthan’s chainskirt”, “Guthan’s warspear”, “torag’s helm”, “Torag’s platebody”, “Torag’s platelegs”, “Torag’s hammer”, “Verac’s helm”, “Verac’s brassard”, “Verac’s plateskirt”, “Verac’s flail”],
-    "Scurrius": ["Scurrius’ spine", "Scurry"],
-    "Giant mole": ["Baby mole", "Mole skin", "Mole claw"],
-    "Deranged Archaeologist": ["Steel ring"],
-    "Dagannoth kings": ["Pet dagannoth supreme", "Archers ring", "Dragon axe", "Seercull", “Pet dagannoth rex”, “Berserker ring”, “Warrior ring”, “Pet dagannoth prime”, “Seers ring”, “Mud battlestaff”],
+"Abyssal Sire": ["Abyssal orphan", "Unsired", "Abyssal head", "Bludgeon spine", "Bludgeon claw", "Bludgeon axon","Jar of miasma","Abyssal Dagger","Abyssal whip"],
+"Alchemical Hydra": ["Ikkle hydra", "Hydra’s claw", "Hydra tail", "Hydra leather", "Hydra’s fang", "Hydra’s eye", "Hydra’s heart", "Dragon knife", "Dragon thrownaxe", "Jar of chemicals", "Alchemical hydra heads"],
+"Amoxliatl": ["Moxi", "Glacial temotli", "Pendant of ates (inert)", "Frozen tear"],
+"Araxxor": ["Noxious pommel", "Noxious Point", "Noxious blade", "Araxyte fang’’, Araxyte head", "Jar of venom", Coagulated venom", "Nid"],
+
+"Barrows": ["Ahrim’s hood", "Ahrim’s robetop", "Ahrim’s robeskirt", "Ahrim’s staff","Karil’s coif", "Karil’s leathertop", "Karil’s leatherskirt", "Karil’s crossbow", "Dharok’s helm", "Dharok’s platebody", "Dharok’s platelegs", "Dharok’s greataxe", "Guthan’s helm", "Guthan’s platebody", "Guthan’s chainskirt", "Guthan’s warspear", "torag’s helm", "Torag’s platebody", "Torag’s platelegs", "Torag’s hammer", "Verac’s helm", "Verac’s brassard", "Verac’s plateskirt", "Verac’s flail"],
+
+"Bryophyta": ["Bryophyta’s essence"],
+
+"Callisto and Artio": ["Callisto cub", "Tyrannical ring", "Dragon pickaxe", "Dragon 2h sword", "Claws of callisto", "Voidwaker hilt"],
+"Cerberus": ["Hellpuppy", "Eternal crystal", "Pegasian crystal", "Primordial crystal", "Jar of souls", "Smouldering stone", "Key master teleport"],
+"Chaos Elemental": ["Pet chaos elemental", "Dragon pickaxe", "Dragon 2h sword"],
+
+"Chaos Fanatic": ["Pet chaos elemental", "Odium shard 1", "Malediction shard 1"],
+
+"Chambers of xeric": ["Dexterous prayer scroll", "Arcane prayer scroll", "Twisted buckler", "Dragon hunter crossbow", "Dinh’s bulwark", "Ancestral hat", "Ancestral robe top", "Ancestral robe bottom", "Dragon claws", "Elder maul", "Kodai insignia", "Twisted bow", "Olmlet", "Twisted ancestral colour kit", "Metamorphic dust"],
+
+"Commander Zilyana": ["Pet zilyana", "Armadyl crossbow", "Saradomin hilt", "Saradomin sword", "Saradomin’s light", "Godsword Shard 1", "Godsword Shard 2", "Godsword Shard 3"],
+
+"Corporeal Beast": ["Elysian Sigil", "Spectral Sigil", "Arcane Sigil", "Spirit Shield", "Pet dark core", "Holy elixir", "Jar of spirits"],
+
+
+"Crazy Archaeologist": ["Odium Shard 2", "Malediction shard 2", "Fedora"],
+
+"Dagannoth kings": ["Pet dagannoth supreme", "Archers ring", "Dragon axe", "Seercull", "Pet dagannoth rex", "Berserker ring", "Warrior ring", "Pet dagannoth prime", "Seers ring", "Mud battlestaff"],
+
 
     # Add more bosses as needed
 }
