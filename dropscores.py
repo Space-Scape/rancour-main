@@ -133,13 +133,17 @@ class DropReviewButtons(discord.ui.View):
         self.drop = drop
         self.image_url = image_url
 
-    @discord.ui.button(label="Approve ✅", style=discord.ButtonStyle.green)
-    async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
-        log_channel = bot.get_channel(channel_config["log"])
-        if log_channel:
-            await log_channel.send(f"✅ **Approved**: {self.drop} for {self.user.mention}")
-        sheet.append_row([str(self.user.id), self.drop, self.image_url])
-        await interaction.response.send_message("Approved and logged.", ephemeral=True)
+@discord.ui.button(label="Approve ✅", style=discord.ButtonStyle.green)
+async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
+    log_channel = bot.get_channel(channel_config["log"])
+    if log_channel:
+        await log_channel.send(f"✅ **Approved**: {self.drop} for {self.user.mention}")
+    username = (
+        f"{self.user.name}#{self.user.discriminator}"
+        if self.user.discriminator != "0" else self.user.name
+    )
+    sheet.append_row([username, str(self.user.id), self.drop, self.image_url])
+    await interaction.response.send_message("Approved and logged.", ephemeral=True)
 
     @discord.ui.button(label="Reject ❌", style=discord.ButtonStyle.red)
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
