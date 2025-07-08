@@ -203,7 +203,6 @@ class NextPageButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.edit_message(view=BossView(self.user, self.screenshot, self.page + 1))
 
-
 class DropSelect(discord.ui.Select):
     def __init__(self, user, screenshot, boss):
         self.user = user
@@ -221,6 +220,9 @@ class DropSelect(discord.ui.Select):
 
         view = DropReviewButtons(self.user, self.values[0], self.screenshot.url)
         await review_channel.send(embed=embed, view=view)
+
+        # Remove the dropdown after submission
+        await interaction.message.delete()
         await interaction.response.send_message("✅ Submitted for review.", ephemeral=True)
 
 
