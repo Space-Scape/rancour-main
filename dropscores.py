@@ -222,9 +222,10 @@ class DropSelect(discord.ui.Select):
         await review_channel.send(embed=embed, view=view)
 
         # Remove the dropdown after submission
-        await interaction.message.delete()
-        await interaction.response.send_message("✅ Submitted for review.", ephemeral=True)
-
+for child in self.view.children:
+    child.disabled = True
+await interaction.message.edit(view=self.view)
+await interaction.response.send_message("✅ Submitted for review.", ephemeral=True)
 
 class DropView(discord.ui.View):
     def __init__(self, user, screenshot, boss):
