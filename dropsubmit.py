@@ -231,14 +231,15 @@ class DropView(discord.ui.View):
         self.add_item(DropSelect(submitting_user, target_user, screenshot, boss))
 
 # ---------------------------
-# 🔹 Review Buttons
+# 🔹 DropReviewButtons (fixed to accept submitting_user)
 # ---------------------------
 class DropReviewButtons(discord.ui.View):
-    def __init__(self, user: discord.User, drop: str, image_url: str):
+    def __init__(self, submitted_user: discord.User, drop: str, image_url: str, submitting_user: discord.User):
         super().__init__(timeout=None)
-        self.submitted_user = user
+        self.submitted_user = submitted_user      # who the drop is for
         self.drop = drop
         self.image_url = image_url
+        self.submitting_user = submitting_user    # who submitted the drop
 
     def has_drop_manager_role(self, member: discord.Member) -> bool:
         return any(role.name == REQUIRED_ROLE_NAME for role in member.roles)
@@ -255,6 +256,7 @@ class DropReviewButtons(discord.ui.View):
             embed.add_field(name="Approved By", value=interaction.user.display_name, inline=False)
             embed.add_field(name="Drop For", value=self.submitted_user.mention, inline=False)
             embed.add_field(name="Drop", value=self.drop, inline=False)
+            embed.add_field(name="Submitted By", value=self.submitting_user.mention, inline=False)
             embed.set_image(url=self.image_url)
             await log_channel.send(embed=embed)
 
@@ -285,6 +287,7 @@ class DropReviewButtons(discord.ui.View):
             embed.add_field(name="Rejected By", value=interaction.user.display_name, inline=False)
             embed.add_field(name="Drop For", value=self.submitted_user.mention, inline=False)
             embed.add_field(name="Drop", value=self.drop, inline=False)
+            embed.add_field(name="Submitted By", value=self.submitting_user.mention, inline=False)
             embed.set_image(url=self.image_url)
             await log_channel.send(embed=embed)
 
