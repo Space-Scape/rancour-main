@@ -127,7 +127,6 @@ async def submit_drop(interaction: discord.Interaction, screenshot: discord.Atta
     # Use specified user or fallback to the command sender
     target_user = submitted_for or interaction.user
 
-    # We'll pass screenshot, submitting user, and target user in views
     await interaction.response.send_message(
         content=f"Submitting drop for {target_user.display_name}. Select the boss you received the drop from:",
         view=BossView(interaction.user, target_user, screenshot),
@@ -144,13 +143,8 @@ class BossSelect(discord.ui.Select):
 
         bosses = list(boss_drops.keys())
         max_pages = (len(bosses) - 1) // 25
-        # Clamp page
-        if page < 0:
-            page = 0
-        elif page > max_pages:
-            page = max_pages
+        page = max(0, min(page, max_pages))
 
-        # Slice bosses for this page
         page_bosses = bosses[page * 25: (page + 1) * 25]
         options = [discord.SelectOption(label=boss) for boss in page_bosses]
 
@@ -158,7 +152,6 @@ class BossSelect(discord.ui.Select):
 
     async def callback(self, interaction: discord.Interaction):
         boss = self.values[0]
-        # Move to drop selection for that boss
         await interaction.response.edit_message(
             content=f"Selected boss: {boss}. Now select the drop you received.",
             view=DropView(self.submitting_user, self.target_user, self.screenshot, boss)
@@ -167,11 +160,6 @@ class BossSelect(discord.ui.Select):
 class BossView(discord.ui.View):
     def __init__(self, submitting_user, target_user, screenshot, page=0):
         super().__init__()
-        self.submitting_user = submitting_user
-        self.target_user = target_user
-        self.screenshot = screenshot
-        self.page = page
-
         self.add_item(BossSelect(submitting_user, target_user, screenshot, page))
         if page > 0:
             self.add_item(PreviousPageButton(submitting_user, target_user, screenshot, page))
@@ -201,6 +189,18 @@ class NextPageButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.edit_message(view=BossView(self.submitting_user, self.target_user, self.screenshot, self.page + 1))
 
+# ---------------------------
+# 🔹 Utility: Get team role mention
+# ---------------------------
+def get_team_role_mention(member: discord.Member) -> str:
+    for role in member.roles:
+        if role.name.startswith("Team "):
+            return role.mention
+    return "*No team*"
+
+# ---------------------------
+# 🔹 Drop Select
+# ---------------------------
 class DropSelect(discord.ui.Select):
     def __init__(self, submitting_user, target_user, screenshot, boss):
         self.submitting_user = submitting_user
@@ -223,7 +223,11 @@ class DropSelect(discord.ui.Select):
         await interaction.response.edit_message(content="✅ Submitted for review.", embed=embed, view=None)
 
         if review_channel:
-            await review_channel.send(embed=embed, view=DropReviewButtons(self.target_user, drop_name, self.screenshot.url, self.submitting_user))
+            team_mention = get_team_role_mention(self.target_user)
+            await review_channel.send(
+                embed=embed,
+                view=DropReviewButtons(self.target_user, drop_name, self.screenshot.url, self.submitting_user, team_mention)
+            )
 
 class DropView(discord.ui.View):
     def __init__(self, submitting_user, target_user, screenshot, boss):
@@ -231,15 +235,16 @@ class DropView(discord.ui.View):
         self.add_item(DropSelect(submitting_user, target_user, screenshot, boss))
 
 # ---------------------------
-# 🔹 DropReviewButtons (fixed to accept submitting_user)
+# 🔹 DropReviewButtons
 # ---------------------------
 class DropReviewButtons(discord.ui.View):
-    def __init__(self, submitted_user: discord.User, drop: str, image_url: str, submitting_user: discord.User):
+    def __init__(self, submitted_user: discord.Member, drop: str, image_url: str, submitting_user: discord.Member, team_mention: str):
         super().__init__(timeout=None)
-        self.submitted_user = submitted_user      # who the drop is for
+        self.submitted_user = submitted_user
         self.drop = drop
         self.image_url = image_url
-        self.submitting_user = submitting_user    # who submitted the drop
+        self.submitting_user = submitting_user
+        self.team_mention = team_mention
 
     def has_drop_manager_role(self, member: discord.Member) -> bool:
         return any(role.name == REQUIRED_ROLE_NAME for role in member.roles)
@@ -255,6 +260,7 @@ class DropReviewButtons(discord.ui.View):
             embed = discord.Embed(title="Drop Approved", colour=discord.Colour.green())
             embed.add_field(name="Approved By", value=interaction.user.display_name, inline=False)
             embed.add_field(name="Drop For", value=self.submitted_user.mention, inline=False)
+            embed.add_field(name="Team", value=self.team_mention, inline=False)
             embed.add_field(name="Drop", value=self.drop, inline=False)
             embed.add_field(name="Submitted By", value=self.submitting_user.mention, inline=False)
             embed.set_image(url=self.image_url)
@@ -300,25 +306,23 @@ class RejectReasonModal(discord.ui.Modal, title="Reject Submission"):
         self.add_item(self.reason)
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Log to channel
         log_channel = bot.get_channel(LOG_CHANNEL_ID)
         if log_channel:
             embed = discord.Embed(title="Drop Rejected", colour=discord.Colour.red())
             embed.add_field(name="Rejected By", value=interaction.user.display_name, inline=False)
             embed.add_field(name="Drop For", value=self.parent_view.submitted_user.mention, inline=False)
+            embed.add_field(name="Team", value=self.parent_view.team_mention, inline=False)
             embed.add_field(name="Drop", value=self.parent_view.drop, inline=False)
             embed.add_field(name="Submitted By", value=self.parent_view.submitting_user.mention, inline=False)
             embed.add_field(name="Reason", value=self.reason.value, inline=False)
             embed.set_image(url=self.parent_view.image_url)
             await log_channel.send(embed=embed)
 
-        # Disable buttons
         for child in self.parent_view.children:
             child.disabled = True
         await self.message.edit(view=self.parent_view)
 
         await interaction.response.send_message("❌ Submission rejected with reason logged.", ephemeral=True)
-
 
 # ---------------------------
 # 🔹 On Ready
@@ -330,4 +334,3 @@ async def on_ready():
     print(f"✅ Synced {len(synced)} slash commands.")
 
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
