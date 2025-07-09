@@ -227,13 +227,13 @@ class DropSelect(discord.ui.Select):
         embed.add_field(name="Submitted For", value=f"{self.user.display_name} ({self.user.id})", inline=False)
         embed.add_field(name="Drop Received", value=self.values[0], inline=False)
         embed.set_image(url=self.screenshot.url)
-
         view = DropReviewButtons(self.user, self.values[0], self.screenshot.url)
-        await review_channel.send(embed=embed, view=view)
 
-        # Remove the dropdown after submission
-        await interaction.response.send_message("✅ Submitted for review.", ephemeral=True)
-        await interaction.message.delete()
+        # Edit the original message to reflect the submission
+        await interaction.response.edit_message(content="✅ Submitted for review.", embed=embed, view=view)
+
+        # Send the embed and view to the review channel separately
+        await review_channel.send(embed=embed, view=view)
 
 class DropView(discord.ui.View):
     def __init__(self, user, screenshot, boss):
