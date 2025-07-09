@@ -150,11 +150,11 @@ boss_drops = {
 
 "Varlamore": ["Sulphur Blades"],
 
-"Misthalin/wilderness": ["Zombie helm", "Zombie axe", “Dragon limbs”, “Dragon metal lump”],
+"Misthalin/wilderness": ["Zombie helm", "Zombie axe", "Dragon limbs", "Dragon metal lump"],
 
-"Kourend/Kebos": ["Pyromancer garb", “Pyromancer robe”, “Pyromancer boots”, “Tome fo fire (empty)”, “Phoenix”, “Dragon axe”, "Pyromancer hood", "Bruma torch", “Golden tench”, "Warm gloves"],
+"Kourend/Kebos": ["Pyromancer garb", "Pyromancer robe", "Pyromancer boots", "Tome fo fire (empty)", "Phoenix", "Dragon axe", "Pyromancer hood", "Bruma torch", "Golden tench", "Warm gloves"],
 
-"Desert": ["KQ head", "Pharos scepter", "500 toa kit", "Abyssal needle”, “Abyssal lantern”, “Abyssal red dye”, “Abyssal green dye”, “Abyssal blue dye"],
+"Desert": ["KQ head", "Pharos scepter", "500 toa kit", "Abyssal needle", "Abyssal lantern", "Abyssal red dye", "Abyssal green dye", "Abyssal blue dye"],
 
 "Asgarnia": ["Dragon boots"],
 
