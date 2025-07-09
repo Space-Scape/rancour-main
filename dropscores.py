@@ -231,9 +231,6 @@ class DropSelect(discord.ui.Select):
         # Edit the original message to reflect the submission
         await interaction.response.edit_message(content="✅ Submitted for review.", embed=embed, view=view)
 
-        # Send the embed and view to the review channel separately
-        await review_channel.send(embed=embed, view=view)
-
 class DropView(discord.ui.View):
     def __init__(self, user, screenshot, boss):
         super().__init__()
