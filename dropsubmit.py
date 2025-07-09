@@ -281,25 +281,8 @@ class DropReviewButtons(discord.ui.View):
             await interaction.response.send_message("❌ You do not have permission to reject.", ephemeral=True)
             return
 
-    modal = RejectReasonModal(self, interaction)
-    await interaction.response.send_modal(modal)
-
-
-        log_channel = bot.get_channel(LOG_CHANNEL_ID)
-        if log_channel:
-            embed = discord.Embed(title="Drop Rejected", colour=discord.Colour.red())
-            embed.add_field(name="Rejected By", value=interaction.user.display_name, inline=False)
-            embed.add_field(name="Drop For", value=self.submitted_user.mention, inline=False)
-            embed.add_field(name="Drop", value=self.drop, inline=False)
-            embed.add_field(name="Submitted By", value=self.submitting_user.mention, inline=False)
-            embed.set_image(url=self.image_url)
-            await log_channel.send(embed=embed)
-
-        for child in self.children:
-            child.disabled = True
-
-        await interaction.message.edit(view=self)
-        await interaction.response.send_message("❌ Submission rejected.", ephemeral=True)
+        modal = RejectReasonModal(self, interaction)
+        await interaction.response.send_modal(modal)
 
 class RejectReasonModal(discord.ui.Modal, title="Reject Submission"):
     def __init__(self, parent_view: discord.ui.View, interaction: discord.Interaction):
