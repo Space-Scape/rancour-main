@@ -227,7 +227,6 @@ class DropSelect(discord.ui.Select):
         embed.add_field(name="Submitted For", value=f"{self.user.display_name} ({self.user.id})", inline=False)
         embed.add_field(name="Drop Received", value=self.values[0], inline=False)
         embed.set_image(url=self.screenshot.url)
-        view = DropReviewButtons(self.user, self.values[0], self.screenshot.url)
 
         # Edit the original message to reflect the submission
         await interaction.response.edit_message(content="✅ Submitted for review.", embed=embed, view=view)
