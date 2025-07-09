@@ -229,7 +229,7 @@ class DropSelect(discord.ui.Select):
         embed.set_image(url=self.screenshot.url)
 
         # Edit the original message to reflect the submission
-        await interaction.response.edit_message(content="✅ Submitted for review.", embed=embed, view=view)
+        await interaction.response.edit_message(content="✅ Submitted for review.", embed=embed)
 
 class DropView(discord.ui.View):
     def __init__(self, user, screenshot, boss):
