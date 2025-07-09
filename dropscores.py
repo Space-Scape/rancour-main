@@ -134,7 +134,7 @@ boss_drops = {
 
 "Tombs of Amascut": ["Masori mask", "Masori body", "Masori chaps", "Lightbearer", "Osmumten's fang", "Elidinis' ward", "Tumeken's shadow"],
 
-"Tormented Demons": [“Tormented synapse”, “Burning claw”],
+"Tormented Demons": ["Tormented synapse", "Burning claw"],
 
 "Vardorvis": ["Butch", "Virtus mask", "Virtus robe top", "Virtus robe bottom", "Chromium ingot", "Awakener's orb", "Ultor vestige", "Executioner's axe head", "Blood quartz", "Strangled tablet"],
 
@@ -160,7 +160,7 @@ boss_drops = {
 
 "Morytania": ["Zealot’s helm", "Zealot’s robe top", "Zealot’s robe bottom", "Zealot’s boots"],
 
-"Tirannwn/fremenik": ["Brine saber"]
+"Tirannwn/fremennik": ["Brine saber"]
 }
 
 # ---------------------------
