@@ -281,6 +281,10 @@ class DropReviewButtons(discord.ui.View):
             await interaction.response.send_message("❌ You do not have permission to reject.", ephemeral=True)
             return
 
+    modal = RejectReasonModal(self, interaction)
+    await interaction.response.send_modal(modal)
+
+
         log_channel = bot.get_channel(LOG_CHANNEL_ID)
         if log_channel:
             embed = discord.Embed(title="Drop Rejected", colour=discord.Colour.red())
@@ -296,6 +300,42 @@ class DropReviewButtons(discord.ui.View):
 
         await interaction.message.edit(view=self)
         await interaction.response.send_message("❌ Submission rejected.", ephemeral=True)
+
+class RejectReasonModal(discord.ui.Modal, title="Reject Submission"):
+    def __init__(self, parent_view: discord.ui.View, interaction: discord.Interaction):
+        super().__init__()
+        self.parent_view = parent_view
+        self.message = interaction.message
+
+        self.reason = discord.ui.TextInput(
+            label="Reason for rejection",
+            style=discord.TextStyle.paragraph,
+            placeholder="Enter the reason why this drop is being rejected.",
+            required=True,
+            max_length=500
+        )
+        self.add_item(self.reason)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # Log to channel
+        log_channel = bot.get_channel(LOG_CHANNEL_ID)
+        if log_channel:
+            embed = discord.Embed(title="Drop Rejected", colour=discord.Colour.red())
+            embed.add_field(name="Rejected By", value=interaction.user.display_name, inline=False)
+            embed.add_field(name="Drop For", value=self.parent_view.submitted_user.mention, inline=False)
+            embed.add_field(name="Drop", value=self.parent_view.drop, inline=False)
+            embed.add_field(name="Submitted By", value=self.parent_view.submitting_user.mention, inline=False)
+            embed.add_field(name="Reason", value=self.reason.value, inline=False)
+            embed.set_image(url=self.parent_view.image_url)
+            await log_channel.send(embed=embed)
+
+        # Disable buttons
+        for child in self.parent_view.children:
+            child.disabled = True
+        await self.message.edit(view=self.parent_view)
+
+        await interaction.response.send_message("❌ Submission rejected with reason logged.", ephemeral=True)
+
 
 # ---------------------------
 # 🔹 On Ready
