@@ -51,9 +51,10 @@ LOG_CHANNEL_ID = 1391921275332722749
 REQUIRED_ROLE_NAME = "Drop Manager"
 
 # ---------------------------
-# 🔹 Boss-Drop Mapping 
+# 🔹 Boss-Drop Mapping
 # ---------------------------
-boss_drops = {"Abyssal Sire": ["Abyssal orphan", "Unsired", "Abyssal head", "Bludgeon spine", "Bludgeon claw", "Bludgeon axon", "Jar of miasma", "Abyssal dagger", "Abyssal whip"],
+boss_drops = {
+"Abyssal Sire": ["Abyssal orphan", "Unsired", "Abyssal head", "Bludgeon spine", "Bludgeon claw", "Bludgeon axon", "Jar of miasma", "Abyssal dagger", "Abyssal whip"],
 
 "Alchemical Hydra": ["Ikkle hydra", "Hydra's claw", "Hydra tail", "Hydra leather", "Hydra's fang", "Hydra's eye", "Hydra's heart", "Dragon knife", "Dragon thrownaxe", "Jar of chemicals", "Alchemical hydra heads"],
 
@@ -145,7 +146,99 @@ boss_drops = {"Abyssal Sire": ["Abyssal orphan", "Unsired", "Abyssal head", "Blu
 
 "Zulrah": ["Pet snakeling", "Tanzanite mutagen", "Magma mutagen", "Jar of swamp", "Tanzanite fang", "Magic fang", "Serpentine visage", "Uncut onyx"]
 
+    # Add more bosses as needed
 }
+
+# ---------------------------
+# 🔹 Dynamic Drop Submission
+# ---------------------------
+
+@tree.command(name="submitdrop", description="Submit a boss drop for review")
+@app_commands.describe(screenshot="Attach a screenshot of your drop")
+async def submit_drop(interaction: discord.Interaction, screenshot: discord.Attachment):
+    if interaction.channel.id != SUBMISSION_CHANNEL_ID:
+        await interaction.response.send_message("❌ This command can only be used in the drop submission channel.", ephemeral=True)
+        return
+
+    await interaction.response.send_message("Select the boss you received the drop from:", view=BossView(interaction.user, screenshot), ephemeral=True)
+
+class BossSelect(discord.ui.Select):
+    def __init__(self, user, screenshot, page, max_pages):
+        self.user = user
+        self.screenshot = screenshot
+        self.page = page
+        self.max_pages = max_pages
+        bosses = list(boss_drops.keys())
+        start = page * 25
+        end = start + 25
+        options = [discord.SelectOption(label=boss) for boss in bosses[start:end]]
+        super().__init__(placeholder="Select a boss", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.edit_message(view=DropView(self.user, self.screenshot, self.values[0]))
+
+
+class BossView(discord.ui.View):
+    def __init__(self, user, screenshot, page=0):
+        super().__init__()
+        self.user = user
+        self.screenshot = screenshot
+        self.page = page
+        max_pages = (len(boss_drops) - 1) // 25
+        self.add_item(BossSelect(user, screenshot, page, max_pages))
+        if page > 0:
+            self.add_item(PreviousPageButton(user, screenshot, page))
+        if page < max_pages:
+            self.add_item(NextPageButton(user, screenshot, page))
+
+
+class PreviousPageButton(discord.ui.Button):
+    def __init__(self, user, screenshot, page):
+        super().__init__(label="◀️ Previous", style=discord.ButtonStyle.secondary)
+        self.user = user
+        self.screenshot = screenshot
+        self.page = page
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.edit_message(view=BossView(self.user, self.screenshot, self.page - 1))
+
+
+class NextPageButton(discord.ui.Button):
+    def __init__(self, user, screenshot, page):
+        super().__init__(label="Next ▶️", style=discord.ButtonStyle.secondary)
+        self.user = user
+        self.screenshot = screenshot
+        self.page = page
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.edit_message(view=BossView(self.user, self.screenshot, self.page + 1))
+
+class DropSelect(discord.ui.Select):
+    def __init__(self, user, screenshot, boss):
+        self.user = user
+        self.screenshot = screenshot
+        self.boss = boss
+        options = [discord.SelectOption(label=drop) for drop in boss_drops[boss]]
+        super().__init__(placeholder=f"Select a drop from {boss}", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        review_channel = bot.get_channel(REVIEW_CHANNEL_ID)
+        embed = discord.Embed(title=f"{self.boss} Drop Submission", colour=discord.Colour.blurple())
+        embed.add_field(name="Submitted For", value=f"{self.user.display_name} ({self.user.id})", inline=False)
+        embed.add_field(name="Drop Received", value=self.values[0], inline=False)
+        embed.set_image(url=self.screenshot.url)
+
+        view = DropReviewButtons(self.user, self.values[0], self.screenshot.url)
+        await review_channel.send(embed=embed, view=view)
+
+        # Remove the dropdown after submission
+        await interaction.response.send_message("✅ Submitted for review.", ephemeral=True)
+        await interaction.message.delete()
+
+class DropView(discord.ui.View):
+    def __init__(self, user, screenshot, boss):
+        super().__init__()
+        self.add_item(DropSelect(user, screenshot, boss))
 
 # ---------------------------
 # 🔹 Review Buttons
