@@ -134,6 +134,8 @@ boss_drops = {
 
 "Tombs of Amascut": ["Masori mask", "Masori body", "Masori chaps", "Lightbearer", "Osmumten's fang", "Elidinis' ward", "Tumeken's shadow"],
 
+"Tormented Demons": [“Tormented synapse”, “Burning claw”],
+
 "Vardorvis": ["Butch", "Virtus mask", "Virtus robe top", "Virtus robe bottom", "Chromium ingot", "Awakener's orb", "Ultor vestige", "Executioner's axe head", "Blood quartz", "Strangled tablet"],
 
 "Venenatis": ["Venenatis spiderling", "Fangs of venenatis", "Dragon 2h sword", "Dragon pickaxe", "Voidwaker gem", "Treasonous ring"],
@@ -144,9 +146,21 @@ boss_drops = {
 
 "Yama": ["Yami", "Soulflame horn", "Oathplate helm", "Oathplate chest", "Oathplate legs", "Oathplate shards", "Barrel of demonic tallow", "Forgotten lockbox", "Dossier", "Aether catalyst", "Diabolic worms", "Chasm teleport scroll"],
 
-"Zulrah": ["Pet snakeling", "Tanzanite mutagen", "Magma mutagen", "Jar of swamp", "Tanzanite fang", "Magic fang", "Serpentine visage", "Uncut onyx"]
+"Zulrah": ["Pet snakeling", "Tanzanite mutagen", "Magma mutagen", "Jar of swamp", "Tanzanite fang", "Magic fang", "Serpentine visage", "Uncut onyx"],
 
-    # Add more bosses as needed
+"Varlamore": ["Sulphur Blades"],
+
+"Misthalin/wilderness": ["Zombie helm", "Zombie axe", “Dragon limbs”, “Dragon metal lump”],
+
+"Kourend/Kebos": ["Pyromancer garb", “Pyromancer robe”, “Pyromancer boots”, “Tome fo fire (empty)”, “Phoenix”, “Dragon axe”, "Pyromancer hood", "Bruma torch", “Golden tench”, "Warm gloves"],
+
+"Desert": ["KQ head", "Pharos scepter", "500 toa kit", "Abyssal needle”, “Abyssal lantern”, “Abyssal red dye”, “Abyssal green dye”, “Abyssal blue dye"],
+
+"Asgarnia": ["Dragon boots"],
+
+"Morytania": ["Zealot’s helm", "Zealot’s robe top", "Zealot’s robe bottom", "Zealot’s boots"],
+
+"Tirannwn/fremenik": ["Brine saber"]
 }
 
 # ---------------------------
