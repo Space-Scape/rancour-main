@@ -54,16 +54,17 @@ REQUIRED_ROLE_NAME = "Drop Manager"
 # 🔹 Boss-Drop Mapping
 # ---------------------------
 boss_drops = {
-    # (keeping your full boss_drops dict here… not shown for brevity)
+    "Example Boss": ["Example Drop 1", "Example Drop 2"]
+    # 🔷 Put all your full boss_drops dictionary here
 }
 
 # ---------------------------
-# 🔹 Drop Submission Command
+# 🔹 Slash Command
 # ---------------------------
 @tree.command(name="submitdrop", description="Submit a boss drop for review")
 @app_commands.describe(
-    submitted_for="User to submit on behalf of (optional)",
-    screenshot="Attach a screenshot of your drop"
+    screenshot="Attach a screenshot of your drop",
+    submitted_for="(Optional) Mention a user if you're submitting for someone else"
 )
 async def submit_drop(
     interaction: discord.Interaction,
@@ -77,68 +78,42 @@ async def submit_drop(
         )
         return
 
-    submitted_for = submitted_for or interaction.user
+    target_user = submitted_for or interaction.user
 
-    await interaction.response.send_message(
-        "Select the boss you received the drop from:",
-        view=BossView(submitted_for, screenshot),
-        ephemeral=True
+    if submitted_for:
+        await interaction.response.send_message(
+            f"📨 Submitting this drop for **{target_user.display_name}**.",
+            ephemeral=True
+        )
+    else:
+        await interaction.response.defer(ephemeral=True)
+
+    await interaction.edit_original_response(
+        content="Select the boss you received the drop from:",
+        view=BossView(target_user, screenshot),
     )
 
 # ---------------------------
-# 🔹 Views & Components
+# 🔹 Views and Selects
 # ---------------------------
 class BossSelect(discord.ui.Select):
-    def __init__(self, user, screenshot, page, max_pages):
+    def __init__(self, user, screenshot):
         self.user = user
         self.screenshot = screenshot
-        self.page = page
-        self.max_pages = max_pages
-        bosses = list(boss_drops.keys())
-        start = page * 25
-        end = start + 25
-        options = [discord.SelectOption(label=boss) for boss in bosses[start:end]]
+        options = [discord.SelectOption(label=boss) for boss in boss_drops.keys()]
         super().__init__(placeholder="Select a boss", options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.edit_message(view=DropView(self.user, self.screenshot, self.values[0]))
-
+        await interaction.response.edit_message(
+            view=DropView(self.user, self.screenshot, self.values[0])
+        )
 
 class BossView(discord.ui.View):
-    def __init__(self, user, screenshot, page=0):
+    def __init__(self, user, screenshot):
         super().__init__()
         self.user = user
         self.screenshot = screenshot
-        self.page = page
-        max_pages = (len(boss_drops) - 1) // 25
-        self.add_item(BossSelect(user, screenshot, page, max_pages))
-        if page > 0:
-            self.add_item(PreviousPageButton(user, screenshot, page))
-        if page < max_pages:
-            self.add_item(NextPageButton(user, screenshot, page))
-
-
-class PreviousPageButton(discord.ui.Button):
-    def __init__(self, user, screenshot, page):
-        super().__init__(label="◀️ Previous", style=discord.ButtonStyle.secondary)
-        self.user = user
-        self.screenshot = screenshot
-        self.page = page
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.edit_message(view=BossView(self.user, self.screenshot, self.page - 1))
-
-
-class NextPageButton(discord.ui.Button):
-    def __init__(self, user, screenshot, page):
-        super().__init__(label="Next ▶️", style=discord.ButtonStyle.secondary)
-        self.user = user
-        self.screenshot = screenshot
-        self.page = page
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.edit_message(view=BossView(self.user, self.screenshot, self.page + 1))
-
+        self.add_item(BossSelect(user, screenshot))
 
 class DropSelect(discord.ui.Select):
     def __init__(self, user, screenshot, boss):
@@ -166,12 +141,14 @@ class DropSelect(discord.ui.Select):
 
             await review_channel.send(embed=review_embed, view=DropReviewButtons(self.user, self.values[0], self.screenshot.url))
 
-
 class DropView(discord.ui.View):
     def __init__(self, user, screenshot, boss):
         super().__init__()
         self.add_item(DropSelect(user, screenshot, boss))
 
+# ---------------------------
+# 🔹 Review Buttons
+# ---------------------------
 class DropReviewButtons(discord.ui.View):
     def __init__(self, user: discord.User, drop: str, image_url: str):
         super().__init__(timeout=None)
