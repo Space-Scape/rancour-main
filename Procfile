@@ -1,1 +1,1 @@
-web: python dropscores.py
+web: python dropsubmit.py
