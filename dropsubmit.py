@@ -5,6 +5,7 @@ from discord import app_commands
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 from datetime import datetime, timezone
+import asyncio
 
 # ---------------------------
 # 🔹 Google Sheets Setup
