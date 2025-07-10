@@ -31,8 +31,14 @@ credentials_dict = {
 
 creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
 sheet_client = gspread.authorize(creds)
+
 sheet_id = os.getenv("GOOGLE_SHEET_ID")
+
 sheet = sheet_client.open_by_key(sheet_id).sheet1
+
+RSN_SHEET_TAB_NAME = "Tracker"
+rsn_sheet = sheet_client.open_by_key("1ZwJiuVMp-3p8UH0NCVYTV9_UVI26jl5kWu2nvdspl9k").worksheet("Tracker")
+
 
 # ---------------------------
 # 🔹 Discord Bot Setup
@@ -450,21 +456,21 @@ async def rolepanel(interaction: discord.Interaction):
     async def button_callback(interaction: discord.Interaction):
         role_name = interaction.data['custom_id']
         role = discord.utils.get(interaction.guild.roles, name=role_name)
-
+    
         if role is None:
             await interaction.response.send_message(f"Error: Role '{role_name}' not found.", ephemeral=True)
             return
-
+    
         if role in interaction.user.roles:
             await interaction.user.remove_roles(role)
             feedback = f"{interaction.user.mention}, role **{role_name}** removed."
         else:
             await interaction.user.add_roles(role)
             feedback = f"{interaction.user.mention}, role **{role_name}** added."
-
+    
         # Send a non-ephemeral message so it can be deleted
         await interaction.response.send_message(feedback, ephemeral=False)
-
+    
         # Wait 1 second then delete the message
         await asyncio.sleep(1)
         try:
@@ -557,10 +563,93 @@ async def event_panel(interaction: discord.Interaction):
     await interaction.response.send_message("Click a button to create an event:", view=view, ephemeral=False)
 
 # ---------------------------
+# 🔹 RSN Commands
+# ---------------------------
+rsn_write_queue = asyncio.Queue()
+
+async def rsn_writer():
+    while True:
+        member_id, rsn_value = await rsn_write_queue.get()
+        try:
+            try:
+                cell = rsn_sheet.find(member_id)  # search column A for member ID
+                rsn_sheet.update_cell(cell.row, 2, rsn_value)  # update RSN in col B
+            except gspread.exceptions.CellNotFound:
+                rsn_sheet.append_row([member_id, rsn_value])
+        except Exception as e:
+            print(f"Error writing RSN to sheet: {e}")
+        rsn_write_queue.task_done()
+
+@tree.command(name="rsn_panel", description="Open the RSN registration panel.")
+@app_commands.checks.has_any_role("Moderators")
+async def rsn_panel(interaction: discord.Interaction):
+    class RSNModal(discord.ui.Modal, title="Register your RuneScape Name"):
+        rsn = discord.ui.TextInput(
+            label="Enter your RSN",
+            placeholder="e.g. Zezima",
+            required=True,
+            max_length=12
+        )
+
+        async def on_submit(self, modal_interaction: discord.Interaction):
+            member_id = str(modal_interaction.user.id)
+            rsn_value = self.rsn.value
+
+            # Update spreadsheet
+            rsn_write_queue.put_nowait((member_id, rsn_value))
+
+            await modal_interaction.response.send_message(
+                f"✅ Your RSN has been registered as **{rsn_value}**.",
+                ephemeral=True
+            )
+
+    view = discord.ui.View()
+    button = discord.ui.Button(label="Register RSN", style=discord.ButtonStyle.primary)
+
+    async def button_callback(interaction2: discord.Interaction):
+        await interaction2.response.send_modal(RSNModal())
+
+    button.callback = button_callback
+    view.add_item(button)
+
+    await interaction.response.send_message(
+        "📝 Click below to register your RuneScape Name:",
+        view=view,
+        ephemeral=True
+    )
+
+
+@tree.command(name="rsn", description="Check your registered RSN.")
+async def rsn(interaction: discord.Interaction):
+    member_id = str(interaction.user.id)
+
+    try:
+        cell = rsn_sheet.find(member_id)
+        rsn_value = rsn_sheet.cell(cell.row, 2).value
+        await interaction.response.send_message(
+            f"✅ Your registered RSN is **{rsn_value}**.",
+            ephemeral=True
+        )
+    except gspread.exceptions.CellNotFound:
+        await interaction.response.send_message(
+            "⚠️ You have not registered an RSN yet. Use `/rsn_panel` to register.",
+            ephemeral=True
+        )
+
+@rsn_panel.error
+async def rsn_panel_error(interaction: discord.Interaction, error):
+    if isinstance(error, app_commands.errors.MissingAnyRole):
+        await interaction.response.send_message(
+            "⛔ You do not have permission to use this command.",
+            ephemeral=True
+        )
+
+# ---------------------------
 # 🔹 On Ready
 # ---------------------------
 @bot.event
 async def on_ready():
+    bot.loop.create_task(rsn_writer())
     print(f"✅ Logged in as {bot.user}")
     synced = await tree.sync()
     print(f"✅ Synced {len(synced)} slash commands.")
