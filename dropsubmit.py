@@ -33,7 +33,12 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope
 sheet_client = gspread.authorize(creds)
 
 sheet_id = os.getenv("GOOGLE_SHEET_ID")
+sheet_id_rsn = os.getenv("RSN_GOOGLE_SHEET_ID")
+
 sheet = sheet_client.open_by_key(sheet_id).sheet1
+
+RSN_SHEET_TAB_NAME = "Tracker"
+rsn_sheet = sheet_client.open_by_key(sheet_id_rsn).worksheet(RSN_SHEET_TAB_NAME)
 
 # ---------------------------
 # 🔹 Discord Bot Setup
@@ -560,10 +565,6 @@ async def event_panel(interaction: discord.Interaction):
 # ---------------------------
 # 🔹 RSN Commands
 # ---------------------------
-
-RSN_SHEET_TAB_NAME = "Tracker"  # Adjust if needed
-rsn_sheet = sheet_client.open_by_key(sheet_id).worksheet(RSN_SHEET_TAB_NAME)
-
 
 @tree.command(name="rsn_panel", description="Open the RSN registration panel.")
 @app_commands.checks.has_any_role("Moderators")
