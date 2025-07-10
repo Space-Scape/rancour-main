@@ -102,13 +102,13 @@ boss_drops = {
     "Vorkath": ["Vorki", "Vorkath's head", "Draconic visage", "Serpentine visage", "Jar of decay", "Dragonbone necklace"],
     "Yama": ["Yami", "Soulflame horn", "Oathplate helm", "Oathplate chest", "Oathplate legs", "Oathplate shards", "Barrel of demonic tallow", "Forgotten lockbox", "Dossier", "Aether catalyst", "Diabolic worms", "Chasm teleport scroll"],
     "Zulrah": ["Pet snakeling", "Tanzanite mutagen", "Magma mutagen", "Jar of swamp water", "Tanzanite fang", "Magic fang", "Serpentine visage", "Uncut onyx"],
-    "Varlamore": ["Sulphur blades"],
-    "Misthalin/wilderness": ["Zombie helm", "Zombie axe", "Dragon limbs", "Dragon metal lump"],
-    "Kourend/Kebos": ["Pyromancer garb", "Pyromancer robe", "Pyromancer boots", "Tome of fire (empty)", "Phoenix", "Dragon axe", "Pyromancer hood", "Bruma torch", "Golden tench", "Warm gloves"],
-    "Desert": ["Kq head", "Pharaoh's sceptre (uncharged)", "500 toa kit", "Abyssal needle", "Abyssal lantern", "Abyssal red dye", "Abyssal green dye", "Abyssal blue dye"],
-    "Asgarnia": ["Dragon boots"],
-    "Morytania": ["Zealot’s helm", "Zealot’s robe top", "Zealot’s robe bottom", "Zealot’s boots"],
-    "Tirannwn/fremennik": ["Brine saber"],
+    "Varlamore Misc": ["Sulphur blades"],
+    "Misthalin/wilderness Misc": ["Zombie helm", "Zombie axe", "Dragon limbs", "Dragon metal lump"],
+    "Kourend/Kebos Misc": ["Pyromancer garb", "Pyromancer robe", "Pyromancer boots", "Tome of fire (empty)", "Phoenix", "Dragon axe", "Pyromancer hood", "Bruma torch", "Golden tench", "Warm gloves"],
+    "Desert Misc": ["Kq head", "Pharaoh's sceptre (uncharged)", "500 toa kit", "Abyssal needle", "Abyssal lantern", "Abyssal red dye", "Abyssal green dye", "Abyssal blue dye"],
+    "Asgarnia Misc": ["Dragon boots"],
+    "Morytania Misc": ["Zealot’s helm", "Zealot’s robe top", "Zealot’s robe bottom", "Zealot’s boots"],
+    "Tirannwn/fremennik Misc": ["Brine saber"],
 }
 
 # ---------------------------
@@ -169,7 +169,7 @@ class BossView(discord.ui.View):
 
 class PreviousPageButton(discord.ui.Button):
     def __init__(self, submitting_user, target_user, screenshot, page):
-        super().__init__(label="◀️ Previous", style=discord.ButtonStyle.secondary)
+        super().__init__(label="◀️ Previous Page", style=discord.ButtonStyle.secondary)
         self.submitting_user = submitting_user
         self.target_user = target_user
         self.screenshot = screenshot
@@ -180,7 +180,7 @@ class PreviousPageButton(discord.ui.Button):
 
 class NextPageButton(discord.ui.Button):
     def __init__(self, submitting_user, target_user, screenshot, page):
-        super().__init__(label="Next ▶️", style=discord.ButtonStyle.secondary)
+        super().__init__(label="Next Page ▶️", style=discord.ButtonStyle.secondary)
         self.submitting_user = submitting_user
         self.target_user = target_user
         self.screenshot = screenshot
