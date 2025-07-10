@@ -6,6 +6,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 from datetime import datetime, timezone
 import asyncio
+from gspread.exceptions import CellNotFound
 
 # ---------------------------
 # 🔹 Google Sheets Setup
@@ -594,10 +595,7 @@ async def rsn_panel(interaction: discord.Interaction):
         async def on_submit(self, modal_interaction: discord.Interaction):
             member_id = str(modal_interaction.user.id)
             rsn_value = self.rsn.value
-
-            # Update spreadsheet
             rsn_write_queue.put_nowait((member_id, rsn_value))
-
             await modal_interaction.response.send_message(
                 f"✅ Your RSN has been registered as **{rsn_value}**.",
                 ephemeral=True
