@@ -33,12 +33,12 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope
 sheet_client = gspread.authorize(creds)
 
 sheet_id = os.getenv("GOOGLE_SHEET_ID")
-sheet_id_rsn = os.getenv("RSN_GOOGLE_SHEET_ID")
 
 sheet = sheet_client.open_by_key(sheet_id).sheet1
 
 RSN_SHEET_TAB_NAME = "Tracker"
-rsn_sheet = sheet_client.open_by_key(sheet_id_rsn).worksheet(RSN_SHEET_TAB_NAME)
+rsn_sheet = sheet_client.open_by_key("1ZwJiuVMp-3p8UH0NCVYTV9_UVI26jl5kWu2nvdspl9k").worksheet("Tracker")
+
 
 # ---------------------------
 # 🔹 Discord Bot Setup
