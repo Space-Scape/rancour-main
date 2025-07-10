@@ -450,19 +450,27 @@ async def rolepanel(interaction: discord.Interaction):
     async def button_callback(interaction: discord.Interaction):
         role_name = interaction.data['custom_id']
         role = discord.utils.get(interaction.guild.roles, name=role_name)
-
+    
         if role is None:
             await interaction.response.send_message(f"Error: Role '{role_name}' not found.", ephemeral=True)
             return
-
+    
         if role in interaction.user.roles:
             await interaction.user.remove_roles(role)
             feedback = f"{interaction.user.mention}, role **{role_name}** removed."
         else:
             await interaction.user.add_roles(role)
             feedback = f"{interaction.user.mention}, role **{role_name}** added."
-
-        await interaction.response.send_message(feedback, ephemeral=True)
+    
+        # Send a non-ephemeral message so it can be deleted
+        await interaction.response.send_message(feedback, ephemeral=False)
+    
+        # Wait 1 second then delete the message
+        await asyncio.sleep(1)
+        try:
+            await interaction.delete_original_response()
+        except Exception:
+            pass
 
     for label, emoji in buttons_info:
         button = discord.ui.Button(label=label, style=discord.ButtonStyle.secondary, emoji=emoji, custom_id=label)
