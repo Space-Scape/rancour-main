@@ -487,6 +487,77 @@ async def rolepanel(interaction: discord.Interaction):
     await interaction.response.send_message(f"✅ Role panel posted in {channel.mention}", ephemeral=True)
 
 # ---------------------------
+# Event Panel
+# ---------------------------
+
+@bot.tree.command(name="event_panel", description="Open the event panel to create BOTW or SOTW events")
+async def event_panel(interaction: discord.Interaction):
+    custom_emoji_skill = discord.utils.get(interaction.guild.emojis, name="skill")
+
+    button_botw = Button(label="Boss of the Week (BOTW)", style=discord.ButtonStyle.primary, emoji="⚔️")
+    button_sotw = Button(label="Skill of the Week (SOTW)", style=discord.ButtonStyle.primary, emoji=custom_emoji_skill)
+
+    view = View(timeout=None)
+    view.add_item(button_botw)
+    view.add_item(button_sotw)
+
+    async def botw_panel(inner_interaction: discord.Interaction):
+        # BOTW buttons
+        bosses = [
+            "General Graardor", "K'ril Tsutsaroth", "Commander Zilyana", "Kree'Arra", "Nex",
+            "Callisto", "Vet'ion", "Venenatis", "Chambers Of Xeric", "Tombs Of Amascut", "Theatre Of Blood",
+            "Araxxor", "Vardorvis", "Duke Sucellus", "The Leviathan", "The Whisperer", "Dagannoth Kings",
+            "Corporeal Beast", "Vorkath", "Zulrah", "The Gauntlet", "Phantom Muspah", "Nightmare", "Phosani", "Yama"
+        ]
+
+        view_botw = View(timeout=None)
+        for boss in bosses:
+            emoji_name = boss.lower().replace(" ", "_").replace("'", "").replace("-", "")
+            emoji = discord.utils.get(inner_interaction.guild.emojis, name=emoji_name)
+            button = Button(label=boss, style=discord.ButtonStyle.secondary, emoji=emoji)
+
+            async def boss_callback(b_int: discord.Interaction, b_name=boss):
+                event_name = b_name
+                description = f"Defeat {b_name} in this week's challenge!"
+                metric = METRIC_MAPPING.get(event_name, event_name.lower().replace(" ", "_"))
+                await create_event(b_int, event_name, description)
+                await create_wise_old_man_competition(metric, description)
+
+            button.callback = boss_callback
+            view_botw.add_item(button)
+
+        await inner_interaction.response.edit_message(content="Select the boss for this week's event:", view=view_botw)
+
+    async def sotw_panel(inner_interaction: discord.Interaction):
+        skills = [
+            "Farming", "Fishing", "Hunter", "Mining", "Woodcutting", "Cooking", "Crafting",
+            "Fletching", "Herblore", "Runecrafting", "Smithing", "Agility", "Construction", "Firemaking", "Slayer", "Thieving"
+        ]
+
+        view_sotw = View(timeout=None)
+        for skill in skills:
+            emoji_name = skill.lower().replace(" ", "_")
+            emoji = discord.utils.get(inner_interaction.guild.emojis, name=emoji_name)
+            button = Button(label=skill, style=discord.ButtonStyle.secondary, emoji=emoji)
+
+            async def skill_callback(s_int: discord.Interaction, s_name=skill):
+                event_name = s_name
+                description = f"Master {s_name} in this week's skill challenge!"
+                metric = METRIC_MAPPING.get(event_name, event_name.lower().replace(" ", "_"))
+                await create_event(s_int, event_name, description)
+                await create_wise_old_man_competition(metric, description)
+
+            button.callback = skill_callback
+            view_sotw.add_item(button)
+
+        await inner_interaction.response.edit_message(content="Select the skill for this week's event:", view=view_sotw)
+
+    button_botw.callback = botw_panel
+    button_sotw.callback = sotw_panel
+
+    await interaction.response.send_message("Click a button to create an event:", view=view, ephemeral=False)
+
+# ---------------------------
 # 🔹 On Ready
 # ---------------------------
 @bot.event
