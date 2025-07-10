@@ -325,6 +325,73 @@ class RejectReasonModal(discord.ui.Modal, title="Reject Submission"):
         await interaction.response.send_message("❌ Submission rejected with reason logged.", ephemeral=True)
 
 # ---------------------------
+# 🔹 Welcome#
+# ---------------------------
+
+@bot.tree.command(name="welcome", description="Welcome the ticket creator and give them the Recruit role.")
+async def welcome(interaction: discord.Interaction):
+    if not isinstance(interaction.channel, discord.Thread):
+        await interaction.response.send_message("⚠️ This command must be used inside a ticket thread.", ephemeral=True)
+        return
+
+    # Scan message history for the Tickets v2 system message
+    ticket_creator = None
+    async for message in interaction.channel.history(limit=20, oldest_first=True):
+        if message.author.bot and message.author.name.lower().startswith("tickets"):
+            for mention in message.mentions:
+                if not mention.bot:
+                    ticket_creator = mention
+                    break
+        if ticket_creator:
+            break
+
+    if not ticket_creator:
+        await interaction.response.send_message("⚠️ Could not detect who opened this ticket.", ephemeral=True)
+        return
+
+    guild = interaction.guild
+    roles_to_assign = ["Recruit", "Member", "Boss of the Week", "Skill of the Week", "Events"]
+    missing_roles = []
+    for role_name in roles_to_assign:
+        role = discord.utils.get(guild.roles, name=role_name)
+        if role:
+            await ticket_creator.add_roles(role)
+        else:
+            missing_roles.append(role_name)
+
+    if missing_roles:
+        await interaction.response.send_message(
+            f"⚠️ Missing roles: {', '.join(missing_roles)}. Please check the server roles.", ephemeral=True
+        )
+        return
+
+    welcome_message = (
+        f":tada: Welcome to the Clan {ticket_creator.mention}! :tada:\n\n"
+        f"We're thrilled to have you with us! :confetti_ball:\n"
+        f"First and foremost, please make sure you visit our :scroll: "
+        f"https://discord.com/channels/1272629330115297330/1272629843552501802 to ensure you're aware of the guidelines.\n\n"
+        f"Below are some channels that will help you get started:\n\n"
+        f":bulb: [Self-Role Assign](https://discord.com/channels/1272629330115297330/1272648586198519818)\n"
+        f"-Select roles to be pinged for bosses and raids.\n"
+        f":thought_balloon: [General Chat](https://discord.com/channels/1272629330115297330/1272629331524587623)\n"
+        f"-Drop by and say hello! :speech_balloon:\n"
+        f":sparkles: [Achievements](https://discord.com/channels/1272629330115297330/1272629331524587624)\n"
+        f"-Show off your gains and achievements.\n"
+        f":speech_balloon: [Clan Chat](https://discord.com/channels/1272629330115297330/1272875477555482666)\n"
+        f"-Stay updated on what's happening in the clan.\n"
+        f":bow_and_arrow: [Team Finder](https://discord.com/channels/1272629330115297330/1272648555772776529)\n"
+        f"-Find teams for PVM activities.\n"
+        f":loudspeaker: [Events](https://discord.com/channels/1272629330115297330/1272646577432825977)\n"
+        f"-Stay informed about upcoming events, competitions, and activities!\n"
+        f":crossed_swords: [Rank Up](https://discord.com/channels/1272629330115297330/1272648472184487937)\n"
+        f"-Use the buttons in this channel to request a rank up.\n\n"
+        f":warning: If you encounter any issues, you can always reach out to the Clan Staff or use the "
+        f"[Support Ticket channel](https://discord.com/channels/1272629330115297330/1272648498554077304) for assistance."
+    )
+
+    await interaction.response.send_message(welcome_message)
+
+# ---------------------------
 # 🔹 On Ready
 # ---------------------------
 @bot.event
