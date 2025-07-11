@@ -613,29 +613,28 @@ async def rsn_panel(interaction: discord.Interaction):
             member = modal_interaction.user
             rsn_value = self.rsn.value
             rsn_write_queue.put_nowait((member, rsn_value))
-        
+
             # Add Registered role if not already
             guild = modal_interaction.guild
             if guild:
                 registered_role = discord.utils.get(guild.roles, name=REGISTERED_ROLE_NAME)
                 if registered_role and registered_role not in member.roles:
                     await member.add_roles(registered_role, reason="Registered RSN")
-        
+
             await modal_interaction.response.send_message(
                 f"✅ Your RuneScape name has been submitted as **{rsn_value}**.",
                 ephemeral=True
             )
 
-
     view = discord.ui.View()
     button = discord.ui.Button(
-        label="Register RSN",
+        label="Register your RSN",
         style=discord.ButtonStyle.success,
-        emoji="📝"
+        emoji="<:1gp:>"
     )
 
-    async def button_callback(interaction2: discord.Interaction):
-        await interaction2.response.send_modal(RSNModal())
+    async def button_callback(button_interaction: discord.Interaction):
+        await button_interaction.response.send_modal(RSNModal())
 
     button.callback = button_callback
     view.add_item(button)
@@ -652,8 +651,9 @@ async def rsn_panel(interaction: discord.Interaction):
     await interaction.response.send_message(
         embed=embed,
         view=view,
-        ephemeral=False
+        ephemeral=False  # important! so everyone can see and use the button
     )
+
 
 @tree.command(name="rsn", description="Check your registered RSN.")
 async def rsn(interaction: discord.Interaction):
