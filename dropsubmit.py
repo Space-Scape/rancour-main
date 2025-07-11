@@ -288,7 +288,7 @@ class DropReviewButtons(discord.ui.View):
         if not self.has_drop_manager_role(interaction.user):
             await interaction.response.send_message("❌ You do not have permission to approve.", ephemeral=True)
             return
-
+    
         log_channel = bot.get_channel(LOG_CHANNEL_ID)
         if log_channel:
             embed = discord.Embed(title="Drop Approved", colour=discord.Colour.green())
@@ -299,7 +299,7 @@ class DropReviewButtons(discord.ui.View):
             embed.add_field(name="Submitted By", value=self.submitting_user.mention, inline=False)
             embed.set_image(url=self.image_url)
             await log_channel.send(embed=embed)
-
+    
         sheet.append_row([
             interaction.user.display_name,
             self.submitted_user.display_name,
@@ -308,21 +308,23 @@ class DropReviewButtons(discord.ui.View):
             self.image_url,
             datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         ])
-
-        for child in self.children:
-            child.disabled = True
-
-        await interaction.message.edit(view=self)
-        await interaction.response.send_message("✅ Approved and logged.", ephemeral=True)
-
+    
+        await interaction.response.send_message("✅ Approved and logged. This message will now be removed.", ephemeral=True)
+    
+        # Delete the original message after short delay
+        await asyncio.sleep(1)
+        await interaction.message.delete()
+    
+    
     @discord.ui.button(label="Reject ❌", style=discord.ButtonStyle.red)
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self.has_drop_manager_role(interaction.user):
             await interaction.response.send_message("❌ You do not have permission to reject.", ephemeral=True)
             return
-
+    
         modal = RejectReasonModal(self, interaction)
         await interaction.response.send_modal(modal)
+
 
 class RejectReasonModal(discord.ui.Modal, title="Reject Submission"):
     def __init__(self, parent_view: discord.ui.View, interaction: discord.Interaction):
@@ -351,12 +353,13 @@ class RejectReasonModal(discord.ui.Modal, title="Reject Submission"):
             embed.add_field(name="Reason", value=self.reason.value, inline=False)
             embed.set_image(url=self.parent_view.image_url)
             await log_channel.send(embed=embed)
+    
+        await interaction.response.send_message("❌ Submission rejected and logged. This message will now be removed.", ephemeral=True)
+    
+        # Delete the original message after short delay
+        await asyncio.sleep(1)
+        await self.message.delete()
 
-        for child in self.parent_view.children:
-            child.disabled = True
-        await self.message.edit(view=self.parent_view)
-
-        await interaction.response.send_message("❌ Submission rejected with reason logged.", ephemeral=True)
 
 # ---------------------------
 # 🔹 Welcome#
