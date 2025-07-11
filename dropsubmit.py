@@ -424,8 +424,74 @@ async def welcome(interaction: discord.Interaction):
     await interaction.response.send_message(welcome_message)
 
 # ---------------------------
-# 🔹RolePanel
+# 🔹 Role Panel
 # ---------------------------
+
+class RolePanelView(discord.ui.View):
+    def __init__(self, guild: discord.Guild):
+        super().__init__(timeout=None)  # persistent
+
+        emoji_names = [
+            "tob", "cox", "toa", "hmt", "cm", "extoa", "graardor", "sara", "zammy", "arma",
+            "nex", "corp", "callisto", "vetion", "venenatis", "hueycoatl", "yama", "raffle",
+            "event", "sotw", "botw", "sanguine_sunday"
+        ]
+        emojis = {name: discord.utils.get(guild.emojis, name=name) for name in emoji_names}
+
+        buttons_info = [
+            ("Theatre of Blood - TOB", emojis.get("tob")),
+            ("Chambers of Xeric - COX", emojis.get("cox")),
+            ("Tombs of Amascut - TOA", emojis.get("toa")),
+            ("Theatre of Blood Hard Mode - HMT", emojis.get("hmt")),
+            ("Chambers of Xeric Challenge Mode - COX CMs", emojis.get("cm")),
+            ("Tombs of Amascut Expert - TOA EXP", emojis.get("extoa")),
+            ("General Graardor - Bandos GWD", emojis.get("graardor")),
+            ("Commander Zilyana - Saradomin GWD", emojis.get("sara")),
+            ("K'ril Tsutsaroth - Zamorak GWD", emojis.get("zammy")),
+            ("Kree'arra - Armadyl GWD", emojis.get("arma")),
+            ("Nex", emojis.get("nex")),
+            ("Corporeal Beast - Corp", emojis.get("corp")),
+            ("Callisto", emojis.get("callisto")),
+            ("Vet'ion", emojis.get("vetion")),
+            ("Venenatis", emojis.get("venenatis")),
+            ("Hueycoatl", emojis.get("hueycoatl")),
+            ("Yama", emojis.get("yama")),
+            ("Raffles", emojis.get("raffle")),
+            ("Events", emojis.get("event")),
+            ("Skill of the Week", emojis.get("sotw")),
+            ("Boss of the Week", emojis.get("botw")),
+            ("Sanguine Sunday", emojis.get("sanguine_sunday")),
+        ]
+
+        for label, emoji in buttons_info:
+            self.add_item(self.RoleButton(label=label, emoji=emoji))
+
+    class RoleButton(discord.ui.Button):
+        def __init__(self, label, emoji):
+            super().__init__(label=label, style=discord.ButtonStyle.secondary, emoji=emoji, custom_id=label)
+
+        async def callback(self, interaction: discord.Interaction):
+            role_name = self.custom_id
+            role = discord.utils.get(interaction.guild.roles, name=role_name)
+
+            if role is None:
+                await interaction.response.send_message(f"❌ Role '{role_name}' not found.", ephemeral=True)
+                return
+
+            if role in interaction.user.roles:
+                await interaction.user.remove_roles(role)
+                feedback = f"{interaction.user.mention}, role **{role_name}** removed."
+            else:
+                await interaction.user.add_roles(role)
+                feedback = f"{interaction.user.mention}, role **{role_name}** added."
+
+            await interaction.response.send_message(feedback, ephemeral=False)
+            await asyncio.sleep(1)
+            try:
+                await interaction.delete_original_response()
+            except Exception:
+                pass
+
 
 @tree.command(name="rolepanel", description="Post the self-role assignment panel in the designated channel.")
 async def rolepanel(interaction: discord.Interaction):
@@ -444,77 +510,12 @@ async def rolepanel(interaction: discord.Interaction):
     )
     embed.set_footer(text="Select your roles")
 
-    guild = interaction.guild
-    emoji_names = [
-        "tob", "cox", "toa", "hmt", "cm", "extoa", "graardor", "sara", "zammy", "arma",
-        "nex", "corp", "callisto", "vetion", "venenatis", "hueycoatl", "yama", "raffle",
-        "event", "sotw", "botw", "sanguine_sunday"
-    ]
-    emojis = {name: discord.utils.get(guild.emojis, name=name) for name in emoji_names}
-
-    buttons_info = [
-        ("Theatre of Blood - TOB", emojis.get("tob")),
-        ("Chambers of Xeric - COX", emojis.get("cox")),
-        ("Tombs of Amascut - TOA", emojis.get("toa")),
-        ("Theatre of Blood Hard Mode - HMT", emojis.get("hmt")),
-        ("Chambers of Xeric Challenge Mode - COX CMs", emojis.get("cm")),
-        ("Tombs of Amascut Expert - TOA EXP", emojis.get("extoa")),
-        ("General Graardor - Bandos GWD", emojis.get("graardor")),
-        ("Commander Zilyana - Saradomin GWD", emojis.get("sara")),
-        ("K'ril Tsutsaroth - Zamorak GWD", emojis.get("zammy")),
-        ("Kree'arra - Armadyl GWD", emojis.get("arma")),
-        ("Nex", emojis.get("nex")),
-        ("Corporeal Beast - Corp", emojis.get("corp")),
-        ("Callisto", emojis.get("callisto")),
-        ("Vet'ion", emojis.get("vetion")),
-        ("Venenatis", emojis.get("venenatis")),
-        ("Hueycoatl", emojis.get("hueycoatl")),
-        ("Yama", emojis.get("yama")),
-        ("Raffles", emojis.get("raffle")),
-        ("Events", emojis.get("event")),
-        ("Skill of the Week", emojis.get("sotw")),
-        ("Boss of the Week", emojis.get("botw")),
-        ("Sanguine Sunday", emojis.get("sanguine_sunday")),
-    ]
-
-    view = discord.ui.View(timeout=None)
-
-    async def button_callback(interaction: discord.Interaction):
-        role_name = interaction.data['custom_id']
-        role = discord.utils.get(interaction.guild.roles, name=role_name)
-    
-        if role is None:
-            await interaction.response.send_message(f"Error: Role '{role_name}' not found.", ephemeral=True)
-            return
-    
-        if role in interaction.user.roles:
-            await interaction.user.remove_roles(role)
-            feedback = f"{interaction.user.mention}, role **{role_name}** removed."
-        else:
-            await interaction.user.add_roles(role)
-            feedback = f"{interaction.user.mention}, role **{role_name}** added."
-    
-        # Send a non-ephemeral message so it can be deleted
-        await interaction.response.send_message(feedback, ephemeral=False)
-    
-        # Wait 1 second then delete the message
-        await asyncio.sleep(1)
-        try:
-            await interaction.delete_original_response()
-        except Exception:
-            pass
-
-    for label, emoji in buttons_info:
-        button = discord.ui.Button(label=label, style=discord.ButtonStyle.secondary, emoji=emoji, custom_id=label)
-        button.callback = button_callback
-        view.add_item(button)
-
     channel = interaction.guild.get_channel(1272648586198519818)
     if channel is None:
         await interaction.response.send_message("❌ Could not find the self-role channel.", ephemeral=True)
         return
 
-    await channel.send(embed=embed, view=view)
+    await channel.send(embed=embed, view=RolePanelView(interaction.guild))
     await interaction.response.send_message(f"✅ Role panel posted in {channel.mention}", ephemeral=True)
 
 # ---------------------------
@@ -715,6 +716,8 @@ async def rsn_panel_error(interaction: discord.Interaction, error):
 # ---------------------------
 @bot.event
 async def on_ready():
+    for guild in bot.guilds:
+        bot.add_view(RolePanelView(guild))
     bot.add_view(RSNPanelView())  # register persistent view
     bot.loop.create_task(rsn_writer())
     print(f"✅ Logged in as {bot.user}")
