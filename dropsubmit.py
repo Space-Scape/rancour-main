@@ -592,7 +592,6 @@ async def rsn_writer():
 
 
 @tree.command(name="rsn_panel", description="Open the RSN registration panel.")
-@app_commands.checks.has_any_role("Moderators")
 async def rsn_panel(interaction: discord.Interaction):
     class RSNModal(discord.ui.Modal, title="Register your RuneScape Name"):
         rsn = discord.ui.TextInput(
@@ -601,19 +600,10 @@ async def rsn_panel(interaction: discord.Interaction):
             required=True,
             max_length=12
         )
-
         async def on_submit(self, modal_interaction: discord.Interaction):
             member = modal_interaction.user
             rsn_value = self.rsn.value
-            rsn_write_queue.put_nowait((member, rsn_value))
-
-            # Add Registered role if not already
-            guild = modal_interaction.guild
-            if guild:
-                registered_role = discord.utils.get(guild.roles, name=REGISTERED_ROLE_NAME)
-                if registered_role and registered_role not in member.roles:
-                    await member.add_roles(registered_role, reason="Registered RSN")
-
+            # Enqueue or process RSN here
             await modal_interaction.response.send_message(
                 f"✅ Your RuneScape name has been submitted as **{rsn_value}**.",
                 ephemeral=True
@@ -626,26 +616,26 @@ async def rsn_panel(interaction: discord.Interaction):
         emoji="<:1gp:>"
     )
 
-async def button_callback(button_interaction: discord.Interaction):
-    await button_interaction.response.send_modal(RSNModal())
+    async def button_callback(button_interaction: discord.Interaction):
+        await button_interaction.response.send_modal(RSNModal())
 
-button.callback = button_callback
-view.add_item(button)
+    button.callback = button_callback
+    view.add_item(button)
 
-embed = discord.Embed(
-    title="<:1gp:1347684047773499482> Register your RuneScape Name",
-    description=(
-        "Click the button below to register or update your RuneScape name in the clan records.\n\n"
-        "This helps event staff verify drops and track your achievements. 🪙"
-    ),
-    color=discord.Color.green()
-)
+    embed = discord.Embed(
+        title="<:1gp:1347684047773499482> Register your RuneScape Name",
+        description=(
+            "Click the button below to register or update your RuneScape name in the clan records.\n\n"
+            "This helps event staff verify drops and track your achievements. 🪙"
+        ),
+        color=discord.Color.green()
+    )
 
-await interaction.response.send_message(
-    embed=embed,
-    view=view,
-    ephemeral=False  # important! so everyone can see and use the button
-)
+    await interaction.response.send_message(
+        embed=embed,
+        view=view,
+        ephemeral=False  # so everyone can see and use the button
+    )
 
 
 @tree.command(name="rsn", description="Check your registered RSN.")
