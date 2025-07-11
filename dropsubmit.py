@@ -804,6 +804,11 @@ class RegionButton(discord.ui.Button):
             reason=f"{interaction.user} requested region {self.region_name}."
         )
 
+        EVENT_STAFF_ROLE_NAME = "Event Staff"  # change if needed
+        
+        # … inside RegionButton.callback …
+        event_staff_role = discord.utils.get(interaction.guild.roles, name=EVENT_STAFF_ROLE_NAME)
+        
         embed = discord.Embed(
             title="Region Unlock Request",
             description=(
@@ -813,9 +818,13 @@ class RegionButton(discord.ui.Button):
             ),
             color=discord.Color.orange()
         )
-
+        
         view = ConfirmDenyView(thread, interaction.user, self.region_name, team_role)
-        await thread.send(embed=embed, view=view)
+        
+        content = f"{event_staff_role.mention} New region request" if event_staff_role else "New region request"
+        
+        await thread.send(content=content, embed=embed, view=view)
+
 
         await interaction.response.send_message(
             f"✅ Created thread: {thread.mention} for region request.",
