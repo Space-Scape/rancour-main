@@ -663,7 +663,6 @@ async def rsn_panel(interaction: discord.Interaction):
                 f"✅ Your RuneScape name has been submitted as **{rsn_value}**.",
                 ephemeral=True
             )
-    )
 
     async def button_callback(interaction2: discord.Interaction):
         await interaction2.response.send_modal(RSNModal())
