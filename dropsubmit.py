@@ -66,15 +66,14 @@ boss_drops = {
     "Alchemical Hydra": ["Ikkle hydra", "Hydra's claw", "Hydra tail", "Hydra leather", "Hydra's fang", "Hydra's eye", "Hydra's heart", "Dragon knife", "Dragon thrownaxe", "Jar of chemicals", "Alchemical hydra heads"],
     "Amoxliatl": ["Moxi", "Glacial temotli", "Pendant of ates (inert)", "Frozen tear"],
     "Araxxor": ["Noxious pommel", "Noxious point", "Noxious blade", "Araxyte fang", "Araxyte head", "Jar of venom", "Coagulated venom", "Nid"],
-    "Artio": ["Callisto cub", "Tyrannical ring", "Dragon pickaxe", "Dragon 2h sword", "Claws of callisto", "Voidwaker hilt"],
     "Barrows": ["Ahrim's hood", "Ahrim's robetop", "Ahrim's robeskirt", "Ahrim's staff", "Karil's coif", "Karil's leathertop", "Karil's leatherskirt", "Karil's crossbow", "Dharok's helm", "Dharok's platebody", "Dharok's platelegs", "Dharok's greataxe", "Guthan's helm", "Guthan's platebody", "Guthan's chainskirt", "Guthan's warspear", "Torag's helm", "Torag's platebody", "Torag's platelegs", "Torag's hammers", "Verac's helm", "Verac's brassard", "Verac's plateskirt", "Verac's flail"],
     "Bryophyta": ["Bryophyta's essence"],
     "Callisto": ["Callisto cub", "Tyrannical ring", "Dragon pickaxe", "Dragon 2h sword", "Claws of callisto", "Voidwaker hilt"],
     "Cerberus": ["Hellpuppy", "Eternal crystal", "Pegasian crystal", "Primordial crystal", "Jar of souls", "Smouldering stone", "Key master teleport"],
     "Chaos Elemental": ["Pet chaos elemental", "Dragon pickaxe", "Dragon 2h sword"],
-    "Chaos Fanatic": ["Pet chaos elemental", "Odium shard 1", "Malediction shard 1"],
+    "Chaos Fanatic": ["Odium shard 1", "Malediction shard 1"],
     "Chambers of Xeric": ["Dexterous prayer scroll", "Arcane prayer scroll", "Twisted buckler", "Dragon hunter crossbow", "Dinh's bulwark", "Ancestral hat", "Ancestral robe top", "Ancestral robe bottom", "Dragon claws", "Elder maul", "Kodai insignia", "Twisted bow", "Olmlet", "Twisted ancestral colour kit", "Metamorphic dust"],
-    "Colosseum": ["Smol heredit", "Dizana's quiver (uncharged)", "Sunfire fanatic cuirass", "Sunfire fanatic chausses", "Sunfire fanatic helm", "Echo crystal", "Tonalztics of ralos (uncharged)", "Sunfire splinters"],
+    "Colosseum": ["Dizana's quiver (uncharged)", "Sunfire fanatic cuirass", "Sunfire fanatic chausses", "Sunfire fanatic helm", "Echo crystal", "Tonalztics of ralos (uncharged)", "Sunfire splinters"],
     "Commander Zilyana": ["Pet zilyana", "Armadyl crossbow", "Saradomin hilt", "Saradomin sword", "Saradomin's light", "Godsword shard 1", "Godsword shard 2", "Godsword shard 3"],
     "Corporeal Beast": ["Pet dark core", "Elysian sigil", "Spectral sigil", "Arcane sigil", "Spirit shield", "Holy elixir", "Jar of spirits"],
     "Crazy Archaeologist": ["Odium shard 2", "Malediction shard 2", "Fedora"],
@@ -86,8 +85,8 @@ boss_drops = {
     "Giant Mole": ["Baby mole", "Mole claw", "Mole skin"],
     "Grotesque Guardians": ["Noon", "Granite gloves", "Granite hammer", "Granite ring", "Black tourmaline core", "Jar of stone"],
     "Hueycoatl": ["Huberte", "Dragon hunter wand", "Hueycoatl hide", "Tome of earth (empty)"],
-    "Inferno": ["Jal-nib-rek", "Infernal cape"],
-    "Jad": ["Tzrek-jad", "Fire cape"],
+    "Inferno": ["Infernal cape"],
+    "Jad": ["Fire cape"],
     "Kalphite Queen": ["Kalphite princess", "Dragon chainbody", "Dragon pickaxe", "Dragon 2h sword", "Jar of sand", "Kq head"],
     "Kraken": ["Pet kraken", "Kraken tentacle", "Trident of the seas (full)", "Jar of dirt"],
     "Kree'arra": ["Pet kree'arra", "Armadyl helmet", "Armadyl chestplate", "Armadyl chainskirt", "Armadyl hilt", "Godsword shard 1", "Godsword shard 2", "Godsword shard 3"],
@@ -107,7 +106,7 @@ boss_drops = {
     "Venenatis": ["Venenatis spiderling", "Fangs of venenatis", "Dragon 2h sword", "Dragon pickaxe", "Voidwaker gem", "Treasonous ring"],
     "Vet'ion": ["Vet'ion jr.", "Skull of vet'ion", "Dragon 2h sword", "Dragon pickaxe", "Voidwaker blade", "Ring of the gods", "Skeleton champion scroll"],
     "Vorkath": ["Vorki", "Vorkath's head", "Draconic visage", "Serpentine visage", "Jar of decay", "Dragonbone necklace"],
-    "Yama": ["Yami", "Soulflame horn", "Oathplate helm", "Oathplate chest", "Oathplate legs", "Oathplate shards", "Barrel of demonic tallow", "Forgotten lockbox", "Dossier", "Aether catalyst", "Diabolic worms", "Chasm teleport scroll"],
+    "Yama": ["Soulflame horn", "Oathplate helm", "Oathplate chest", "Oathplate legs", "Oathplate shards", "Barrel of demonic tallow", "Forgotten lockbox", "Dossier", "Aether catalyst", "Diabolic worms", "Chasm teleport scroll"],
     "Zulrah": ["Pet snakeling", "Tanzanite mutagen", "Magma mutagen", "Jar of swamp water", "Tanzanite fang", "Magic fang", "Serpentine visage", "Uncut onyx"],
     "Varlamore Misc": ["Sulphur blades"],
     "Misthalin/wilderness Misc": ["Zombie helm", "Zombie axe", "Dragon limbs", "Dragon metal lump"],
@@ -116,6 +115,7 @@ boss_drops = {
     "Asgarnia Misc": ["Dragon boots"],
     "Morytania Misc": ["Zealot’s helm", "Zealot’s robe top", "Zealot’s robe bottom", "Zealot’s boots"],
     "Tirannwn/fremennik Misc": ["Brine saber"],
+    "Pet Misc": ["Rocky", "Abyssal Protector"]
 }
 
 # ---------------------------
@@ -237,9 +237,33 @@ class DropSelect(discord.ui.Select):
             )
 
 class DropView(discord.ui.View):
-    def __init__(self, submitting_user, target_user, screenshot, boss):
+    def __init__(self, submitting_user, target_user, screenshot, boss, page=0):
         super().__init__()
+        self.submitting_user = submitting_user
+        self.target_user = target_user
+        self.screenshot = screenshot
+        self.boss = boss
+        self.page = page
+
         self.add_item(DropSelect(submitting_user, target_user, screenshot, boss))
+        self.add_item(self.BackButton())
+
+    class BackButton(discord.ui.Button):
+        def __init__(self):
+            super().__init__(label="⬅️ Back", style=discord.ButtonStyle.secondary)
+
+        async def callback(self, interaction: discord.Interaction):
+            # Go back to boss selection at the same page (or page 0)
+            await interaction.response.edit_message(
+                content=f"Submitting drop for {self.view.target_user.display_name}. Select the boss you received the drop from:",
+                view=BossView(
+                    self.view.submitting_user,
+                    self.view.target_user,
+                    self.view.screenshot,
+                    page=self.view.page  # preserve pagination page if you want
+                )
+            )
+
 
 # ---------------------------
 # 🔹 DropReviewButtons
