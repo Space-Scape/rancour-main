@@ -626,26 +626,26 @@ async def rsn_panel(interaction: discord.Interaction):
         emoji="<:1gp:>"
     )
 
-    async def button_callback(button_interaction: discord.Interaction):
-        await button_interaction.response.send_modal(RSNModal())
+async def button_callback(button_interaction: discord.Interaction):
+    await button_interaction.response.send_modal(RSNModal())
 
-    button.callback = button_callback
-    view.add_item(button)
+button.callback = button_callback
+view.add_item(button)
 
-    embed = discord.Embed(
-        title="<:1gp:1347684047773499482> Register your RuneScape Name",
-        description=(
-            "Click the button below to register or update your RuneScape name in the clan records.\n\n"
-            "This helps event staff verify drops and track your achievements. 🪙"
-        ),
-        color=discord.Color.green()
-    )
+embed = discord.Embed(
+    title="<:1gp:1347684047773499482> Register your RuneScape Name",
+    description=(
+        "Click the button below to register or update your RuneScape name in the clan records.\n\n"
+        "This helps event staff verify drops and track your achievements. 🪙"
+    ),
+    color=discord.Color.green()
+)
 
-    await interaction.response.send_message(
-        embed=embed,
-        view=view,
-        ephemeral=False  # important! so everyone can see and use the button
-    )
+await interaction.response.send_message(
+    embed=embed,
+    view=view,
+    ephemeral=False  # important! so everyone can see and use the button
+)
 
 
 @tree.command(name="rsn", description="Check your registered RSN.")
