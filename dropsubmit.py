@@ -569,13 +569,18 @@ rsn_write_queue = asyncio.Queue()
 
 async def rsn_writer():
     while True:
-        member_id, rsn_value = await rsn_write_queue.get()
+        member: discord.Member
+        member, rsn_value = await rsn_write_queue.get()
         try:
-            cell = rsn_sheet.find(member_id)
+            cell = rsn_sheet.find(str(member.id))
             if cell is not None:
-                rsn_sheet.update_cell(cell.row, 2, rsn_value)
+                old_rsn = rsn_sheet.cell(cell.row, 4).value or ""
+                rsn_sheet.update_cell(cell.row, 4, rsn_value)
+                print(f"✅ Updated RSN for {member} ({member.id}) to {rsn_value}")
             else:
-                rsn_sheet.append_row([member_id, rsn_value])
+                old_rsn = ""
+                rsn_sheet.append_row([member.display_name, str(member.id), old_rsn, rsn_value])
+                print(f"✅ Added new RSN for {member} ({member.id}) as {rsn_value}")
         except Exception as e:
             print(f"Error writing RSN to sheet: {e}")
         rsn_write_queue.task_done()
@@ -585,23 +590,27 @@ async def rsn_writer():
 async def rsn_panel(interaction: discord.Interaction):
     class RSNModal(discord.ui.Modal, title="Register your RuneScape Name"):
         rsn = discord.ui.TextInput(
-            label="Enter your RSN",
+            label="Enter your RuneScape Name 🧙",
             placeholder="e.g. Zezima",
             required=True,
             max_length=12
         )
 
-        async def on_submit(self, interaction: discord.Interaction):
-            member_id = str(interaction.user.id)
+        async def on_submit(self, modal_interaction: discord.Interaction):
+            member = modal_interaction.user
             rsn_value = self.rsn.value
-            rsn_write_queue.put_nowait((member_id, rsn_value))
-            await interaction.response.send_message(
-                f"✅ Your RSN has been registered as **{rsn_value}**.",
+            rsn_write_queue.put_nowait((member, rsn_value))
+            await modal_interaction.response.send_message(
+                f"✅ Your RuneScape name has been submitted as **{rsn_value}**.",
                 ephemeral=True
             )
 
     view = discord.ui.View()
-    button = discord.ui.Button(label="Register RSN", style=discord.ButtonStyle.primary)
+    button = discord.ui.Button(
+        label="Register RSN",
+        style=discord.ButtonStyle.success,
+        emoji="📝"
+    )
 
     async def button_callback(interaction2: discord.Interaction):
         await interaction2.response.send_modal(RSNModal())
@@ -609,12 +618,20 @@ async def rsn_panel(interaction: discord.Interaction):
     button.callback = button_callback
     view.add_item(button)
 
-    await interaction.response.send_message(
-        "📝 Click below to register your RuneScape Name:",
-        view=view,
-        ephemeral=True
+    embed = discord.Embed(
+        title=":1gp: Register your RuneScape Name",
+        description=(
+            "Click the button below to register or update your RuneScape name in the clan records.\n\n"
+            "This helps event staff verify drops and track your achievements. 🪙"
+        ),
+        color=discord.Color.green()
     )
 
+    await interaction.response.send_message(
+        embed=embed,
+        view=view,
+        ephemeral=False
+    )
 
 @tree.command(name="rsn", description="Check your registered RSN.")
 async def rsn(interaction: discord.Interaction):
