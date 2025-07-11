@@ -110,7 +110,7 @@ boss_drops = {
     "Yama": ["Soulflame horn", "Oathplate helm", "Oathplate chest", "Oathplate legs", "Oathplate shards", "Barrel of demonic tallow", "Forgotten lockbox", "Dossier", "Aether catalyst", "Diabolic worms", "Chasm teleport scroll"],
     "Zulrah": ["Pet snakeling", "Tanzanite mutagen", "Magma mutagen", "Jar of swamp water", "Tanzanite fang", "Magic fang", "Serpentine visage", "Uncut onyx"],
     "Varlamore Misc": ["Sulphur blades"],
-    "Misthalin/wilderness Misc": ["Zombie helm", "Zombie axe", "Dragon limbs", "Dragon metal lump"],
+    "Misthalin/wilderness Misc": ["Broken Zombie helmet", "Zombie axe", "Dragon limbs", "Dragon metal lump"],
     "Kourend/Kebos Misc": ["Pyromancer garb", "Pyromancer robe", "Pyromancer boots", "Tome of fire (empty)", "Phoenix", "Dragon axe", "Pyromancer hood", "Bruma torch", "Golden tench", "Warm gloves"],
     "Desert Misc": ["Kq head", "Pharaoh's sceptre (uncharged)", "500 toa kit", "Abyssal needle", "Abyssal lantern", "Abyssal red dye", "Abyssal green dye", "Abyssal blue dye"],
     "Asgarnia Misc": ["Dragon boots"],
