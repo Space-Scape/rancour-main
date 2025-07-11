@@ -6,7 +6,6 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 from datetime import datetime, timezone
 import asyncio
-from gspread.exceptions import CellNotFound
 
 # ---------------------------
 # 🔹 Google Sheets Setup
@@ -572,13 +571,13 @@ async def rsn_writer():
     while True:
         member_id, rsn_value = await rsn_write_queue.get()
         try:
-            try:
-                cell = rsn_sheet.find(member_id)  # search column A for member ID
-                rsn_sheet.update_cell(cell.row, 2, rsn_value)  # update RSN in col B
-            except gspread.exceptions.CellNotFound:
-                rsn_sheet.append_row([member_id, rsn_value])
+            cell = rsn_sheet.find(member_id)
+            rsn_sheet.update_cell(cell.row, 2, rsn_value)
         except Exception as e:
-            print(f"Error writing RSN to sheet: {e}")
+            if e.__class__.__name__ == "CellNotFound":
+                rsn_sheet.append_row([member_id, rsn_value])
+            else:
+                raise
         rsn_write_queue.task_done()
 
 @tree.command(name="rsn_panel", description="Open the RSN registration panel.")
@@ -592,11 +591,11 @@ async def rsn_panel(interaction: discord.Interaction):
             max_length=12
         )
 
-        async def on_submit(self, modal_interaction: discord.Interaction):
-            member_id = str(modal_interaction.user.id)
+        async def on_submit(self, interaction: discord.Interaction):
+            member_id = str(interaction.user.id)
             rsn_value = self.rsn.value
             rsn_write_queue.put_nowait((member_id, rsn_value))
-            await modal_interaction.response.send_message(
+            await interaction.response.send_message(
                 f"✅ Your RSN has been registered as **{rsn_value}**.",
                 ephemeral=True
             )
