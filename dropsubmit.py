@@ -572,12 +572,12 @@ async def rsn_writer():
         member_id, rsn_value = await rsn_write_queue.get()
         try:
             cell = rsn_sheet.find(member_id)
-            rsn_sheet.update_cell(cell.row, 2, rsn_value)
-        except Exception as e:
-            if e.__class__.__name__ == "CellNotFound":
-                rsn_sheet.append_row([member_id, rsn_value])
+            if cell is not None:
+                rsn_sheet.update_cell(cell.row, 2, rsn_value)
             else:
-                raise
+                rsn_sheet.append_row([member_id, rsn_value])
+        except Exception as e:
+            print(f"Error writing RSN to sheet: {e}")
         rsn_write_queue.task_done()
 
 @tree.command(name="rsn_panel", description="Open the RSN registration panel.")
