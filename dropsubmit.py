@@ -623,53 +623,50 @@ async def rsn_writer():
             print(f"Error writing RSN to sheet: {e}")
         rsn_write_queue.task_done()
 
+
+class RSNModal(discord.ui.Modal, title="Register your RuneScape Name"):
+    rsn = discord.ui.TextInput(
+        label="Enter your RuneScape Name 🧙",
+        placeholder="e.g. Zezima",
+        required=True,
+        max_length=12
+    )
+
+    async def on_submit(self, modal_interaction: discord.Interaction):
+        member = modal_interaction.user
+        rsn_value = self.rsn.value
+        rsn_write_queue.put_nowait((member, rsn_value))
+
+        # Add Registered role if not already
+        guild = modal_interaction.guild
+        if guild:
+            registered_role = discord.utils.get(guild.roles, name=REGISTERED_ROLE_NAME)
+            if registered_role and registered_role not in member.roles:
+                await member.add_roles(registered_role, reason="Registered RSN")
+
+        await modal_interaction.response.send_message(
+            f"✅ Your RuneScape name has been submitted as **{rsn_value}**.",
+            ephemeral=True
+        )
+
+
 class RSNPanelView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)  # Persistent view: no timeout
 
     @discord.ui.button(
-        label="Register RSN", 
-        style=discord.ButtonStyle.success, 
-        emoji="📝", 
+        label="Register RSN",
+        style=discord.ButtonStyle.success,
+        emoji="📝",
         custom_id="register_rsn_button"
     )
     async def register_rsn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(RSNModal())
 
+
 @tree.command(name="rsn_panel", description="Open the RSN registration panel.")
 @app_commands.checks.has_any_role("Moderators")
 async def rsn_panel(interaction: discord.Interaction):
-    class RSNModal(discord.ui.Modal, title="Register your RuneScape Name"):
-        rsn = discord.ui.TextInput(
-            label="Enter your RuneScape Name 🧙",
-            placeholder="e.g. Zezima",
-            required=True,
-            max_length=12
-        )
-
-        async def on_submit(self, modal_interaction: discord.Interaction):
-            member = modal_interaction.user
-            rsn_value = self.rsn.value
-            rsn_write_queue.put_nowait((member, rsn_value))
-        
-            # Add Registered role if not already
-            guild = modal_interaction.guild
-            if guild:
-                registered_role = discord.utils.get(guild.roles, name=REGISTERED_ROLE_NAME)
-                if registered_role and registered_role not in member.roles:
-                    await member.add_roles(registered_role, reason="Registered RSN")
-        
-            await modal_interaction.response.send_message(
-                f"✅ Your RuneScape name has been submitted as **{rsn_value}**.",
-                ephemeral=True
-            )
-
-    async def button_callback(interaction2: discord.Interaction):
-        await interaction2.response.send_modal(RSNModal())
-
-    button.callback = button_callback
-    view.add_item(button)
-
     embed = discord.Embed(
         title="<:1gp:1347684047773499482> Register your RuneScape Name",
         description=(
@@ -681,9 +678,10 @@ async def rsn_panel(interaction: discord.Interaction):
 
     await interaction.response.send_message(
         embed=embed,
-        view=view,
+        view=RSNPanelView(),
         ephemeral=False
     )
+
 
 @tree.command(name="rsn", description="Check your registered RSN.")
 async def rsn(interaction: discord.Interaction):
@@ -702,6 +700,7 @@ async def rsn(interaction: discord.Interaction):
             ephemeral=True
         )
 
+
 @rsn_panel.error
 async def rsn_panel_error(interaction: discord.Interaction, error):
     if isinstance(error, app_commands.errors.MissingAnyRole):
@@ -710,12 +709,13 @@ async def rsn_panel_error(interaction: discord.Interaction, error):
             ephemeral=True
         )
 
+
 # ---------------------------
 # 🔹 On Ready
 # ---------------------------
 @bot.event
 async def on_ready():
-    bot.add_view(RSNPanelView())
+    bot.add_view(RSNPanelView())  # register persistent view
     bot.loop.create_task(rsn_writer())
     print(f"✅ Logged in as {bot.user}")
     synced = await tree.sync()
