@@ -619,7 +619,7 @@ async def rsn_panel(interaction: discord.Interaction):
     view.add_item(button)
 
     embed = discord.Embed(
-        title=":1gp: Register your RuneScape Name",
+        title="<:1gp:1347684047773499482> Register your RuneScape Name",
         description=(
             "Click the button below to register or update your RuneScape name in the clan records.\n\n"
             "This helps event staff verify drops and track your achievements. 🪙"
