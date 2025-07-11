@@ -161,8 +161,9 @@ class BossSelect(discord.ui.Select):
         boss = self.values[0]
         await interaction.response.edit_message(
             content=f"Selected boss: {boss}. Now select the drop you received.",
-            view=DropView(self.submitting_user, self.target_user, self.screenshot, boss)
+            view=DropView(self.submitting_user, self.target_user, self.screenshot, boss, page=self.page)
         )
+
 
 class BossView(discord.ui.View):
     def __init__(self, submitting_user, target_user, screenshot, page=0):
