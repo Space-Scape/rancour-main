@@ -613,10 +613,19 @@ async def rsn_panel(interaction: discord.Interaction):
             member = modal_interaction.user
             rsn_value = self.rsn.value
             rsn_write_queue.put_nowait((member, rsn_value))
+        
+            # Add Registered role if not already
+            guild = modal_interaction.guild
+            if guild:
+                registered_role = discord.utils.get(guild.roles, name=REGISTERED_ROLE_NAME)
+                if registered_role and registered_role not in member.roles:
+                    await member.add_roles(registered_role, reason="Registered RSN")
+        
             await modal_interaction.response.send_message(
                 f"✅ Your RuneScape name has been submitted as **{rsn_value}**.",
                 ephemeral=True
             )
+
 
     view = discord.ui.View()
     button = discord.ui.Button(
