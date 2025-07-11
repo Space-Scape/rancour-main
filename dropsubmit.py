@@ -573,10 +573,12 @@ async def rsn_writer():
         rsn_value: str
         member, rsn_value = await rsn_write_queue.get()
         try:
+            now = datetime.now(timezone.utc)
+            day = now.day
+            timestamp = now.strftime(f"%B {day}, %Y at %I:%M%p")
+
             cell = rsn_sheet.find(str(member.id))
-            timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             if cell is not None:
-                # Get old RSN before overwriting
                 old_rsn = rsn_sheet.cell(cell.row, 4).value or ""
                 rsn_sheet.update_cell(cell.row, 4, rsn_value)
                 rsn_sheet.update_cell(cell.row, 5, timestamp)
@@ -594,6 +596,7 @@ async def rsn_writer():
         except Exception as e:
             print(f"Error writing RSN to sheet: {e}")
         rsn_write_queue.task_done()
+
 
 @tree.command(name="rsn_panel", description="Open the RSN registration panel.")
 @app_commands.checks.has_any_role("Moderators")
