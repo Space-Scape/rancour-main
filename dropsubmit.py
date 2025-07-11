@@ -683,7 +683,6 @@ async def rsn_panel(interaction: discord.Interaction):
         ephemeral=False
     )
 
-
 @tree.command(name="rsn", description="Check your registered RSN.")
 async def rsn(interaction: discord.Interaction):
     member_id = str(interaction.user.id)
@@ -710,6 +709,87 @@ async def rsn_panel_error(interaction: discord.Interaction, error):
             ephemeral=True
         )
 
+# ---------------------------
+# RegionPanel
+# ---------------------------
+REGION_NAMES = [
+    "Asgarnia", 
+    "Kandarin", 
+    "Desert",
+    "Fremennik / Tirannwn",
+    "Morytania",
+    "Varlamore",
+    "Kourend"
+]
+
+TEAM_ROLE_PREFIX = "Team"
+
+class RegionPanelView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+        for region in REGION_NAMES:
+            self.add_item(RegionButton(region))
+
+
+class RegionButton(discord.ui.Button):
+    def __init__(self, region_name: str):
+        super().__init__(
+            label=region_name,
+            style=discord.ButtonStyle.secondary,
+            custom_id=f"region_request_{region_name.replace(' ', '_')}"
+        )
+        self.region_name = region_name
+
+    async def callback(self, interaction: discord.Interaction):
+        # Find user team role
+        team_role = next(
+            (role.name for role in interaction.user.roles if role.name.startswith(TEAM_ROLE_PREFIX)),
+            None
+        )
+        if team_role is None:
+            await interaction.response.send_message(
+                "❌ You don’t seem to have a team role assigned.",
+                ephemeral=True
+            )
+            return
+
+        # Format thread name
+        thread_name_base = self.region_name.replace(" / ", "-").replace(" ", "")
+        thread_name = f"{thread_name_base}-{team_role.replace(' ', '')}"
+
+        thread = await interaction.channel.create_thread(
+            name=thread_name,
+            type=discord.ChannelType.public_thread,
+            reason=f"{interaction.user} requested region {self.region_name}."
+        )
+
+        await thread.send(
+            f"{interaction.user.mention} has requested to unlock **{self.region_name}** for **{team_role}**.\n"
+            f"Please confirm or deny below."
+        )
+
+        await interaction.response.send_message(
+            f"✅ Created thread: {thread.mention} for region request.",
+            ephemeral=True
+        )
+
+@bot.tree.command(name="region_panel", description="Post the region unlock request panel.")
+async def region_panel(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🗺️ Region Unlock Request Panel 🗺️",
+        description=(
+            "Teams begin with **Misthalin and Wilderness unlocked**.\n\n"
+            "Use the buttons below to request unlocking a new region for your team. "
+            "A thread will be created for staff to review your request.\n\n"
+            "Previously unlocked regions remain available."
+        ),
+        color=discord.Color.blurple()
+    )
+    embed.set_footer(text="Region unlock requests")
+
+    view = RegionPanelView()
+    await interaction.response.send_message(embed=embed, view=view)
 
 # ---------------------------
 # 🔹 On Ready
@@ -718,6 +798,7 @@ async def rsn_panel_error(interaction: discord.Interaction, error):
 async def on_ready():
     for guild in bot.guilds:
         bot.add_view(RolePanelView(guild))
+    bot.add_view(RegionPanelView()) 
     bot.add_view(RSNPanelView())  # register persistent view
     bot.loop.create_task(rsn_writer())
     print(f"✅ Logged in as {bot.user}")
