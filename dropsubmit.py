@@ -755,9 +755,9 @@ class RegionButton(discord.ui.Button):
             )
             return
 
-        # Format thread name
+        # Format thread name with space after "Team"
         thread_name_base = self.region_name.replace(" / ", "-").replace(" ", "")
-        thread_name = f"{thread_name_base}-{team_role.replace(' ', '')}"
+        thread_name = f"{thread_name_base}-{team_role.replace('Team', 'Team ')}"
 
         thread = await interaction.channel.create_thread(
             name=thread_name,
@@ -765,10 +765,18 @@ class RegionButton(discord.ui.Button):
             reason=f"{interaction.user} requested region {self.region_name}."
         )
 
-        await thread.send(
-            f"{interaction.user.mention} has requested to unlock **{self.region_name}** for **{team_role}**.\n"
-            f"Please confirm or deny below."
+        embed = discord.Embed(
+            title="Region Unlock Request",
+            description=(
+                f"{interaction.user.mention} has requested to unlock **{self.region_name}** "
+                f"for **{team_role}**.\n\n"
+                f"Staff, please confirm or deny below."
+            ),
+            color=discord.Color.orange()
         )
+
+        view = ConfirmDenyView(thread, interaction.user, self.region_name, team_role)
+        await thread.send(embed=embed, view=view)
 
         await interaction.response.send_message(
             f"✅ Created thread: {thread.mention} for region request.",
@@ -776,33 +784,28 @@ class RegionButton(discord.ui.Button):
         )
 
 
-@bot.tree.command(name="region_panel", description="Post the region unlock request panel.")
-async def region_panel(interaction: discord.Interaction):
-    guild = interaction.guild
+class ConfirmDenyView(discord.ui.View):
+    def __init__(self, thread, requester, region_name, team_role):
+        super().__init__(timeout=None)
+        self.thread = thread
+        self.requester = requester
+        self.region_name = region_name
+        self.team_role = team_role
 
-    emojis = {
-        "Desert": discord.utils.get(guild.emojis, name="desert"),
-        "Kourend": discord.utils.get(guild.emojis, name="kourend"),
-        "Fremennik / Tirannwn": discord.utils.get(guild.emojis, name="tirannwnfremennik"),
-        "Asgarnia": discord.utils.get(guild.emojis, name="asgarnia"),
-        "Morytania": discord.utils.get(guild.emojis, name="morytania"),
-        "Varlamore": discord.utils.get(guild.emojis, name="varlamore"),
-    }
+    @discord.ui.button(label="✅ Confirm", style=discord.ButtonStyle.success, custom_id="confirm_request")
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.thread.send(f"✅ Request to unlock **{self.region_name}** for **{self.team_role}** has been **approved** by {interaction.user.mention}.")
+        await interaction.response.defer()
 
-    embed = discord.Embed(
-        title="🗺️ Region Unlock Request Panel 🗺️",
-        description=(
-            "Teams begin with **Misthalin and Wilderness unlocked**.\n\n"
-            "Use the buttons below to request unlocking a new region for your team. "
-            "A thread will be created for staff to review your request.\n\n"
-            "Previously unlocked regions remain available."
-        ),
-        color=discord.Color.blurple()
-    )
-    embed.set_footer(text="Region unlock requests")
+    @discord.ui.button(label="❌ Deny", style=discord.ButtonStyle.danger, custom_id="deny_request")
+    async def deny(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.thread.send(f"❌ Request to unlock **{self.region_name}** for **{self.team_role}** has been **denied** by {interaction.user.mention}.")
+        await interaction.response.defer()
 
-    view = RegionPanelView(emojis)
-    await interaction.response.send_message(embed=embed, view=view)
+    @discord.ui.button(label="🔒 Close Thread", style=discord.ButtonStyle.secondary, custom_id="close_thread")
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.thread.edit(archived=True, locked=True)
+        await interaction.response.send_message("🔒 Thread closed.", ephemeral=True)
 
 # ---------------------------
 # 🔹 On Ready
