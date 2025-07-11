@@ -843,8 +843,20 @@ class ConfirmDenyView(discord.ui.View):
 
     @discord.ui.button(label="🔒 Close Thread", style=discord.ButtonStyle.secondary, custom_id="close_thread")
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Archive and lock the thread
         await self.thread.edit(archived=True, locked=True)
-        await interaction.response.send_message("🔒 Thread closed.", ephemeral=True)
+
+        # Try to delete the system message from the parent channel
+        try:
+            async for msg in self.thread.parent.history(limit=50):  # Search last 50 messages
+                if msg.type == discord.MessageType.thread_created and msg.reference and msg.reference.thread.id == self.thread.id:
+                    await msg.delete()
+                    break
+        except Exception as e:
+            print(f"Failed to delete system thread-created message: {e}")
+
+        await interaction.response.send_message("🔒 Thread closed and system message removed.", ephemeral=True)
+
 
 
 # ---------------------------
