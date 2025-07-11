@@ -713,31 +713,32 @@ async def rsn_panel_error(interaction: discord.Interaction, error):
 # RegionPanel
 # ---------------------------
 REGION_NAMES = [
-    "Asgarnia", 
-    "Kandarin", 
+    "Asgarnia",
     "Desert",
     "Fremennik / Tirannwn",
     "Morytania",
     "Varlamore",
     "Kourend"
-]
+]  # Misthalin/Wilderness default, Kandarin removed
 
-TEAM_ROLE_PREFIX = "Team"
+TEAM_ROLE_PREFIX = "Team"  # Roles like "Team 1" - "Team 10"
 
 class RegionPanelView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, emojis: dict):
         super().__init__(timeout=None)
 
         for region in REGION_NAMES:
-            self.add_item(RegionButton(region))
+            emoji = emojis.get(region)
+            self.add_item(RegionButton(region, emoji))
 
 
 class RegionButton(discord.ui.Button):
-    def __init__(self, region_name: str):
+    def __init__(self, region_name: str, emoji):
         super().__init__(
             label=region_name,
             style=discord.ButtonStyle.secondary,
-            custom_id=f"region_request_{region_name.replace(' ', '_')}"
+            emoji=emoji,
+            custom_id=f"region_request_{region_name.replace(' ', '_').replace('/', '')}"
         )
         self.region_name = region_name
 
@@ -774,8 +775,20 @@ class RegionButton(discord.ui.Button):
             ephemeral=True
         )
 
+
 @bot.tree.command(name="region_panel", description="Post the region unlock request panel.")
 async def region_panel(interaction: discord.Interaction):
+    guild = interaction.guild
+
+    emojis = {
+        "Desert": discord.utils.get(guild.emojis, name="desert"),
+        "Kourend": discord.utils.get(guild.emojis, name="kourend"),
+        "Fremennik / Tirannwn": discord.utils.get(guild.emojis, name="tirannwnfremennik"),
+        "Asgarnia": discord.utils.get(guild.emojis, name="asgarnia"),
+        "Morytania": discord.utils.get(guild.emojis, name="morytania"),
+        "Varlamore": discord.utils.get(guild.emojis, name="varlamore"),
+    }
+
     embed = discord.Embed(
         title="🗺️ Region Unlock Request Panel 🗺️",
         description=(
@@ -788,7 +801,7 @@ async def region_panel(interaction: discord.Interaction):
     )
     embed.set_footer(text="Region unlock requests")
 
-    view = RegionPanelView()
+    view = RegionPanelView(emojis)
     await interaction.response.send_message(embed=embed, view=view)
 
 # ---------------------------
