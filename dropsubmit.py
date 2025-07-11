@@ -623,6 +623,19 @@ async def rsn_writer():
             print(f"Error writing RSN to sheet: {e}")
         rsn_write_queue.task_done()
 
+class RSNPanelView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)  # Persistent view: no timeout
+
+    @discord.ui.button(
+        label="Register RSN", 
+        style=discord.ButtonStyle.success, 
+        emoji="📝", 
+        custom_id="register_rsn_button"
+    )
+    async def register_rsn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(RSNModal())
+
 @tree.command(name="rsn_panel", description="Open the RSN registration panel.")
 @app_commands.checks.has_any_role("Moderators")
 async def rsn_panel(interaction: discord.Interaction):
@@ -650,13 +663,6 @@ async def rsn_panel(interaction: discord.Interaction):
                 f"✅ Your RuneScape name has been submitted as **{rsn_value}**.",
                 ephemeral=True
             )
-
-
-    view = discord.ui.View()
-    button = discord.ui.Button(
-        label="Register RSN",
-        style=discord.ButtonStyle.success,
-        emoji="📝"
     )
 
     async def button_callback(interaction2: discord.Interaction):
@@ -710,6 +716,7 @@ async def rsn_panel_error(interaction: discord.Interaction, error):
 # ---------------------------
 @bot.event
 async def on_ready():
+    bot.add_view(RSNPanelView())
     bot.loop.create_task(rsn_writer())
     print(f"✅ Logged in as {bot.user}")
     synced = await tree.sync()
