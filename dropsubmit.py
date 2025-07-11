@@ -723,13 +723,54 @@ REGION_NAMES = [
 
 TEAM_ROLE_PREFIX = "Team"  # Roles like "Team 1" - "Team 10"
 
+
+@bot.tree.command(name="region_panel", description="Post the Region Request panel.")
+async def region_panel(interaction: discord.Interaction):
+    guild = interaction.guild
+    emojis = {
+        "Asgarnia": discord.utils.get(guild.emojis, name="asgarnia"),
+        "Desert": discord.utils.get(guild.emojis, name="desert"),
+        "Fremennik / Tirannwn": discord.utils.get(guild.emojis, name="tirannwnfremennik"),
+        "Morytania": discord.utils.get(guild.emojis, name="morytania"),
+        "Varlamore": discord.utils.get(guild.emojis, name="varlamore"),
+        "Kourend": discord.utils.get(guild.emojis, name="kourend"),
+    }
+
+    embed = discord.Embed(
+        title="🌍 Region Unlock Request Panel",
+        description=(
+            "Click a button below to request unlocking a region for your team.\n"
+            "Staff will review your request in the created thread."
+        ),
+        color=discord.Color.blurple()
+    )
+
+    view = RegionPanelView(emojis)
+
+    await interaction.channel.send(embed=embed, view=view)
+    await interaction.response.send_message("✅ Region panel posted.", ephemeral=True)
+
+
+REGION_NAMES = [
+    "Asgarnia",
+    "Desert",
+    "Fremennik / Tirannwn",
+    "Morytania",
+    "Varlamore",
+    "Kourend"
+]  # Misthalin/Wilderness default, Kandarin removed
+
+TEAM_ROLE_PREFIX = "Team"  # Roles like "Team 1" - "Team 10"
+
+
 class RegionPanelView(discord.ui.View):
-    def __init__(self, emojis: dict):
+    def __init__(self, emojis: dict = None):
         super().__init__(timeout=None)
 
-        for region in REGION_NAMES:
-            emoji = emojis.get(region)
-            self.add_item(RegionButton(region, emoji))
+        if emojis:  # Only populate buttons if emojis provided
+            for region in REGION_NAMES:
+                emoji = emojis.get(region)
+                self.add_item(RegionButton(region, emoji))
 
 
 class RegionButton(discord.ui.Button):
@@ -743,7 +784,6 @@ class RegionButton(discord.ui.Button):
         self.region_name = region_name
 
     async def callback(self, interaction: discord.Interaction):
-        # Find user team role
         team_role = next(
             (role.name for role in interaction.user.roles if role.name.startswith(TEAM_ROLE_PREFIX)),
             None
@@ -755,7 +795,6 @@ class RegionButton(discord.ui.Button):
             )
             return
 
-        # Format thread name with space after "Team"
         thread_name_base = self.region_name.replace(" / ", "-").replace(" ", "")
         thread_name = f"{thread_name_base}-{team_role.replace('Team', 'Team ')}"
 
@@ -806,6 +845,7 @@ class ConfirmDenyView(discord.ui.View):
     async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.thread.edit(archived=True, locked=True)
         await interaction.response.send_message("🔒 Thread closed.", ephemeral=True)
+
 
 # ---------------------------
 # 🔹 On Ready
