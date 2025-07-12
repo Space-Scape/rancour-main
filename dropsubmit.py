@@ -113,7 +113,7 @@ boss_drops = {
     "Varlamore Misc": ["Sulphur blades"],
     "Misthalin/wilderness Misc": ["Broken Zombie helmet", "Broken Zombie axe", "Dragon limbs", "Dragon metal lump"],
     "Kourend/Kebos Misc": ["Pyromancer garb", "Pyromancer robe", "Pyromancer boots", "Tome of fire (empty)", "Phoenix", "Dragon axe", "Pyromancer hood", "Bruma torch", "Golden tench", "Warm gloves"],
-    "Desert Misc": ["Kq head", "Pharaoh's sceptre (uncharged)", "Cursed Phalanx", "Abyssal needle", "Abyssal lantern", "Abyssal dye", "Abyssal dye", "Abyssal dye"],
+    "Desert Misc": ["Kq head", "Pharaoh's sceptre (uncharged)", "Cursed Phalanx", "Abyssal needle", "Abyssal lantern", "Abyssal dye"],
     "Asgarnia Misc": ["Dragon boots"],
     "Morytania Misc": ["Zealot’s helm", "Zealot’s robe top", "Zealot’s robe bottom", "Zealot’s boots"],
     "Tirannwn/fremennik Misc": ["Brine sabre"],
