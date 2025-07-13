@@ -279,16 +279,56 @@ class DropReviewButtons(discord.ui.View):
         self.image_url = image_url
         self.submitting_user = submitting_user
         self.team_mention = team_mention
+        self.reviewer: Optional[int] = None  # user.id of the current reviewer
 
     def has_drop_manager_role(self, member: discord.Member) -> bool:
         return any(role.name == REQUIRED_ROLE_NAME for role in member.roles)
 
-    @discord.ui.button(label="Approve ✅", style=discord.ButtonStyle.green)
-    async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="Review", style=discord.ButtonStyle.blurple)
+    async def review(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self.has_drop_manager_role(interaction.user):
-            await interaction.response.send_message("❌ You do not have permission to approve.", ephemeral=True)
+            await interaction.response.send_message("❌ You do not have permission to review.", ephemeral=True)
             return
-    
+
+        if self.reviewer is None:
+            # Claim review
+            self.reviewer = interaction.user.id
+            for child in self.children:
+                if child.label.startswith("Approve") or child.label.startswith("Reject"):
+                    child.disabled = False
+            await interaction.message.edit(
+                content=f"👤 Being reviewed by: {interaction.user.display_name}",
+                view=self
+            )
+            await interaction.response.defer()
+
+        elif self.reviewer == interaction.user.id:
+            # Release review
+            self.reviewer = None
+            for child in self.children:
+                if child.label.startswith("Approve") or child.label.startswith("Reject"):
+                    child.disabled = True
+            await interaction.message.edit(
+                content=f"👤 No one is currently reviewing this.",
+                view=self
+            )
+            await interaction.response.defer()
+
+        else:
+            await interaction.response.send_message(
+                f"❌ This is currently being reviewed by <@{self.reviewer}>.",
+                ephemeral=True
+            )
+
+    @discord.ui.button(label="Approve ✅", style=discord.ButtonStyle.green, disabled=True)
+    async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.reviewer != interaction.user.id:
+            await interaction.response.send_message(
+                "❌ You are not the reviewer of this submission.",
+                ephemeral=True
+            )
+            return
+
         log_channel = bot.get_channel(LOG_CHANNEL_ID)
         if log_channel:
             embed = discord.Embed(title="Drop Approved", colour=discord.Colour.green())
@@ -299,7 +339,7 @@ class DropReviewButtons(discord.ui.View):
             embed.add_field(name="Submitted By", value=self.submitting_user.mention, inline=False)
             embed.set_image(url=self.image_url)
             await log_channel.send(embed=embed)
-    
+
         sheet.append_row([
             interaction.user.display_name,
             self.submitted_user.display_name,
@@ -308,23 +348,24 @@ class DropReviewButtons(discord.ui.View):
             self.image_url,
             datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         ])
-    
+
         await interaction.response.send_message("✅ Approved and logged. This message will now be removed.", ephemeral=True)
-    
+
         # Delete the original message after short delay
         await asyncio.sleep(1)
         await interaction.message.delete()
-    
-    
-    @discord.ui.button(label="Reject ❌", style=discord.ButtonStyle.red)
+
+    @discord.ui.button(label="Reject ❌", style=discord.ButtonStyle.red, disabled=True)
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not self.has_drop_manager_role(interaction.user):
-            await interaction.response.send_message("❌ You do not have permission to reject.", ephemeral=True)
+        if self.reviewer != interaction.user.id:
+            await interaction.response.send_message(
+                "❌ You are not the reviewer of this submission.",
+                ephemeral=True
+            )
             return
-    
+
         modal = RejectReasonModal(self, interaction)
         await interaction.response.send_modal(modal)
-
 
 class RejectReasonModal(discord.ui.Modal, title="Reject Submission"):
     def __init__(self, parent_view: discord.ui.View, interaction: discord.Interaction):
@@ -353,13 +394,12 @@ class RejectReasonModal(discord.ui.Modal, title="Reject Submission"):
             embed.add_field(name="Reason", value=self.reason.value, inline=False)
             embed.set_image(url=self.parent_view.image_url)
             await log_channel.send(embed=embed)
-    
+
         await interaction.response.send_message("❌ Submission rejected and logged. This message will now be removed.", ephemeral=True)
-    
+
         # Delete the original message after short delay
         await asyncio.sleep(1)
         await self.message.delete()
-
 
 # ---------------------------
 # 🔹 Welcome#
