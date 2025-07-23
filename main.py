@@ -458,9 +458,7 @@ async def welcome(interaction: discord.Interaction):
         color=discord.Color.blurple()
     )
     
-    # Add a blank field for spacing after Self-Role Assign
-    embed.add_field(name="\u200b", value="\u200b", inline=False)
-    
+    # Social links - inline
     embed.add_field(
         name="💭 General Chat",
         value="[Say hello!](https://discord.com/channels/1272629330115297330/1272629331524587623)",
@@ -476,6 +474,7 @@ async def welcome(interaction: discord.Interaction):
         value="[Stay updated](https://discord.com/channels/1272629330115297330/1272875477555482666)",
         inline=True
     )
+    
     embed.add_field(
         name="🏹 Team Finder",
         value="[Find PVM teams](https://discord.com/channels/1272629330115297330/1272648555772776529)",
@@ -492,13 +491,10 @@ async def welcome(interaction: discord.Interaction):
         inline=True
     )
     
-    # Add another blank field before Mentor Info
-    embed.add_field(name="\u200b", value="\u200b", inline=False)
-    
-    # 🎓 Centered Mentor Info heading
+    # 🎓 Mentor Info added to description with bold header
     embed.add_field(
         name="🎓 Mentor Info",
-        value="\u200b",
+        value="Learn or teach raids with 1-on-1 mentorship!",
         inline=False
     )
     
@@ -530,7 +526,6 @@ async def welcome(interaction: discord.Interaction):
         ),
         inline=False
     )
-
 
     await interaction.response.send_message(embed=embed)
 
