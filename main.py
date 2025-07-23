@@ -454,7 +454,6 @@ async def welcome(interaction: discord.Interaction):
         color=discord.Color.blurple()
     )
     
-    # Add a blank field above Self-Role Assign for spacing
     embed.add_field(name="\u200b", value="\u200b", inline=False)
     
     embed.add_field(
@@ -467,10 +466,8 @@ async def welcome(interaction: discord.Interaction):
         inline=False
     )
     
-    # Add a blank field below Self-Role Assign for spacing
     embed.add_field(name="\u200b", value="\u200b", inline=False)
     
-    # The other fields as before, inline=True for side-by-side layout
     embed.add_field(
         name="💭 General Chat",
         value="[Say hello!](https://discord.com/channels/1272629330115297330/1272629331524587623)",
@@ -502,9 +499,12 @@ async def welcome(interaction: discord.Interaction):
         inline=True
     )
     
-    # Now split Mentor Info into two inline fields for better side-by-side alignment
+    # 🎓 Mentor Info header with spacing above
+    embed.add_field(name="\u200b", value="\u200b", inline=False)
+    embed.add_field(name="🎓 Mentor Info", value="\u200b", inline=False)
+
     embed.add_field(
-        name="🎓 Mentor Info (Learners)",
+        name="For Learners",
         value=(
             "Once you've been here for two weeks and earned your "
             "<:corporal:1273838960367505532> rank, you can open a mentor ticket "
@@ -513,10 +513,11 @@ async def welcome(interaction: discord.Interaction):
         inline=True
     )
     embed.add_field(
-        name="🎓 Mentor Info (Mentors)",
+        name="For Mentors",
         value=(
             "<:mentor:1273838962753929307> **Interested in becoming a mentor?**\n"
-            "Please open a mentor rank request in the <#1272648472184487937> channel. State which raid you would like to mentor, and an admin will reach out to you.\n\n"
+            "Please open a mentor rank request in the <#1272648472184487937> channel. "
+            "State which raid you would like to mentor, and an admin will reach out to you."
         ),
         inline=True
     )
@@ -530,8 +531,8 @@ async def welcome(interaction: discord.Interaction):
         inline=False
     )
 
-
     await interaction.response.send_message(embed=embed)
+
 
 # ---------------------------
 # 🔹 Role Panel
