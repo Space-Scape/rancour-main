@@ -1,1 +1,1 @@
-web: python dropsubmit.py
+web: python main.py
