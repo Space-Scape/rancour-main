@@ -453,17 +453,24 @@ async def welcome(interaction: discord.Interaction):
         ),
         color=discord.Color.blurple()
     )
-
+    
+    # Add a blank field above Self-Role Assign for spacing
+    embed.add_field(name="\u200b", value="\u200b", inline=False)
+    
     embed.add_field(
         name="💡 Self-Role Assign",
         value=(
-            "[Click here](https://discord.com/channels/1272629330115297330/1272648586198519818) —"
-            " Select roles to be pinged for bosses, raids, and other activities,"
-            " including **@Sanguine Sunday** for Theatre of Blood **learner** runs on Sundays. 🩸"
+            "[Click here](https://discord.com/channels/1272629330115297330/1272648586198519818) — "
+            "Select roles to be pinged for bosses, raids, and other activities, "
+            "including **@Sanguine Sunday** for Theatre of Blood **learner** runs on Sundays. 🩸"
         ),
         inline=False
     )
-
+    
+    # Add a blank field below Self-Role Assign for spacing
+    embed.add_field(name="\u200b", value="\u200b", inline=False)
+    
+    # The other fields as before, inline=True for side-by-side layout
     embed.add_field(
         name="💭 General Chat",
         value="[Say hello!](https://discord.com/channels/1272629330115297330/1272629331524587623)",
@@ -494,28 +501,35 @@ async def welcome(interaction: discord.Interaction):
         value="[Request a rank up](https://discord.com/channels/1272629330115297330/1272648472184487937)",
         inline=True
     )
-
+    
+    # Now split Mentor Info into two inline fields for better side-by-side alignment
     embed.add_field(
-        name="🎓 Mentor Info",
+        name="🎓 Mentor Info (Learners)",
         value=(
-            "Once you've been here for two weeks and earned your <:corporal:1275008914248962048> rank,"
-            " you can open a mentor ticket for 1-on-1 guidance on PVM!\n\n"
-            "<:mentor:1273838962753929307> **Interested in becoming a mentor?**\n"
-            "Please state which raid you would like to mentor, and an admin will reach out to you.\n\n"
-            "You will need to complete a mock learner run with administrators,"
-            " demonstrating your ability to explain and perform all mechanics and answer questions clearly."
+            "Once you've been here for two weeks and earned your "
+            "<:corporal:1273838960367505532> rank, you can open a mentor ticket "
+            "for 1-on-1 guidance on PVM!"
         ),
-        inline=False
+        inline=True
     )
-
+    embed.add_field(
+        name="🎓 Mentor Info (Mentors)",
+        value=(
+            "<:mentor:1273838962753929307> **Interested in becoming a mentor?**\n"
+            "Please open a mentor rank request in the <#1272648472184487937> channel. State which raid you would like to mentor, and an admin will reach out to you.\n\n"
+        ),
+        inline=True
+    )
+    
     embed.add_field(
         name="⚠️ Need Help?",
         value=(
-            "If you encounter any issues, please reach out to Clan Staff or use the"
-            " [Support Ticket channel](https://discord.com/channels/1272629330115297330/1272648498554077304)."
+            "If you encounter any issues, please reach out to Clan Staff or use the "
+            "[Support Ticket channel](https://discord.com/channels/1272629330115297330/1272648498554077304)."
         ),
         inline=False
     )
+
 
     await interaction.response.send_message(embed=embed)
 
