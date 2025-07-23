@@ -453,7 +453,7 @@ async def welcome(interaction: discord.Interaction):
             "**💡 Self-Role Assign**\n"
             "[Click here](https://discord.com/channels/1272629330115297330/1272648586198519818) — "
             "Select roles to be pinged for bosses, raids, and other activities, "
-            "including **@Sanguine Sunday** for Theatre of Blood **learner** runs on Sundays. 🩸\n"
+            "including **@Sanguine Sunday** for Theatre of Blood **learner** runs on Sundays. 🩸\n\n"
         ),
         color=discord.Color.blurple()
     )
@@ -510,22 +510,22 @@ async def welcome(interaction: discord.Interaction):
     )
     
     embed.add_field(
-        name="           For Learners",
-        value=(
+        name=(
             "<:corporal:1273838960367505532> **Want to learn raids?**\n"
             "Once you've been here for two weeks and earned your "
             "<:corporal:1273838960367505532> rank, you can open a mentor ticket "
-            "for 1-on-1 guidance on PVM!"
+            "for guidance on PVM!"
         ),
+        value="",
         inline=True
     )
     embed.add_field(
-        name="          For Mentors",
-        value=(
+        name=(
             "<:mentor:1273838962753929307> **Want to mentor others?**\n"
             "Please open a mentor rank request in <#1272648472184487937>. "
             "State which raid you’d like to mentor and an admin will reach out to you."
         ),
+        value="",
         inline=True
     )
     
