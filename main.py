@@ -404,7 +404,45 @@ class RejectReasonModal(discord.ui.Modal, title="Reject Submission"):
 # ---------------------------
 # 🔹 Welcome#
 # ---------------------------
-async def welcome(interaction: discord.Interaction, ticket_creator: discord.Member):
+@bot.tree.command(name="welcome", description="Welcome the ticket creator and give them the Recruit role.")
+async def welcome(interaction: discord.Interaction):
+    # Make sure command is used inside a ticket thread
+    if not isinstance(interaction.channel, discord.Thread):
+        await interaction.response.send_message("⚠️ This command must be used inside a ticket thread.", ephemeral=True)
+        return
+
+    # Find the ticket creator by scanning recent messages from the Tickets bot
+    ticket_creator = None
+    async for message in interaction.channel.history(limit=20, oldest_first=True):
+        if message.author.bot and message.author.name.lower().startswith("tickets"):
+            for mention in message.mentions:
+                if not mention.bot:
+                    ticket_creator = mention
+                    break
+        if ticket_creator:
+            break
+
+    if not ticket_creator:
+        await interaction.response.send_message("⚠️ Could not detect who opened this ticket.", ephemeral=True)
+        return
+
+    guild = interaction.guild
+    roles_to_assign = ["Recruit", "Member", "Boss of the Week", "Skill of the Week", "Events"]
+    missing_roles = []
+    for role_name in roles_to_assign:
+        role = discord.utils.get(guild.roles, name=role_name)
+        if role:
+            await ticket_creator.add_roles(role)
+        else:
+            missing_roles.append(role_name)
+
+    if missing_roles:
+        await interaction.response.send_message(
+            f"⚠️ Missing roles: {', '.join(missing_roles)}. Please check the server roles.", ephemeral=True
+        )
+        return
+
+    # Create the embed message
     embed = discord.Embed(
         title="🎉 Welcome to the Clan! 🎉",
         description=(
