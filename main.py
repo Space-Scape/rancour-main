@@ -441,7 +441,7 @@ async def welcome(interaction: discord.Interaction):
             f"⚠️ Missing roles: {', '.join(missing_roles)}. Please check the server roles.", ephemeral=True
         )
         return
-
+    
     welcome_message = (
         f":tada: Welcome to the Clan {ticket_creator.mention}! :tada:\n\n"
         f"We're thrilled to have you with us! :confetti_ball:\n"
@@ -449,7 +449,7 @@ async def welcome(interaction: discord.Interaction):
         f"https://discord.com/channels/1272629330115297330/1272629843552501802 to ensure you're aware of the guidelines.\n\n"
         f"Below are some channels that will help you get started:\n\n"
         f":bulb: [Self-Role Assign](https://discord.com/channels/1272629330115297330/1272648586198519818)\n"
-        f"-Select roles to be pinged for bosses and raids.\n"
+        f"-Select roles to be pinged for bosses, raids, and other activities — including [@Sanguine Sunday] for *Theatre of Blood learning runs on Sundays*. :drop_of_blood:\n"
         f":thought_balloon: [General Chat](https://discord.com/channels/1272629330115297330/1272629331524587623)\n"
         f"-Drop by and say hello! :speech_balloon:\n"
         f":sparkles: [Achievements](https://discord.com/channels/1272629330115297330/1272629331524587624)\n"
@@ -461,10 +461,12 @@ async def welcome(interaction: discord.Interaction):
         f":loudspeaker: [Events](https://discord.com/channels/1272629330115297330/1272646577432825977)\n"
         f"-Stay informed about upcoming events, competitions, and activities!\n"
         f":crossed_swords: [Rank Up](https://discord.com/channels/1272629330115297330/1272648472184487937)\n"
-        f"-Use the buttons in this channel to request a rank up.\n\n"
+        f"-Use the buttons in this channel to request a rank up.\n"
+        f":military_medal: Once you've been here for two weeks and earned your <:{'corporal'}:{1275008914248962048}> rank, you can open a mentor ticket if you'd like guidance on raids or PvM in general!\n\n"
         f":warning: If you encounter any issues, you can always reach out to the Clan Staff or use the "
         f"[Support Ticket channel](https://discord.com/channels/1272629330115297330/1272648498554077304) for assistance."
     )
+
 
     await interaction.response.send_message(welcome_message)
 
