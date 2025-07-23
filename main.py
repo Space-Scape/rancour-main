@@ -404,71 +404,84 @@ class RejectReasonModal(discord.ui.Modal, title="Reject Submission"):
 # ---------------------------
 # 🔹 Welcome#
 # ---------------------------
+import discord
 
-@bot.tree.command(name="welcome", description="Welcome the ticket creator and give them the Recruit role.")
-async def welcome(interaction: discord.Interaction):
-    if not isinstance(interaction.channel, discord.Thread):
-        await interaction.response.send_message("⚠️ This command must be used inside a ticket thread.", ephemeral=True)
-        return
-
-    # Scan message history for the Tickets v2 system message
-    ticket_creator = None
-    async for message in interaction.channel.history(limit=20, oldest_first=True):
-        if message.author.bot and message.author.name.lower().startswith("tickets"):
-            for mention in message.mentions:
-                if not mention.bot:
-                    ticket_creator = mention
-                    break
-        if ticket_creator:
-            break
-
-    if not ticket_creator:
-        await interaction.response.send_message("⚠️ Could not detect who opened this ticket.", ephemeral=True)
-        return
-
-    guild = interaction.guild
-    roles_to_assign = ["Recruit", "Member", "Boss of the Week", "Skill of the Week", "Events"]
-    missing_roles = []
-    for role_name in roles_to_assign:
-        role = discord.utils.get(guild.roles, name=role_name)
-        if role:
-            await ticket_creator.add_roles(role)
-        else:
-            missing_roles.append(role_name)
-
-    if missing_roles:
-        await interaction.response.send_message(
-            f"⚠️ Missing roles: {', '.join(missing_roles)}. Please check the server roles.", ephemeral=True
-        )
-        return
-    
-    welcome_message = (
-        f":tada: Welcome to the Clan {ticket_creator.mention}! :tada:\n\n"
-        f"We're thrilled to have you with us! :confetti_ball:\n"
-        f"First and foremost, please make sure you visit our :scroll: "
-        f"https://discord.com/channels/1272629330115297330/1272629843552501802 to ensure you're aware of the guidelines.\n\n"
-        f"Below are some channels that will help you get started:\n\n"
-        f":bulb: [Self-Role Assign](https://discord.com/channels/1272629330115297330/1272648586198519818)\n"
-        f"-Select roles to be pinged for bosses, raids, and other activities — including [@Sanguine Sunday] for *Theatre of Blood learning runs on Sundays*. :drop_of_blood:\n"
-        f":thought_balloon: [General Chat](https://discord.com/channels/1272629330115297330/1272629331524587623)\n"
-        f"-Drop by and say hello! :speech_balloon:\n"
-        f":sparkles: [Achievements](https://discord.com/channels/1272629330115297330/1272629331524587624)\n"
-        f"-Show off your gains and achievements.\n"
-        f":speech_balloon: [Clan Chat](https://discord.com/channels/1272629330115297330/1272875477555482666)\n"
-        f"-Stay updated on what's happening in the clan.\n"
-        f":bow_and_arrow: [Team Finder](https://discord.com/channels/1272629330115297330/1272648555772776529)\n"
-        f"-Find teams for PVM activities.\n"
-        f":loudspeaker: [Events](https://discord.com/channels/1272629330115297330/1272646577432825977)\n"
-        f"-Stay informed about upcoming events, competitions, and activities! Pressing Interested on any event in the sidebar will notify you, or opt-out by visiting [Self-Role Assign](https://discord.com/channels/1272629330115297330/1272648586198519818).\n"
-        f":crossed_swords: [Rank Up](https://discord.com/channels/1272629330115297330/1272648472184487937)\n"
-        f"-Use the buttons in this channel to request a rank up.\n"
-        f":military_medal: Once you've been here for two weeks and earned your <:{'corporal'}:{1275008914248962048}> rank, you can open a mentor ticket if you'd like guidance on raids or PvM in general!\n\n"
-        f":warning: If you encounter any issues, you can always reach out to the Clan Staff or use the "
-        f"[Support Ticket channel](https://discord.com/channels/1272629330115297330/1272648498554077304) for assistance."
+async def send_welcome(interaction: discord.Interaction, ticket_creator: discord.Member):
+    embed = discord.Embed(
+        title="🎉 Welcome to the Clan! 🎉",
+        description=(
+            f"We're thrilled to have you with us, {ticket_creator.mention}! 🎊\n\n"
+            "📜 Please make sure you visit our [Guidelines]"
+            "(https://discord.com/channels/1272629330115297330/1272629843552501802)"
+            " to ensure you're aware of the rules."
+        ),
+        color=discord.Color.blurple()
     )
 
+    embed.add_field(
+        name="💡 Self-Role Assign",
+        value=(
+            "[Click here](https://discord.com/channels/1272629330115297330/1272648586198519818) —"
+            " Select roles to be pinged for bosses, raids, and other activities,"
+            " including **@Sanguine Sunday** for Theatre of Blood **learner** runs on Sundays. 🩸"
+        ),
+        inline=False
+    )
 
-    await interaction.response.send_message(welcome_message)
+    embed.add_field(
+        name="💭 General Chat",
+        value="[Say hello!](https://discord.com/channels/1272629330115297330/1272629331524587623)",
+        inline=True
+    )
+    embed.add_field(
+        name="✨ Achievements",
+        value="[Show off your gains](https://discord.com/channels/1272629330115297330/1272629331524587624)",
+        inline=True
+    )
+    embed.add_field(
+        name="💬 Clan Chat",
+        value="[Stay updated](https://discord.com/channels/1272629330115297330/1272875477555482666)",
+        inline=True
+    )
+    embed.add_field(
+        name="🏹 Team Finder",
+        value="[Find PVM teams](https://discord.com/channels/1272629330115297330/1272648555772776529)",
+        inline=True
+    )
+    embed.add_field(
+        name="📢 Events",
+        value="[Check upcoming events](https://discord.com/channels/1272629330115297330/1272646577432825977)",
+        inline=True
+    )
+    embed.add_field(
+        name="⚔️ Rank Up",
+        value="[Request a rank up](https://discord.com/channels/1272629330115297330/1272648472184487937)",
+        inline=True
+    )
+
+    embed.add_field(
+        name="🎓 Mentor Info",
+        value=(
+            "Once you've been here for two weeks and earned your <:corporal:1275008914248962048> rank,"
+            " you can open a mentor ticket for 1-on-1 guidance on PVM!\n\n"
+            "<:mentor:1273838962753929307> **Interested in becoming a mentor?**\n"
+            "Please state which raid you would like to mentor, and an admin will reach out to you.\n\n"
+            "You will need to complete a mock learner run with administrators,"
+            " demonstrating your ability to explain and perform all mechanics and answer questions clearly."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="⚠️ Need Help?",
+        value=(
+            "If you encounter any issues, please reach out to Clan Staff or use the"
+            " [Support Ticket channel](https://discord.com/channels/1272629330115297330/1272648498554077304)."
+        ),
+        inline=False
+    )
+
+    await interaction.response.send_message(embed=embed)
 
 # ---------------------------
 # 🔹 Role Panel
