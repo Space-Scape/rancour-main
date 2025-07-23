@@ -457,9 +457,10 @@ async def welcome(interaction: discord.Interaction):
         ),
         color=discord.Color.blurple()
     )
-
+    
+    # Add a blank field for spacing after Self-Role Assign
     embed.add_field(name="\u200b", value="\u200b", inline=False)
-
+    
     embed.add_field(
         name="💭 General Chat",
         value="[Say hello!](https://discord.com/channels/1272629330115297330/1272629331524587623)",
@@ -490,13 +491,21 @@ async def welcome(interaction: discord.Interaction):
         value="[Request a rank up](https://discord.com/channels/1272629330115297330/1272648472184487937)",
         inline=True
     )
-
-    embed.add_field(name="\u200b", value="**🎓 Mentor Info**", inline=False)
-
+    
+    # Add another blank field before Mentor Info
+    embed.add_field(name="\u200b", value="\u200b", inline=False)
+    
+    # 🎓 Centered Mentor Info heading
+    embed.add_field(
+        name="🎓 Mentor Info",
+        value="\u200b",
+        inline=False
+    )
+    
     embed.add_field(
         name="For Learners",
         value=(
-            "🎓 **Want to learn raids?**\n"
+            "<:corporal:1273838960367505532> **Want to learn raids?**\n"
             "Once you've been here for two weeks and earned your "
             "<:corporal:1273838960367505532> rank, you can open a mentor ticket "
             "for 1-on-1 guidance on PVM!"
@@ -512,7 +521,7 @@ async def welcome(interaction: discord.Interaction):
         ),
         inline=True
     )
-
+    
     embed.add_field(
         name="⚠️ Need Help?",
         value=(
@@ -521,6 +530,7 @@ async def welcome(interaction: discord.Interaction):
         ),
         inline=False
     )
+
 
     await interaction.response.send_message(embed=embed)
 
