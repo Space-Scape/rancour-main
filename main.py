@@ -459,7 +459,7 @@ async def welcome(interaction: discord.Interaction):
         f":bow_and_arrow: [Team Finder](https://discord.com/channels/1272629330115297330/1272648555772776529)\n"
         f"-Find teams for PVM activities.\n"
         f":loudspeaker: [Events](https://discord.com/channels/1272629330115297330/1272646577432825977)\n"
-        f"-Stay informed about upcoming events, competitions, and activities!\n"
+        f"-Stay informed about upcoming events, competitions, and activities! Pressing Interested on any event in the sidebar will notify you, or opt-out by visiting [Self-Role Assign](https://discord.com/channels/1272629330115297330/1272648586198519818).\n"
         f":crossed_swords: [Rank Up](https://discord.com/channels/1272629330115297330/1272648472184487937)\n"
         f"-Use the buttons in this channel to request a rank up.\n"
         f":military_medal: Once you've been here for two weeks and earned your <:{'corporal'}:{1275008914248962048}> rank, you can open a mentor ticket if you'd like guidance on raids or PvM in general!\n\n"
@@ -507,7 +507,7 @@ class RolePanelView(discord.ui.View):
             ("Events", emojis.get("event")),
             ("Skill of the Week", emojis.get("sotw")),
             ("Boss of the Week", emojis.get("botw")),
-            ("Sanguine Sunday", emojis.get("sanguine_sunday")),
+            ("Sanguine Sunday - Learn ToB!", emojis.get("sanguine_sunday")),
         ]
 
         for label, emoji in buttons_info:
@@ -756,161 +756,6 @@ async def rsn_panel_error(interaction: discord.Interaction, error):
             ephemeral=True
         )
 
-# ---------------------------
-# RegionPanel
-# ---------------------------
-REGION_NAMES = [
-    "Asgarnia",
-    "Desert",
-    "Fremennik / Tirannwn",
-    "Morytania",
-    "Varlamore",
-    "Kourend"
-]  # Misthalin/Wilderness default, Kandarin removed
-
-TEAM_ROLE_PREFIX = "Team"  # Roles like "Team 1" - "Team 10"
-
-
-@bot.tree.command(name="region_panel", description="Post the Region Request panel.")
-async def region_panel(interaction: discord.Interaction):
-    guild = interaction.guild
-    emojis = {
-        "Asgarnia": discord.utils.get(guild.emojis, name="asgarnia"),
-        "Desert": discord.utils.get(guild.emojis, name="desert"),
-        "Fremennik / Tirannwn": discord.utils.get(guild.emojis, name="tirannwnfremennik"),
-        "Morytania": discord.utils.get(guild.emojis, name="morytania"),
-        "Varlamore": discord.utils.get(guild.emojis, name="varlamore"),
-        "Kourend": discord.utils.get(guild.emojis, name="kourend"),
-    }
-
-    embed = discord.Embed(
-        title="🌍 Region Unlock Request Panel",
-        description=(
-            "Click a button below to request unlocking a region for your team.\n"
-            "Staff will review your request in the created thread."
-        ),
-        color=discord.Color.blurple()
-    )
-
-    view = RegionPanelView(emojis)
-
-    await interaction.channel.send(embed=embed, view=view)
-    await interaction.response.send_message("✅ Region panel posted.", ephemeral=True)
-
-
-REGION_NAMES = [
-    "Asgarnia",
-    "Desert",
-    "Fremennik / Tirannwn",
-    "Morytania",
-    "Varlamore",
-    "Kourend"
-]  # Misthalin/Wilderness default, Kandarin removed
-
-TEAM_ROLE_PREFIX = "Team"  # Roles like "Team 1" - "Team 10"
-
-
-class RegionPanelView(discord.ui.View):
-    def __init__(self, emojis: dict = None):
-        super().__init__(timeout=None)
-
-        if emojis:  # Only populate buttons if emojis provided
-            for region in REGION_NAMES:
-                emoji = emojis.get(region)
-                self.add_item(RegionButton(region, emoji))
-
-
-class RegionButton(discord.ui.Button):
-    def __init__(self, region_name: str, emoji):
-        super().__init__(
-            label=region_name,
-            style=discord.ButtonStyle.secondary,
-            emoji=emoji,
-            custom_id=f"region_request_{region_name.replace(' ', '_').replace('/', '')}"
-        )
-        self.region_name = region_name
-
-    async def callback(self, interaction: discord.Interaction):
-        team_role = next(
-            (role.name for role in interaction.user.roles if role.name.startswith(TEAM_ROLE_PREFIX)),
-            None
-        )
-        if team_role is None:
-            await interaction.response.send_message(
-                "❌ You don’t seem to have a team role assigned.",
-                ephemeral=True
-            )
-            return
-
-        thread_name_base = self.region_name.replace(" / ", "-").replace(" ", "")
-        thread_name = f"{thread_name_base}-{team_role.replace('Team', 'Team ')}"
-
-        thread = await interaction.channel.create_thread(
-            name=thread_name,
-            type=discord.ChannelType.public_thread,
-            reason=f"{interaction.user} requested region {self.region_name}."
-        )
-
-        EVENT_STAFF_ROLE_NAME = "Event Staff"  # change if needed
-        
-        # … inside RegionButton.callback …
-        event_staff_role = discord.utils.get(interaction.guild.roles, name=EVENT_STAFF_ROLE_NAME)
-        
-        embed = discord.Embed(
-            title="Region Unlock Request",
-            description=(
-                f"{interaction.user.mention} has requested to unlock **{self.region_name}** "
-                f"for **{team_role}**.\n\n"
-                f"Staff, please confirm or deny below."
-            ),
-            color=discord.Color.orange()
-        )
-        
-        view = ConfirmDenyView(thread, interaction.user, self.region_name, team_role)
-        
-        content = f"{event_staff_role.mention} New region request" if event_staff_role else "New region request"
-        
-        await thread.send(content=content, embed=embed, view=view)
-
-
-        await interaction.response.send_message(
-            f"✅ Created thread: {thread.mention} for region request.",
-            ephemeral=True
-        )
-
-
-class ConfirmDenyView(discord.ui.View):
-    def __init__(self, thread, requester, region_name, team_role):
-        super().__init__(timeout=None)
-        self.thread = thread
-        self.requester = requester
-        self.region_name = region_name
-        self.team_role = team_role
-
-    @discord.ui.button(label="✅ Confirm", style=discord.ButtonStyle.success, custom_id="confirm_request")
-    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.thread.send(f"✅ Request to unlock **{self.region_name}** for **{self.team_role}** has been **approved** by {interaction.user.mention}.")
-        await interaction.response.defer()
-
-    @discord.ui.button(label="❌ Deny", style=discord.ButtonStyle.danger, custom_id="deny_request")
-    async def deny(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.thread.send(f"❌ Request to unlock **{self.region_name}** for **{self.team_role}** has been **denied** by {interaction.user.mention}.")
-        await interaction.response.defer()
-
-    @discord.ui.button(label="🔒 Close Thread", style=discord.ButtonStyle.secondary, custom_id="close_thread")
-    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Delete system message in parent channel
-        try:
-            async for msg in self.thread.parent.history(limit=50):
-                if msg.type == discord.MessageType.thread_created and msg.thread and msg.thread.id == self.thread.id:
-                    await msg.delete()
-                    break
-        except Exception as e:
-            print(f"Failed to delete system thread-created message: {e}")
-    
-        await interaction.response.send_message("🔒 Thread closed and system message removed.", ephemeral=True)
-    
-        await self.thread.edit(archived=True, locked=True)
 
 # ---------------------------
 # 🔹 On Ready
@@ -919,7 +764,6 @@ class ConfirmDenyView(discord.ui.View):
 async def on_ready():
     for guild in bot.guilds:
         bot.add_view(RolePanelView(guild))
-    bot.add_view(RegionPanelView()) 
     bot.add_view(RSNPanelView())  # register persistent view
     bot.loop.create_task(rsn_writer())
     print(f"✅ Logged in as {bot.user}")
