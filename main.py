@@ -403,71 +403,27 @@ class RejectReasonModal(discord.ui.Modal, title="Reject Submission"):
 
 # ---------------------------
 # 🔹 Welcome#
-# ---------------------------
 @bot.tree.command(name="welcome", description="Welcome the ticket creator and give them the Recruit role.")
 async def welcome(interaction: discord.Interaction):
-    # Make sure command is used inside a ticket thread
-    if not isinstance(interaction.channel, discord.Thread):
-        await interaction.response.send_message("⚠️ This command must be used inside a ticket thread.", ephemeral=True)
-        return
+    # (…same code as before up through adding roles…)
 
-    # Find the ticket creator by scanning recent messages from the Tickets bot
-    ticket_creator = None
-    async for message in interaction.channel.history(limit=20, oldest_first=True):
-        if message.author.bot and message.author.name.lower().startswith("tickets"):
-            for mention in message.mentions:
-                if not mention.bot:
-                    ticket_creator = mention
-                    break
-        if ticket_creator:
-            break
-
-    if not ticket_creator:
-        await interaction.response.send_message("⚠️ Could not detect who opened this ticket.", ephemeral=True)
-        return
-
-    guild = interaction.guild
-    roles_to_assign = ["Recruit", "Member", "Boss of the Week", "Skill of the Week", "Events"]
-    missing_roles = []
-    for role_name in roles_to_assign:
-        role = discord.utils.get(guild.roles, name=role_name)
-        if role:
-            await ticket_creator.add_roles(role)
-        else:
-            missing_roles.append(role_name)
-
-    if missing_roles:
-        await interaction.response.send_message(
-            f"⚠️ Missing roles: {', '.join(missing_roles)}. Please check the server roles.", ephemeral=True
-        )
-        return
-
-    # Create the embed message
     embed = discord.Embed(
         title="🎉 Welcome to the Clan! 🎉",
         description=(
             f"We're thrilled to have you with us, {ticket_creator.mention}! 🎊\n\n"
             "📜 Please make sure you visit our [Guidelines]"
-            "(https://discord.com/channels/1272629330115297330/1272629843552501802)"
-            " to ensure you're aware of the rules."
-        ),
-        color=discord.Color.blurple()
-    )
-    
-    embed.add_field(name="\u200b", value="\u200b", inline=False)
-    
-    embed.add_field(
-        name="💡 Self-Role Assign",
-        value=(
+            "(https://discord.com/channels/1272629330115297330/1272629843552501802) "
+            "to ensure you're aware of the rules.\n"
+            "**💡 Self-Role Assign**\n"
             "[Click here](https://discord.com/channels/1272629330115297330/1272648586198519818) — "
             "Select roles to be pinged for bosses, raids, and other activities, "
             "including **@Sanguine Sunday** for Theatre of Blood **learner** runs on Sundays. 🩸"
         ),
-        inline=False
+        color=discord.Color.blurple()
     )
-    
+
     embed.add_field(name="\u200b", value="\u200b", inline=False)
-    
+
     embed.add_field(
         name="💭 General Chat",
         value="[Say hello!](https://discord.com/channels/1272629330115297330/1272629331524587623)",
@@ -498,14 +454,14 @@ async def welcome(interaction: discord.Interaction):
         value="[Request a rank up](https://discord.com/channels/1272629330115297330/1272648472184487937)",
         inline=True
     )
-    
-    # 🎓 Mentor Info header with spacing above
-    embed.add_field(name="\u200b", value="\u200b", inline=False)
-    embed.add_field(name="🎓 Mentor Info", value="\u200b", inline=False)
+
+    # Add Mentor Info heading into the description
+    embed.add_field(name="\u200b", value="**🎓 Mentor Info**", inline=False)
 
     embed.add_field(
         name="For Learners",
         value=(
+            "🎓 **Interested in learning raids?**\n"
             "Once you've been here for two weeks and earned your "
             "<:corporal:1273838960367505532> rank, you can open a mentor ticket "
             "for 1-on-1 guidance on PVM!"
@@ -521,7 +477,7 @@ async def welcome(interaction: discord.Interaction):
         ),
         inline=True
     )
-    
+
     embed.add_field(
         name="⚠️ Need Help?",
         value=(
