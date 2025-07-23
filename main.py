@@ -404,9 +404,7 @@ class RejectReasonModal(discord.ui.Modal, title="Reject Submission"):
 # ---------------------------
 # 🔹 Welcome#
 # ---------------------------
-import discord
-
-async def send_welcome(interaction: discord.Interaction, ticket_creator: discord.Member):
+async def welcome(interaction: discord.Interaction, ticket_creator: discord.Member):
     embed = discord.Embed(
         title="🎉 Welcome to the Clan! 🎉",
         description=(
