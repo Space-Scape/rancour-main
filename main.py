@@ -450,7 +450,7 @@ async def welcome(interaction: discord.Interaction):
             "📜 Please make sure you visit our [Guidelines]"
             "(https://discord.com/channels/1272629330115297330/1272629843552501802) "
             "to ensure you're aware of the rules.\n\n"
-            "**💡 Self-Role Assign**\n"
+            "**💡 Self-Role Assign**\n\n"
             "[Click here](https://discord.com/channels/1272629330115297330/1272648586198519818) — "
             "Select roles to be pinged for bosses, raids, and other activities, "
             "including **@Sanguine Sunday** for Theatre of Blood **learner** runs on Sundays. 🩸"
@@ -487,15 +487,26 @@ async def welcome(interaction: discord.Interaction):
     )
     embed.add_field(
         name="⚔️ Rank Up",
-        value="[Request a rank up](https://discord.com/channels/1272629330115297330/1272648472184487937)",
+        value="[Request a rank up](https://discord.com/channels/1272629330115297330/1272648472184487937)\n",
         inline=True
     )
     
-    # 🎓 Mentor Info added to description with bold header
+    embed.add_field(
+        name=" ",
+        value=" ",
+        inline=True
+    )
+    
     embed.add_field(
         name="🎓 Mentor Info",
         value="Learn or teach raids with 1-on-1 mentorship!",
-        inline=False
+        inline=True
+    )
+
+    embed.add_field(
+        name=" ",
+        value=" ",
+        inline=True
     )
     
     embed.add_field(
