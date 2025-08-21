@@ -6,6 +6,11 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 from datetime import datetime, timezone
 import asyncio
+import re
+from discord.ui import Modal, TextInput
+from discord.ui import View, Button
+from discord import ButtonStyle
+from typing import Optional
 
 # ---------------------------
 # 🔹 Google Sheets Setup
@@ -41,8 +46,33 @@ rsn_sheet = sheet_client.open_by_key("1ZwJiuVMp-3p8UH0NCVYTV9_UVI26jl5kWu2nvdspl
 
 
 # ---------------------------
+# 🔹 Coffer Sheets Setup
+# ---------------------------
+credentials_dict_coffer = {
+  "type": os.getenv('COFFER_TYPE'),
+  "project_id": os.getenv('COFFER_ID'),
+  "private_key_id": os.getenv('COFFER_PRIVATE_KEY_ID'),
+  "private_key": os.getenv('COFFER_PRIVATE_KEY'),
+  "client_email": os.getenv('COFFER_CLIENT_EMAIL'),
+  "client_id": os.getenv('COFFER_CLIENT_ID'),
+  "auth_uri": os.getenv('COFFER_AUTH_URI'),
+  "token_uri": os.getenv('COFFER_TOKEN_URI'),
+  "auth_provider_x509_cert_url": os.getenv('COFFER_AUTH_PROVIDER_X509_CERT_URL'),
+  "client_x509_cert_url": os.getenv('COFFER_CLIENT_X509_CERT_URL'),
+  "universe_domain": os.getenv('COFFER_UNIVERSE_DOMAIN')
+}
+
+coffer_creds = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict_coffer, scope)
+sheet_client_coffer = gspread.authorize(coffer_creds)
+
+coffer_sheet_id = "1dsRSYpDim5zEsldi572L4ljAcMClLyZbUs0HxIinytc"
+COFFER_SHEET_TAB_NAME = "Coffer"
+coffer_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(COFFER_SHEET_TAB_NAME)
+
+# ---------------------------
 # 🔹 Discord Bot Setup
 # ---------------------------
+
 intents = discord.Intents.default()
 intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -51,358 +81,21 @@ tree = bot.tree
 # ---------------------------
 # 🔹 Channel IDs + Role
 # ---------------------------
+
 SUBMISSION_CHANNEL_ID = 1391921214909579336
 REVIEW_CHANNEL_ID = 1391921254034047066
 LOG_CHANNEL_ID = 1391921275332722749
 REQUIRED_ROLE_NAME = "Event Staff"
 REGISTERED_ROLE_NAME = "Registered"
+BANK_CHANNEL_ID = 1276197776849633404
+CURRENCY_SYMBOL = " 💰"
+LISTEN_CHANNEL_ID = 1272875477555482666
+COLLAT_CHANNEL_ID = 1272648340940525648
 
 # ---------------------------
-# 🔹 Boss-Drop Mapping
+# 🔹 Welcome
 # ---------------------------
 
-boss_drops = {
-    "Abyssal Sire": ["Abyssal orphan", "Unsired", "Abyssal head", "Bludgeon spine", "Bludgeon claw", "Bludgeon axon", "Jar of miasma", "Abyssal dagger", "Abyssal whip"],
-    "Alchemical Hydra": ["Ikkle hydra", "Hydra's claw", "Hydra tail", "Hydra leather", "Hydra's fang", "Hydra's eye", "Hydra's heart", "Dragon knife", "Dragon thrownaxe", "Jar of chemicals", "Alchemical hydra heads"],
-    "Amoxliatl": ["Moxi", "Glacial temotli", "Pendant of ates (inert)", "Frozen tear"],
-    "Araxxor": ["Noxious pommel", "Noxious point", "Noxious blade", "Araxyte fang", "Araxyte head", "Jar of venom", "Coagulated venom", "Nid"],
-    "Barrows": ["Ahrim's hood", "Ahrim's robetop", "Ahrim's robeskirt", "Ahrim's staff", "Karil's coif", "Karil's leathertop", "Karil's leatherskirt", "Karil's crossbow", "Dharok's helm", "Dharok's platebody", "Dharok's platelegs", "Dharok's greataxe", "Guthan's helm", "Guthan's platebody", "Guthan's chainskirt", "Guthan's warspear", "Torag's helm", "Torag's platebody", "Torag's platelegs", "Torag's hammers", "Verac's helm", "Verac's brassard", "Verac's plateskirt", "Verac's flail"],
-    "Bryophyta": ["Bryophyta's essence"],
-    "Callisto": ["Callisto cub", "Tyrannical ring", "Dragon pickaxe", "Dragon 2h sword", "Claws of callisto", "Voidwaker hilt"],
-    "Cerberus": ["Hellpuppy", "Eternal crystal", "Pegasian crystal", "Primordial crystal", "Jar of souls", "Smouldering stone", "Key master teleport"],
-    "Chaos Elemental": ["Pet chaos elemental", "Dragon pickaxe", "Dragon 2h sword"],
-    "Chaos Fanatic": ["Odium shard 1", "Malediction shard 1"],
-    "Chambers of Xeric": ["Dexterous prayer scroll", "Arcane prayer scroll", "Twisted buckler", "Dragon hunter crossbow", "Dinh's bulwark", "Ancestral hat", "Ancestral robe top", "Ancestral robe bottom", "Dragon claws", "Elder maul", "Kodai insignia", "Twisted bow", "Olmlet", "Twisted ancestral colour kit", "Metamorphic dust"],
-    "Colosseum": ["Dizana's quiver (uncharged)", "Sunfire fanatic cuirass", "Sunfire fanatic chausses", "Sunfire fanatic helm", "Echo crystal", "Tonalztics of ralos (uncharged)", "Sunfire splinters"],
-    "Commander Zilyana": ["Pet zilyana", "Armadyl crossbow", "Saradomin hilt", "Saradomin sword", "Saradomin's light", "Godsword shard 1", "Godsword shard 2", "Godsword shard 3"],
-    "Corporeal Beast": ["Pet dark core", "Elysian sigil", "Spectral sigil", "Arcane sigil", "Spirit shield", "Holy elixir", "Jar of spirits"],
-    "Crazy Archaeologist": ["Odium shard 2", "Malediction shard 2", "Fedora"],
-    "Dagannoth Kings": ["Pet dagannoth supreme", "Pet dagannoth rex", "Pet dagannoth prime", "Archers ring", "Seers ring", "Berserker ring", "Warrior ring", "Dragon axe", "Seercull", "Mud battlestaff"],
-    "Deranged Archaeologist": ["Steel ring"],
-    "Duke Sucellus": ["Baron", "Virtus mask", "Virtus robe top", "Virtus robe bottom", "Chromium ingot", "Awakener's orb", "Magus vestige", "Eye of the duke", "Ice quartz", "Frozen tablet"],
-    "Gauntlet": ["Youngllef", "Crystal weapon seed", "Crystal armour seed", "Enhanced crystal weapon seed"],
-    "General Graardor": ["Pet general graardor", "Bandos hilt", "Bandos chestplate", "Bandos tassets", "Bandos boots", "Godsword shard 1", "Godsword shard 2", "Godsword shard 3"],
-    "Giant Mole": ["Baby mole", "Mole claw", "Mole skin"],
-    "Grotesque Guardians": ["Noon", "Granite gloves", "Granite hammer", "Granite ring", "Black tourmaline core", "Jar of stone"],
-    "Hueycoatl": ["Huberte", "Dragon hunter wand", "Hueycoatl hide", "Tome of earth (empty)"],
-    "Inferno": ["Infernal cape"],
-    "Jad": ["Fire cape"],
-    "Kalphite Queen": ["Kalphite princess", "Dragon chainbody", "Dragon pickaxe", "Dragon 2h sword", "Jar of sand", "Kq head"],
-    "Kraken": ["Pet kraken", "Kraken tentacle", "Trident of the seas (full)", "Jar of dirt"],
-    "Kree'arra": ["Pet kree'arra", "Armadyl helmet", "Armadyl chestplate", "Armadyl chainskirt", "Armadyl hilt", "Godsword shard 1", "Godsword shard 2", "Godsword shard 3"],
-    "K'ril Tsutsaroth": ["Pet K'ril Tsutsaroth", "Zamorakian spear", "Staff of the dead", "Zamorak hilt"],
-    "Moons of Peril": ["Eclipse atlatl", "Eclipse moon helm", "Eclipse moon chestplate", "Eclipse moon tassets", "Dual macuahuitl", "Blood moon helm", "Blood moon chestplate", "Blood moon tassets", "Blue moon spear", "Blue moon helm", "Blue moon chestplate", "Blue moon tassets"],
-    "Nightmare": ["Little nightmare", "Nightmare staff", "Inquisitor's great helm", "Inquisitor's hauberk", "Inquisitor's plateskirt", "Inquisitor's mace", "Eldritch orb", "Harmonised orb", "Volatile orb"],
-    "Nex": ["Nexling", "Ancient hilt", "Nihil horn", "Zaryte vambraces", "Torva full helm (damaged)", "Torva platebody (damaged)", "Torva platelegs (damaged)"],
-    "Phantom Muspah": ["Muphin", "Venator shard", "Ancient icon", "Charged ice", "Frozen cache", "Ancient essence"],
-    "Royal Titans": ["Bran", "Deadeye prayer scroll", "Mystic vigour prayer scroll", "Fire element staff crown", "Ice element staff crown", "Giantsoul amulet", "Desiccated page"],
-    "Sarachnis": ["Sraracha", "Sarachnis cudgel", "Giant egg sac", "Jar of eyes"],
-    "Scorpia": ["Scorpia's Offspring", "Malediction shard 3", "Odium shard 3"],
-    "Scurrius": ["Scurry", "Scurrius' spine"],
-    "The Leviathan": ["Lil'viathan", "Virtus mask", "Virtus robe top", "Virtus robe bottom", "Chromium ingot", "Awakener's orb", "Venator vestige", "Leviathan's lure", "Smoke quartz", "Scarred tablet"],
-    "The Whisperer": ["Wisp", "Virtus mask", "Virtus robe top", "Virtus robe bottom", "Chromium ingot", "Awakener's orb", "Bellator vestige", "Siren's staff", "Shadow quartz", "Sirenic tablet"],
-    "Theatre of Blood": ["Lil' zik", "Avernic defender hilt", "Ghrazi rapier", "Sanguinesti staff (uncharged)", "Justiciar faceguard", "Justiciar chestguard", "Justiciar legguards", "Scythe of vitur (uncharged)", "Holy ornament kit", "Sanguine ornament kit", "Sanguine dust"],
-    "Tombs of Amascut": ["Tumeken's Guardian", "Masori mask", "Masori body", "Masori chaps", "Lightbearer", "Osmumten's fang", "Elidinis' ward", "Tumeken's shadow (uncharged)", "Cursed phalanx"],
-    "Tormented Demons": ["Tormented synapse", "Burning claw"],
-    "Vardorvis": ["Butch", "Virtus mask", "Virtus robe top", "Virtus robe bottom", "Chromium ingot", "Awakener's orb", "Ultor vestige", "Executioner's axe head", "Blood quartz", "Strangled tablet"],
-    "Venenatis": ["Venenatis spiderling", "Fangs of venenatis", "Dragon 2h sword", "Dragon pickaxe", "Voidwaker gem", "Treasonous ring"],
-    "Vet'ion": ["Vet'ion jr.", "Skull of vet'ion", "Dragon 2h sword", "Dragon pickaxe", "Voidwaker blade", "Ring of the gods", "Skeleton champion scroll"],
-    "Vorkath": ["Vorki", "Vorkath's head", "Draconic visage", "Serpentine visage", "Jar of decay", "Dragonbone necklace"],
-    "Yama": ["Soulflame horn", "Oathplate helm", "Oathplate chest", "Oathplate legs", "Oathplate shards", "Barrel of demonic tallow", "Forgotten lockbox", "Dossier", "Aether catalyst", "Diabolic worms", "Chasm teleport scroll"],
-    "Zulrah": ["Pet snakeling", "Tanzanite mutagen", "Magma mutagen", "Jar of swamp water", "Tanzanite fang", "Magic fang", "Serpentine visage", "Uncut onyx"],
-    "Varlamore Misc": ["Sulphur blades"],
-    "Misthalin/wilderness Misc": ["Broken Zombie helmet", "Broken Zombie axe", "Dragon limbs", "Dragon metal lump"],
-    "Kourend/Kebos Misc": ["Pyromancer garb", "Pyromancer robe", "Pyromancer boots", "Tome of fire (empty)", "Phoenix", "Dragon axe", "Pyromancer hood", "Bruma torch", "Golden tench", "Warm gloves"],
-    "Desert Misc": ["Kq head", "Pharaoh's sceptre (uncharged)", "Cursed Phalanx", "Abyssal needle", "Abyssal lantern", "Abyssal dye"],
-    "Asgarnia Misc": ["Dragon boots"],
-    "Morytania Misc": ["Zealot’s helm", "Zealot’s robe top", "Zealot’s robe bottom", "Zealot’s boots"],
-    "Tirannwn/fremennik Misc": ["Brine sabre"],
-    "Pet Misc": ["Rocky", "Abyssal Protector", "Pet Smoke Devil", "Smolcano", "Prince Black Dragon"]
-}
-
-# ---------------------------
-# 🔹 Slash Command
-# ---------------------------
-@tree.command(name="submitdrop", description="Submit a boss drop for review")
-@app_commands.describe(
-    screenshot="Attach a screenshot of your drop",
-    submitted_for="Optionally specify the user you're submitting this drop for"
-)
-async def submit_drop(interaction: discord.Interaction, screenshot: discord.Attachment, submitted_for: discord.Member = None):
-    if interaction.channel.id != SUBMISSION_CHANNEL_ID:
-        await interaction.response.send_message("❌ This command can only be used in the drop submission channel.", ephemeral=True)
-        return
-
-    # Use specified user or fallback to the command sender
-    target_user = submitted_for or interaction.user
-
-    await interaction.response.send_message(
-        content=f"Submitting drop for {target_user.display_name}. Select the boss you received the drop from:",
-        view=BossView(interaction.user, target_user, screenshot),
-        ephemeral=True
-    )
-
-# The BossView manages boss pagination and selection
-class BossSelect(discord.ui.Select):
-    def __init__(self, submitting_user, target_user, screenshot, page=0):
-        self.submitting_user = submitting_user
-        self.target_user = target_user
-        self.screenshot = screenshot
-        self.page = page
-
-        bosses = list(boss_drops.keys())
-        max_pages = (len(bosses) - 1) // 25
-        page = max(0, min(page, max_pages))
-
-        page_bosses = bosses[page * 25: (page + 1) * 25]
-        options = [discord.SelectOption(label=boss) for boss in page_bosses]
-
-        super().__init__(placeholder="Select a boss", options=options, min_values=1, max_values=1)
-
-    async def callback(self, interaction: discord.Interaction):
-        boss = self.values[0]
-        await interaction.response.edit_message(
-            content=f"Selected boss: {boss}. Now select the drop you received.",
-            view=DropView(self.submitting_user, self.target_user, self.screenshot, boss, page=self.page)
-        )
-
-
-class BossView(discord.ui.View):
-    def __init__(self, submitting_user, target_user, screenshot, page=0):
-        super().__init__()
-        self.add_item(BossSelect(submitting_user, target_user, screenshot, page))
-        if page > 0:
-            self.add_item(PreviousPageButton(submitting_user, target_user, screenshot, page))
-        max_pages = (len(boss_drops) - 1) // 25
-        if page < max_pages:
-            self.add_item(NextPageButton(submitting_user, target_user, screenshot, page))
-
-class PreviousPageButton(discord.ui.Button):
-    def __init__(self, submitting_user, target_user, screenshot, page):
-        super().__init__(label="◀️ Previous Page", style=discord.ButtonStyle.secondary)
-        self.submitting_user = submitting_user
-        self.target_user = target_user
-        self.screenshot = screenshot
-        self.page = page
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.edit_message(view=BossView(self.submitting_user, self.target_user, self.screenshot, self.page - 1))
-
-class NextPageButton(discord.ui.Button):
-    def __init__(self, submitting_user, target_user, screenshot, page):
-        super().__init__(label="Next Page ▶️", style=discord.ButtonStyle.secondary)
-        self.submitting_user = submitting_user
-        self.target_user = target_user
-        self.screenshot = screenshot
-        self.page = page
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.edit_message(view=BossView(self.submitting_user, self.target_user, self.screenshot, self.page + 1))
-
-# ---------------------------
-# 🔹 Utility: Get team role mention
-# ---------------------------
-def get_team_role_mention(member: discord.Member) -> str:
-    for role in member.roles:
-        if role.name.startswith("Team "):
-            return role.mention
-    return "*No team*"
-
-# ---------------------------
-# 🔹 Drop Select
-# ---------------------------
-class DropSelect(discord.ui.Select):
-    def __init__(self, submitting_user, target_user, screenshot, boss):
-        self.submitting_user = submitting_user
-        self.target_user = target_user
-        self.screenshot = screenshot
-        self.boss = boss
-        options = [discord.SelectOption(label=drop) for drop in boss_drops[boss]]
-        super().__init__(placeholder=f"Select a drop from {boss}", options=options, min_values=1, max_values=1)
-
-    async def callback(self, interaction: discord.Interaction):
-        drop_name = self.values[0]
-        review_channel = bot.get_channel(REVIEW_CHANNEL_ID)
-
-        embed = discord.Embed(title=f"{self.boss} Drop Submission", colour=discord.Colour.blurple())
-        embed.add_field(name="Submitted For", value=f"{self.target_user.mention} ({self.target_user.id})", inline=False)
-        embed.add_field(name="Drop Received", value=drop_name, inline=False)
-        embed.add_field(name="Submitted By", value=f"{self.submitting_user.mention} ({self.submitting_user.id})", inline=False)
-        embed.set_image(url=self.screenshot.url)
-
-        await interaction.response.edit_message(content="✅ Submitted for review.", embed=embed, view=None)
-
-        if review_channel:
-            team_mention = get_team_role_mention(self.target_user)
-            await review_channel.send(
-                embed=embed,
-                view=DropReviewButtons(self.target_user, drop_name, self.screenshot.url, self.submitting_user, team_mention)
-            )
-
-class DropView(discord.ui.View):
-    def __init__(self, submitting_user, target_user, screenshot, boss, page=0):
-        super().__init__()
-        self.submitting_user = submitting_user
-        self.target_user = target_user
-        self.screenshot = screenshot
-        self.boss = boss
-        self.page = page
-
-        self.add_item(DropSelect(submitting_user, target_user, screenshot, boss))
-        self.add_item(self.BackButton())
-
-    class BackButton(discord.ui.Button):
-        def __init__(self):
-            super().__init__(label="⬅️ Back", style=discord.ButtonStyle.secondary)
-
-        async def callback(self, interaction: discord.Interaction):
-            # Go back to boss selection at the same page (or page 0)
-            await interaction.response.edit_message(
-                content=f"Submitting drop for {self.view.target_user.display_name}. Select the boss you received the drop from:",
-                view=BossView(
-                    self.view.submitting_user,
-                    self.view.target_user,
-                    self.view.screenshot,
-                    page=self.view.page  # preserve pagination page if you want
-                )
-            )
-
-
-# ---------------------------
-# 🔹 DropReviewButtons
-# ---------------------------
-class DropReviewButtons(discord.ui.View):
-    def __init__(self, submitted_user: discord.Member, drop: str, image_url: str, submitting_user: discord.Member, team_mention: str):
-        super().__init__(timeout=None)
-        self.submitted_user = submitted_user
-        self.drop = drop
-        self.image_url = image_url
-        self.submitting_user = submitting_user
-        self.team_mention = team_mention
-        self.reviewer: Optional[int] = None  # user.id of the current reviewer
-
-    def has_drop_manager_role(self, member: discord.Member) -> bool:
-        return any(role.name == REQUIRED_ROLE_NAME for role in member.roles)
-
-    @discord.ui.button(label="Review", style=discord.ButtonStyle.blurple)
-    async def review(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not self.has_drop_manager_role(interaction.user):
-            await interaction.response.send_message("❌ You do not have permission to review.", ephemeral=True)
-            return
-
-        if self.reviewer is None:
-            # Claim review
-            self.reviewer = interaction.user.id
-            for child in self.children:
-                if child.label.startswith("Approve") or child.label.startswith("Reject"):
-                    child.disabled = False
-            await interaction.message.edit(
-                content=f"👤 Being reviewed by: {interaction.user.display_name}",
-                view=self
-            )
-            await interaction.response.defer()
-
-        elif self.reviewer == interaction.user.id:
-            # Release review
-            self.reviewer = None
-            for child in self.children:
-                if child.label.startswith("Approve") or child.label.startswith("Reject"):
-                    child.disabled = True
-            await interaction.message.edit(
-                content=f"👤 No one is currently reviewing this.",
-                view=self
-            )
-            await interaction.response.defer()
-
-        else:
-            await interaction.response.send_message(
-                f"❌ This is currently being reviewed by <@{self.reviewer}>.",
-                ephemeral=True
-            )
-
-    @discord.ui.button(label="Approve ✅", style=discord.ButtonStyle.green, disabled=True)
-    async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.reviewer != interaction.user.id:
-            await interaction.response.send_message(
-                "❌ You are not the reviewer of this submission.",
-                ephemeral=True
-            )
-            return
-
-        log_channel = bot.get_channel(LOG_CHANNEL_ID)
-        if log_channel:
-            embed = discord.Embed(title="Drop Approved", colour=discord.Colour.green())
-            embed.add_field(name="Approved By", value=interaction.user.display_name, inline=False)
-            embed.add_field(name="Drop For", value=self.submitted_user.mention, inline=False)
-            embed.add_field(name="Team", value=self.team_mention, inline=False)
-            embed.add_field(name="Drop", value=self.drop, inline=False)
-            embed.add_field(name="Submitted By", value=self.submitting_user.mention, inline=False)
-            embed.set_image(url=self.image_url)
-            await log_channel.send(embed=embed)
-
-        sheet.append_row([
-            interaction.user.display_name,
-            self.submitted_user.display_name,
-            str(self.submitted_user.id),
-            self.drop,
-            self.image_url,
-            datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-        ])
-
-        await interaction.response.send_message("✅ Approved and logged. This message will now be removed.", ephemeral=True)
-
-        # Delete the original message after short delay
-        await asyncio.sleep(1)
-        await interaction.message.delete()
-
-    @discord.ui.button(label="Reject ❌", style=discord.ButtonStyle.red, disabled=True)
-    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.reviewer != interaction.user.id:
-            await interaction.response.send_message(
-                "❌ You are not the reviewer of this submission.",
-                ephemeral=True
-            )
-            return
-
-        modal = RejectReasonModal(self, interaction)
-        await interaction.response.send_modal(modal)
-
-class RejectReasonModal(discord.ui.Modal, title="Reject Submission"):
-    def __init__(self, parent_view: discord.ui.View, interaction: discord.Interaction):
-        super().__init__()
-        self.parent_view = parent_view
-        self.message = interaction.message
-
-        self.reason = discord.ui.TextInput(
-            label="Reason for rejection",
-            style=discord.TextStyle.paragraph,
-            placeholder="Enter the reason why this drop is being rejected.",
-            required=True,
-            max_length=500
-        )
-        self.add_item(self.reason)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        log_channel = bot.get_channel(LOG_CHANNEL_ID)
-        if log_channel:
-            embed = discord.Embed(title="Drop Rejected", colour=discord.Colour.red())
-            embed.add_field(name="Rejected By", value=interaction.user.display_name, inline=False)
-            embed.add_field(name="Drop For", value=self.parent_view.submitted_user.mention, inline=False)
-            embed.add_field(name="Team", value=self.parent_view.team_mention, inline=False)
-            embed.add_field(name="Drop", value=self.parent_view.drop, inline=False)
-            embed.add_field(name="Submitted By", value=self.parent_view.submitting_user.mention, inline=False)
-            embed.add_field(name="Reason", value=self.reason.value, inline=False)
-            embed.set_image(url=self.parent_view.image_url)
-            await log_channel.send(embed=embed)
-
-        await interaction.response.send_message("❌ Submission rejected and logged. This message will now be removed.", ephemeral=True)
-
-        # Delete the original message after short delay
-        await asyncio.sleep(1)
-        await self.message.delete()
-
-# ---------------------------
-# 🔹 Welcome#
 @bot.tree.command(name="welcome", description="Welcome the ticket creator and give them the Recruit role.")
 async def welcome(interaction: discord.Interaction):
     # Make sure command is used inside a ticket thread
@@ -446,7 +139,7 @@ async def welcome(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🎉 Welcome to the Clan! 🎉",
         description=(
-            f"We're thrilled to have you with us, {ticket_creator.mention}! 🎊\n\n"
+            f"Happy to have you with us, {ticket_creator.mention}! 🎊\n\n"
             "📜 Please make sure you visit our [Guidelines]"
             "(https://discord.com/channels/1272629330115297330/1272629843552501802) "
             "to ensure you're aware of the rules.\n\n"
@@ -540,176 +233,86 @@ async def welcome(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
+ROLE_PANEL_CHANNEL_ID = 1234567890  # replace with your channel ID
 
-# ---------------------------
-# 🔹 Role Panel
-# ---------------------------
+# -----------------------------
+# Role Button
+# -----------------------------
+class RoleButton(Button):
+    def __init__(self, role_name: str, emoji=None):
+        super().__init__(label=role_name, style=discord.ButtonStyle.secondary, emoji=emoji, custom_id=role_name)
 
-class RolePanelView(discord.ui.View):
+    async def callback(self, interaction: discord.Interaction):
+        role_name = self.custom_id
+        role = discord.utils.get(interaction.guild.roles, name=role_name)
+
+        if not role:
+            await interaction.response.send_message(f"❌ Role '{role_name}' not found.", ephemeral=True)
+            return
+
+        if role in interaction.user.roles:
+            await interaction.user.remove_roles(role)
+            feedback = f"{interaction.user.mention}, role **{role_name}** removed."
+        else:
+            await interaction.user.add_roles(role)
+            feedback = f"{interaction.user.mention}, role **{role_name}** added."
+
+        await interaction.response.send_message(feedback, ephemeral=False)
+        await asyncio.sleep(1)
+        try:
+            await interaction.delete_original_response()
+        except Exception:
+            pass
+
+# -----------------------------
+# Views for each group
+# -----------------------------
+class RaidsView(View):
     def __init__(self, guild: discord.Guild):
-        super().__init__(timeout=None)  # persistent
+        super().__init__(timeout=None)
+        get_emoji = lambda name: discord.utils.get(guild.emojis, name=name)
 
-        emoji_names = [
-            "tob", "cox", "toa", "hmt", "cm", "extoa", "graardor", "sara", "zammy", "arma",
-            "nex", "corp", "callisto", "vetion", "venenatis", "hueycoatl", "yama", "raffle",
-            "event", "sotw", "botw", "sanguine_sunday"
-        ]
-        emojis = {name: discord.utils.get(guild.emojis, name=name) for name in emoji_names}
-
-        buttons_info = [
-            ("Theatre of Blood - TOB", emojis.get("tob")),
-            ("Chambers of Xeric - COX", emojis.get("cox")),
-            ("Tombs of Amascut - TOA", emojis.get("toa")),
-            ("Theatre of Blood Hard Mode - HMT", emojis.get("hmt")),
-            ("Chambers of Xeric Challenge Mode - COX CMs", emojis.get("cm")),
-            ("Tombs of Amascut Expert - TOA EXP", emojis.get("extoa")),
-            ("General Graardor - Bandos GWD", emojis.get("graardor")),
-            ("Commander Zilyana - Saradomin GWD", emojis.get("sara")),
-            ("K'ril Tsutsaroth - Zamorak GWD", emojis.get("zammy")),
-            ("Kree'arra - Armadyl GWD", emojis.get("arma")),
-            ("Nex", emojis.get("nex")),
-            ("Corporeal Beast - Corp", emojis.get("corp")),
-            ("Callisto", emojis.get("callisto")),
-            ("Vet'ion", emojis.get("vetion")),
-            ("Venenatis", emojis.get("venenatis")),
-            ("Hueycoatl", emojis.get("hueycoatl")),
-            ("Yama", emojis.get("yama")),
-            ("Raffles", emojis.get("raffle")),
-            ("Events", emojis.get("event")),
-            ("Skill of the Week", emojis.get("sotw")),
-            ("Boss of the Week", emojis.get("botw")),
-            ("Sanguine Sunday - Learn ToB!", emojis.get("sanguine_sunday")),
-        ]
-
-        for label, emoji in buttons_info:
-            self.add_item(self.RoleButton(label=label, emoji=emoji))
-
-    class RoleButton(discord.ui.Button):
-        def __init__(self, label, emoji):
-            super().__init__(label=label, style=discord.ButtonStyle.secondary, emoji=emoji, custom_id=label)
-
-        async def callback(self, interaction: discord.Interaction):
-            role_name = self.custom_id
-            role = discord.utils.get(interaction.guild.roles, name=role_name)
-
-            if role is None:
-                await interaction.response.send_message(f"❌ Role '{role_name}' not found.", ephemeral=True)
-                return
-
-            if role in interaction.user.roles:
-                await interaction.user.remove_roles(role)
-                feedback = f"{interaction.user.mention}, role **{role_name}** removed."
-            else:
-                await interaction.user.add_roles(role)
-                feedback = f"{interaction.user.mention}, role **{role_name}** added."
-
-            await interaction.response.send_message(feedback, ephemeral=False)
-            await asyncio.sleep(1)
-            try:
-                await interaction.delete_original_response()
-            except Exception:
-                pass
+        self.add_item(RoleButton("Theatre of Blood", get_emoji("tob")))
+        self.add_item(RoleButton("Chambers of Xeric", get_emoji("cox")))
+        self.add_item(RoleButton("Tombs of Amascut", get_emoji("toa")))
+        self.add_item(RoleButton("Theatre of Blood Hard Mode", get_emoji("hmt")))
+        self.add_item(RoleButton("Chambers of Xeric Challenge Mode", get_emoji("cm")))
+        self.add_item(RoleButton("Tombs of Amascut Expert", get_emoji("extoa")))
 
 
-@tree.command(name="rolepanel", description="Post the self-role assignment panel in the designated channel.")
-async def rolepanel(interaction: discord.Interaction):
-    allowed_roles = {"Senior Staff", "Moderators"}
-    if not any(role.name in allowed_roles for role in interaction.user.roles):
-        await interaction.response.send_message("❌ You do not have permission to use this command.", ephemeral=True)
-        return
+class BossesView(View):
+    def __init__(self, guild: discord.Guild):
+        super().__init__(timeout=None)
+        get_emoji = lambda name: discord.utils.get(guild.emojis, name=name)
 
-    embed = discord.Embed(
-        title=":crossed_swords: Self Role Assign :crossed_swords:",
-        description=(
-            "Select the roles for the content that you wish to be notified for. "
-            "De-select to remove the role from your account."
-        ),
-        color=discord.Color.red()
-    )
-    embed.set_footer(text="Select your roles")
+        self.add_item(RoleButton("Bandos GWD", get_emoji("graardor")))
+        self.add_item(RoleButton("Saradomin GWD", get_emoji("sara")))
+        self.add_item(RoleButton("Zamorak GWD", get_emoji("zammy")))
+        self.add_item(RoleButton("Armadyl GWD", get_emoji("arma")))
+        self.add_item(RoleButton("Nex", get_emoji("nex")))
+        self.add_item(RoleButton("Corporeal Beast", get_emoji("corp")))
+        self.add_item(RoleButton("Callisto", get_emoji("callisto")))
+        self.add_item(RoleButton("Vet'ion", get_emoji("vetion")))
+        self.add_item(RoleButton("Venenatis", get_emoji("venenatis")))
+        self.add_item(RoleButton("Hueycoatl", get_emoji("hueycoatl")))
+        self.add_item(RoleButton("Yama", get_emoji("yama")))
 
-    channel = interaction.guild.get_channel(1272648586198519818)
-    if channel is None:
-        await interaction.response.send_message("❌ Could not find the self-role channel.", ephemeral=True)
-        return
+class EventsView(View):
+    def __init__(self, guild: discord.Guild):
+        super().__init__(timeout=None)
+        get_emoji = lambda name: discord.utils.get(guild.emojis, name=name)
 
-    await channel.send(embed=embed, view=RolePanelView(interaction.guild))
-    await interaction.response.send_message(f"✅ Role panel posted in {channel.mention}", ephemeral=True)
+        self.add_item(RoleButton("Raffles", get_emoji("raffle")))
+        self.add_item(RoleButton("Events", get_emoji("event")))
+        self.add_item(RoleButton("Boss of the Week", get_emoji("botw")))
+        self.add_item(RoleButton("Skill of the Week", get_emoji("sotw")))
+        self.add_item(RoleButton("Sanguine Sunday - Learn ToB!", get_emoji("sanguine_sunday")))
 
-# ---------------------------
-# Event Panel
-# ---------------------------
-
-@bot.tree.command(name="event_panel", description="Open the event panel to create BOTW or SOTW events")
-async def event_panel(interaction: discord.Interaction):
-    custom_emoji_skill = discord.utils.get(interaction.guild.emojis, name="skill")
-
-    button_botw = Button(label="Boss of the Week (BOTW)", style=discord.ButtonStyle.primary, emoji="⚔️")
-    button_sotw = Button(label="Skill of the Week (SOTW)", style=discord.ButtonStyle.primary, emoji=custom_emoji_skill)
-
-    view = View(timeout=None)
-    view.add_item(button_botw)
-    view.add_item(button_sotw)
-
-    async def botw_panel(inner_interaction: discord.Interaction):
-        # BOTW buttons
-        bosses = [
-            "General Graardor", "K'ril Tsutsaroth", "Commander Zilyana", "Kree'Arra", "Nex",
-            "Callisto", "Vet'ion", "Venenatis", "Chambers Of Xeric", "Tombs Of Amascut", "Theatre Of Blood",
-            "Araxxor", "Vardorvis", "Duke Sucellus", "The Leviathan", "The Whisperer", "Dagannoth Kings",
-            "Corporeal Beast", "Vorkath", "Zulrah", "The Gauntlet", "Phantom Muspah", "Nightmare", "Phosani", "Yama"
-        ]
-
-        view_botw = View(timeout=None)
-        for boss in bosses:
-            emoji_name = boss.lower().replace(" ", "_").replace("'", "").replace("-", "")
-            emoji = discord.utils.get(inner_interaction.guild.emojis, name=emoji_name)
-            button = Button(label=boss, style=discord.ButtonStyle.secondary, emoji=emoji)
-
-            async def boss_callback(b_int: discord.Interaction, b_name=boss):
-                event_name = b_name
-                description = f"Defeat {b_name} in this week's challenge!"
-                metric = METRIC_MAPPING.get(event_name, event_name.lower().replace(" ", "_"))
-                await create_event(b_int, event_name, description)
-                await create_wise_old_man_competition(metric, description)
-
-            button.callback = boss_callback
-            view_botw.add_item(button)
-
-        await inner_interaction.response.edit_message(content="Select the boss for this week's event:", view=view_botw)
-
-    async def sotw_panel(inner_interaction: discord.Interaction):
-        skills = [
-            "Farming", "Fishing", "Hunter", "Mining", "Woodcutting", "Cooking", "Crafting",
-            "Fletching", "Herblore", "Runecrafting", "Smithing", "Agility", "Construction", "Firemaking", "Slayer", "Thieving"
-        ]
-
-        view_sotw = View(timeout=None)
-        for skill in skills:
-            emoji_name = skill.lower().replace(" ", "_")
-            emoji = discord.utils.get(inner_interaction.guild.emojis, name=emoji_name)
-            button = Button(label=skill, style=discord.ButtonStyle.secondary, emoji=emoji)
-
-            async def skill_callback(s_int: discord.Interaction, s_name=skill):
-                event_name = s_name
-                description = f"Master {s_name} in this week's skill challenge!"
-                metric = METRIC_MAPPING.get(event_name, event_name.lower().replace(" ", "_"))
-                await create_event(s_int, event_name, description)
-                await create_wise_old_man_competition(metric, description)
-
-            button.callback = skill_callback
-            view_sotw.add_item(button)
-
-        await inner_interaction.response.edit_message(content="Select the skill for this week's event:", view=view_sotw)
-
-    button_botw.callback = botw_panel
-    button_sotw.callback = sotw_panel
-
-    await interaction.response.send_message("Click a button to create an event:", view=view, ephemeral=False)
 
 # ---------------------------
 # 🔹 RSN Commands
 # ---------------------------
+
 rsn_write_queue = asyncio.Queue()
 
 async def rsn_writer():
@@ -754,7 +357,34 @@ class RSNModal(discord.ui.Modal, title="Register your RuneScape Name"):
     async def on_submit(self, modal_interaction: discord.Interaction):
         member = modal_interaction.user
         rsn_value = self.rsn.value
-        rsn_write_queue.put_nowait((member, rsn_value))
+
+        now = datetime.now(timezone.utc)
+        day = now.day
+        timestamp = now.strftime(f"%B {day}, %Y at %I:%M%p")
+
+        try:
+            cell = rsn_sheet.find(str(member.id))
+            if cell:
+                # Get current "New RSN"
+                old_rsn = rsn_sheet.cell(cell.row, 4).value or ""
+                # Move it into "Old RSN"
+                rsn_sheet.update_cell(cell.row, 3, old_rsn)
+                # Update New RSN + Date/Time
+                rsn_sheet.update_cell(cell.row, 4, rsn_value)
+                rsn_sheet.update_cell(cell.row, 5, timestamp)
+                print(f"✅ Updated RSN for {member} ({member.id}) to {rsn_value}")
+            else:
+                # New entry
+                rsn_sheet.append_row([
+                    member.display_name,
+                    str(member.id),
+                    "",
+                    rsn_value,
+                    timestamp
+                ])
+                print(f"✅ Added new RSN for {member} ({member.id}) as {rsn_value}")
+        except Exception as e:
+            print(f"❌ Error writing RSN: {e}")
 
         # Add Registered role if not already
         guild = modal_interaction.guild
@@ -767,7 +397,6 @@ class RSNModal(discord.ui.Modal, title="Register your RuneScape Name"):
             f"✅ Your RuneScape name has been submitted as **{rsn_value}**.",
             ephemeral=True
         )
-
 
 class RSNPanelView(discord.ui.View):
     def __init__(self):
@@ -801,13 +430,14 @@ async def rsn_panel(interaction: discord.Interaction):
         ephemeral=False
     )
 
+
 @tree.command(name="rsn", description="Check your registered RSN.")
 async def rsn(interaction: discord.Interaction):
     member_id = str(interaction.user.id)
 
     try:
         cell = rsn_sheet.find(member_id)
-        rsn_value = rsn_sheet.cell(cell.row, 2).value
+        rsn_value = rsn_sheet.cell(cell.row, 4).value
         await interaction.response.send_message(
             f"✅ Your registered RSN is **{rsn_value}**.",
             ephemeral=True
@@ -817,7 +447,6 @@ async def rsn(interaction: discord.Interaction):
             "⚠️ You have not registered an RSN yet. Use `/rsn_panel` to register.",
             ephemeral=True
         )
-
 
 @rsn_panel.error
 async def rsn_panel_error(interaction: discord.Interaction, error):
@@ -829,16 +458,659 @@ async def rsn_panel_error(interaction: discord.Interaction, error):
 
 
 # ---------------------------
-# 🔹 On Ready
+# 🔹 TimeZones
+# ---------------------------
+
+class TimePanelView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(Button(label="Morning (8AM–12PM)", style=discord.ButtonStyle.primary, custom_id="time_morning"))
+        self.add_item(Button(label="Afternoon (12PM–4PM)", style=discord.ButtonStyle.primary, custom_id="time_afternoon"))
+        self.add_item(Button(label="Evening (4PM–10PM)", style=discord.ButtonStyle.primary, custom_id="time_evening"))
+        self.add_item(Button(label="Late Night (10PM–2AM)", style=discord.ButtonStyle.primary, custom_id="time_latenight"))
+
+
+# Timezones and flags
+TIMEZONE_DATA = {
+    "PST": ("America/Los_Angeles", "🇺🇸"),
+    "MST": ("America/Denver", "🇺🇸"),
+    "CST": ("America/Chicago", "🇺🇸"),
+    "EST": ("America/New_York", "🇺🇸"),
+    "AST": ("America/Halifax", "🇨🇦"),
+    "BRT": ("Brazil", "🇧🇷"),
+    "ART": ("Argentina", "🇦🇷"),
+    "GMT": ("Europe/London", "🇬🇧"),
+    "CET": ("Europe/Paris", "🇫🇷"),
+    "EET": ("Europe/Helsinki", "🇫🇮"),
+    "AWST": ("Australia/Perth", "🇦🇺"),
+    "ACST": ("Australia/Adelaide", "🇦🇺"),
+    "AEST": ("Australia/Sydney", "🇦🇺"),
+}
+
+TIME_OF_DAY_DATA = {
+    "Morning": ("🌄", "6 AM - 12 PM"),
+    "Day": ("🌇", "12 PM - 6 PM"),
+    "Evening": ("🌆", "6 PM - 12 AM"),
+    "Night": ("🌃", "12 AM - 6 AM"),
+}
+
+class TimeOfDayView(discord.ui.View):
+    def __init__(self, guild, timezone_role, tz_abbr):
+        super().__init__(timeout=60)
+        self.guild = guild
+        self.timezone_role = timezone_role
+        self.tz_abbr = tz_abbr
+
+        for tod_label, (emoji, _) in TIME_OF_DAY_DATA.items():
+            role = discord.utils.get(guild.roles, name=tod_label)
+            if role:
+                self.add_item(TimeOfDayButton(tod_label, role, emoji, self.timezone_role, self.tz_abbr))
+
+class TimeOfDayButton(discord.ui.Button):
+    def __init__(self, label, role, emoji, timezone_role, tz_abbr):
+        super().__init__(label=label, style=discord.ButtonStyle.secondary, emoji=emoji)
+        self.role = role
+        self.label = label
+        self.timezone_role = timezone_role
+        self.tz_abbr = tz_abbr
+
+    async def callback(self, interaction: discord.Interaction):
+        member = interaction.user
+
+        if self.role in member.roles:
+            await member.remove_roles(self.role)
+            await interaction.response.send_message(
+                f"❌ Removed time of day role **{self.label}**.",
+                ephemeral=True
+            )
+            return
+
+        await member.add_roles(self.role)
+        time_range = TIME_OF_DAY_DATA[self.label][1]
+        await interaction.response.send_message(
+            f"✅ Added time of day role **{self.label}** ({time_range}) for timezone **{self.tz_abbr}**.",
+            ephemeral=True
+        )
+
+class TimezoneView(discord.ui.View):
+    def __init__(self, guild):
+        super().__init__(timeout=None)
+        self.guild = guild
+        for tz_abbr, (tz_str, flag) in TIMEZONE_DATA.items():
+            role = discord.utils.get(guild.roles, name=tz_abbr)
+            if role:
+                self.add_item(TimezoneButton(tz_abbr, role, tz_str, flag, guild))
+
+class TimezoneButton(discord.ui.Button):
+    def __init__(self, tz_abbr, role, tz_str, emoji, guild):
+        custom_id = f"timezone-btn:{role.id}"
+        super().__init__(label=tz_abbr, style=discord.ButtonStyle.primary, custom_id=custom_id, emoji=emoji)
+        self.tz_abbr = tz_abbr
+        self.role = role
+        self.tz_str = tz_str
+        self.guild = guild
+
+    async def callback(self, interaction: discord.Interaction):
+        member = interaction.user
+        guild = interaction.guild
+
+        if self.role in member.roles:
+            await member.remove_roles(self.role)
+            await interaction.response.send_message(
+                f"❌ Removed timezone role **{self.tz_abbr}**.",
+                ephemeral=True
+            )
+            return
+
+        old_tz_roles = [discord.utils.get(guild.roles, name=abbr) for abbr in TIMEZONE_DATA.keys()]
+        old_tz_roles = [r for r in old_tz_roles if r and r in member.roles]
+        if old_tz_roles:
+            await member.remove_roles(*old_tz_roles)
+
+        await member.add_roles(self.role)
+
+        await interaction.response.send_message(
+            f"✅ Timezone set to **{self.tz_abbr}**. Now select your usual time of day:",
+            view=TimeOfDayView(guild, self.role, self.tz_abbr),
+            ephemeral=True,
+        )
+
+@bot.tree.command(name="time_panel", description="Open the timezone selection panel.")
+async def time_panel(interaction: discord.Interaction):
+    view = TimezoneView(interaction.guild)
+    embed = discord.Embed(
+        title="🕒 Select Your Usual Timezones",
+        description=(
+            "Click the button that best matches the **timezones you are most often playing or active**.\n\n"
+            "After selecting, you’ll get another prompt to pick the **time of day** you usually play."
+        ),
+        color=discord.Color.blurple()
+    )
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+from datetime import datetime
+import discord
+from discord import app_commands
+from discord.ui import Modal, TextInput
+
+# ---------------------------
+# 🔹 Coffer
+# ---------------------------
+
+CUSTOM_EMOJI = "<:MaxCash:1347684049040183427>"
+
+def parse_amount(input_str: str) -> int:
+    """
+    Parse input like '20m', '20 m', '1.5m', '1,5m' as millions.
+    Also accept plain integers like '5000' (which are treated as millions).
+    Returns integer amount in full units (e.g. 1,500,000).
+    """
+    input_str = input_str.lower().replace(" ", "").replace(",", ".")
+    if input_str.endswith("m"):
+        try:
+            number_part = float(input_str[:-1])
+            return int(number_part * 1_000_000)
+        except ValueError:
+            raise ValueError("Invalid amount format")
+    else:
+        # treat raw numbers as millions as before (float to support decimals)
+        try:
+            number_part = float(input_str)
+            return int(number_part * 1_000_000)
+        except ValueError:
+            raise ValueError("Invalid amount format")
+
+
+def format_million(amount: int) -> str:
+    millions = amount / 1_000_000
+    if millions.is_integer():
+        return f"{int(millions):,}M"
+    else:
+        return f"{millions:,.2f}M".rstrip('0').rstrip('.')
+
+
+def log_coffer_entry(name: str, amount: int, entry_type: str, coffer_change: int = 0):
+    timestamp = datetime.now().strftime("%I:%M%p %m/%d/%Y").lstrip("0").replace(" 0", " ")
+    coffer_sheet.append_row([
+        name,
+        amount,
+        entry_type,
+        f"{'+' if coffer_change >= 0 else ''}{coffer_change}",
+        timestamp
+    ])
+
+
+def get_current_total_and_holders_and_owed():
+    records = coffer_sheet.get_all_records()
+    total = 0
+    inferred_holders = {}
+    inferred_owed = {}
+
+    for row in records:
+        name = row.get("Name")
+        amount = int(row.get("Amount", 0))
+        entry_type = row.get("Type", "").lower()
+
+        if entry_type == "deposit":
+            total += amount
+            inferred_holders[name] = inferred_holders.get(name, 0) + amount
+        elif entry_type == "withdraw":
+            total -= amount
+            inferred_holders[name] = inferred_holders.get(name, 0) - amount
+
+    # Apply any latest 'holding' and 'owed' overrides
+    for row in records:
+        name = row.get("Name")
+        amount = int(row.get("Amount", 0))
+        entry_type = row.get("Type", "").lower()
+
+        if entry_type == "holding":
+            inferred_holders[name] = amount
+        elif entry_type == "owed":
+            inferred_owed[name] = amount
+
+    # Remove zero or negative amounts
+    holders = {k: v for k, v in inferred_holders.items() if v > 0}
+    owed = {k: v for k, v in inferred_owed.items() if v > 0}
+
+    return total, holders, owed
+
+
+def escape_markdown(text: str) -> str:
+    # Escape all Discord markdown special characters to avoid formatting issues
+    # From Discord docs: \* _ ~ ` > | (and some others)
+    to_escape = r"\*_~`>|"
+    return re.sub(f"([{re.escape(to_escape)}])", r"\\\1", text)
+
+
+# ---------------------------
+# 🔹 Discord Modals and Commands
+# ---------------------------
+
+class DepositWithdrawModal(Modal, title="Deposit/Withdraw"):
+    amount_input = TextInput(label="Amount", placeholder="Enter amount (e.g. 20m)", required=True)
+
+    def __init__(self, action: str):
+        super().__init__()
+        self.action = action
+
+    async def on_submit(self, interaction: discord.Interaction):
+        raw_value = self.amount_input.value
+        try:
+            amount = parse_amount(raw_value)
+        except Exception:
+            await interaction.response.send_message(
+                "❌ Invalid amount format. Use numbers or numbers with 'm' (e.g. 20m).",
+                ephemeral=True
+            )
+            return
+
+        name = interaction.user.display_name
+
+        total, holders, owed = get_current_total_and_holders_and_owed()
+        current_holding = holders.get(name, 0)
+
+        if self.action == "Deposit":
+            log_coffer_entry(name, amount, "deposit", amount)
+
+            # Adjust holding if user already holds money
+            if current_holding > 0:
+                new_holding = max(current_holding - amount, 0)
+            else:
+                new_holding = 0  # no holdings previously
+
+            log_coffer_entry(name, new_holding, "holding", 0)
+
+            verb = "deposited"
+            formatted_amount = format_million(amount)
+
+            await interaction.response.send_message(
+                f"{CUSTOM_EMOJI} {name} {verb} {formatted_amount}!",
+                ephemeral=False
+            )
+
+        else:  # Withdraw
+            log_coffer_entry(name, amount, "withdraw", -amount)
+
+            # Holdings not changed on withdraw here
+
+            verb = "withdrew"
+            formatted_amount = format_million(amount)
+
+            await interaction.response.send_message(
+                f"{CUSTOM_EMOJI} {name} {verb} {formatted_amount}!",
+                ephemeral=False
+            )
+
+
+class HoldingModal(Modal, title="Set Holding Amount"):
+    amount_input = TextInput(label="Amount Held", placeholder="Enter amount held (e.g. 20m)", required=True)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        raw_value = self.amount_input.value
+        try:
+            amount = parse_amount(raw_value)
+        except Exception:
+            await interaction.response.send_message(
+                "❌ Invalid amount format. Use numbers or numbers with 'm' (e.g. 20m).",
+                ephemeral=True
+            )
+            return
+
+        name = interaction.user.display_name
+
+        if amount > 0:
+            log_coffer_entry(name, amount, "holding", 0)
+            formatted_amount = format_million(amount)
+            await interaction.response.send_message(
+                f"{CUSTOM_EMOJI} {name} is now holding {formatted_amount}.",
+                ephemeral=False
+            )
+        else:
+            log_coffer_entry(name, 0, "holding", 0)
+            await interaction.response.send_message(
+                f"{CUSTOM_EMOJI} {name} is no longer holding any money.",
+                ephemeral=False
+            )
+
+
+@bot.tree.command(name="deposit", description="Deposit money into the clan coffer")
+async def deposit(interaction: discord.Interaction):
+    await interaction.response.send_modal(DepositWithdrawModal("Deposit"))
+
+
+@bot.tree.command(name="withdraw", description="Withdraw money from the clan coffer")
+async def withdraw(interaction: discord.Interaction):
+    await interaction.response.send_modal(DepositWithdrawModal("Withdraw"))
+
+
+@bot.tree.command(name="holding", description="Add to a user's holding amount (defaults to yourself)")
+@app_commands.describe(
+    user="User to add holding for (default yourself)",
+    amount="Amount to add (e.g. 20m)"
+)
+async def holding(
+    interaction: discord.Interaction,
+    amount: str,
+    user: discord.User | None = None
+):
+    target = user or interaction.user
+    name = target.display_name
+
+    try:
+        amt = parse_amount(amount)
+    except Exception:
+        await interaction.response.send_message(
+            "❌ Invalid amount format. Use numbers or numbers with 'm' (e.g. 20m).",
+            ephemeral=True
+        )
+        return
+
+    # Get current holdings
+    _, holders, _ = get_current_total_and_holders_and_owed()
+    current_amt = holders.get(name, 0)
+
+    # Add entered amount to current
+    new_amt = current_amt + amt
+
+    if new_amt > 0:
+        log_coffer_entry(name, new_amt, "holding", amt)
+        await interaction.response.send_message(
+            f"{CUSTOM_EMOJI} **{name}** is now holding {format_million(new_amt)}.",
+            ephemeral=False
+        )
+    else:
+        log_coffer_entry(name, 0, "holding", -current_amt)
+        await interaction.response.send_message(
+            f"{CUSTOM_EMOJI} **{name}** is no longer holding any money.",
+            ephemeral=False
+        )
+
+
+@bot.tree.command(name="owed", description="Set a user's owed amount (defaults to yourself)")
+@app_commands.describe(
+    user="User to set owed amount for (default yourself)",
+    amount="Amount owed (e.g. 20m)"
+)
+async def owed(
+    interaction: discord.Interaction,
+    amount: str,
+    user: discord.User | None = None
+):
+    target = user or interaction.user
+    name = target.display_name
+
+    try:
+        amt = parse_amount(amount)
+    except Exception:
+        await interaction.response.send_message(
+            "❌ Invalid amount format. Use numbers or numbers with 'm' (e.g. 20m).",
+            ephemeral=True
+        )
+        return
+
+    if amt > 0:
+        log_coffer_entry(name, amt, "owed", 0)
+        formatted_amount = format_million(amt)
+        await interaction.response.send_message(
+            f"{CUSTOM_EMOJI} {name} is now owed {formatted_amount}.",
+            ephemeral=False
+        )
+    else:
+        log_coffer_entry(name, 0, "owed", 0)
+        await interaction.response.send_message(
+            f"{CUSTOM_EMOJI} {name} is no longer owed any money.",
+            ephemeral=False
+        )
+
+@bot.tree.command(name="clear_owed", description="Clear owed amount for a user")
+@app_commands.describe(user="User to clear owed amount for")
+async def clear_owed(interaction: discord.Interaction, user: discord.User):
+    name = user.display_name
+
+    log_coffer_entry(name, 0, "owed", 0)
+
+    await interaction.response.send_message(
+        f"{CUSTOM_EMOJI} Cleared owed amount for **{name}**.",
+        ephemeral=False
+    )
+
+@bot.tree.command(name="clear_holding", description="Clear holding amount for a user")
+@app_commands.describe(user="User to clear holding for")
+async def clear_holding(interaction: discord.Interaction, user: discord.User):
+    name = user.display_name
+
+    log_coffer_entry(name, 0, "holding", 0)
+
+    await interaction.response.send_message(
+        f"{CUSTOM_EMOJI} Cleared holding for **{name}**.",
+        ephemeral=False
+    )
+
+@bot.tree.command(name="bank", description="Show coffer total and who is holding or owed money")
+async def bank(interaction: discord.Interaction):
+    total, holders, owed = get_current_total_and_holders_and_owed()
+    guild = interaction.guild
+
+    # Sum all holdings to add to the clan coffer total
+    total_holding = sum(holders.values())
+    clan_coffer_total = total + total_holding
+
+    filtered_holders = {name: amount for name, amount in holders.items() if amount > 0}
+    filtered_owed = {name: amount for name, amount in owed.items() if amount > 0}
+
+    holder_lines = []
+    for name, amount in filtered_holders.items():
+        member = discord.utils.get(guild.members, display_name=name) or discord.utils.get(guild.members, name=name)
+        display_name = member.nick if member and member.nick else name
+        display_name = escape_markdown(display_name)
+        formatted_amount = f"{CUSTOM_EMOJI} {format_million(amount)}"
+        holder_lines.append(f"🏦 **{display_name}** is holding {formatted_amount}")
+
+    owed_lines = []
+    for name, amount in filtered_owed.items():
+        member = discord.utils.get(guild.members, display_name=name) or discord.utils.get(guild.members, name=name)
+        display_name = member.nick if member and member.nick else name
+        display_name = escape_markdown(display_name)
+        formatted_amount = f"{CUSTOM_EMOJI} {format_million(amount)}"
+        owed_lines.append(f"💰 **{display_name}** is owed {formatted_amount}")
+
+    ceo_bank_line = f"{CUSTOM_EMOJI} CEO Bank: {format_million(total)}"
+    clan_coffer_line = f"💰 Clan Coffer Total: {format_million(clan_coffer_total)}"
+
+    holder_text = "\n".join(holder_lines) if holder_lines else "_Nobody is holding anything._"
+    owed_text = "\n".join(owed_lines) if owed_lines else "_Nobody is owed anything._"
+
+    await interaction.response.send_message(
+        f"**{ceo_bank_line}**\n**{clan_coffer_line}**\n\n{holder_text}\n\n{owed_text}",
+        ephemeral=False
+    )
+
+# ---------------------------
+# 🔹 Panel Init()
+# ---------------------------
+
+async def send_rsn_panel(channel: discord.TextChannel):
+    await channel.purge(limit=10)
+    await channel.send(":identification_card: **Link your RSN by clicking below:**", view=RSNPanelView())
+
+async def send_time_panel(channel: discord.TextChannel):
+    await channel.purge(limit=10)
+    # Fix here: Send the embed + TimezoneView like the command does, NOT the old TimePanelView buttons
+    view = TimezoneView(channel.guild)
+    embed = discord.Embed(
+        title="🕒 Select Your Usual Timezones",
+        description=(
+            "Click the button that best matches the **timezones you are most often playing or active**.\n\n"
+            "After selecting, you’ll get another prompt to pick the **time of day** you usually play."
+        ),
+        color=discord.Color.blurple()
+    )
+    await channel.send(embed=embed, view=view)
+
+async def send_role_panel(channel: discord.TextChannel):
+    await channel.purge(limit=10)
+    await channel.send(":crossed_swords: **Choose your roles:**", view=RolePanelView(channel.guild))
+
+# ---------------------------
+# 🔹 Collat Notifier
+# ---------------------------
+
+class CollatRequestModal(discord.ui.Modal, title="Request Item"):
+    target_username = discord.ui.TextInput(
+        label="Enter the username to notify",
+        placeholder="Exact username (case-sensitive)",
+        style=discord.TextStyle.short,
+        required=True,
+        max_length=50,
+    )
+
+    def __init__(self, interaction: discord.Interaction):
+        super().__init__()
+        self.interaction = interaction  # who clicked the button
+
+    async def on_submit(self, interaction: discord.Interaction):
+        entered_name = str(self.target_username.value).strip()
+
+        # Try to find the member in the guild
+        guild = interaction.guild
+        target_member = discord.utils.find(
+            lambda m: m.name == entered_name or m.display_name == entered_name,
+            guild.members
+        )
+
+        if not target_member:
+            await interaction.response.send_message(
+                "User not found. Please ensure the name matches exactly.",
+                ephemeral=True
+            )
+            return
+
+        # Post reply under the original collat message with proper mentions
+        await interaction.message.reply(
+            f"{self.interaction.user.mention} is requesting their item from {target_member.mention}",
+            mention_author=True,
+        )
+
+        await interaction.response.send_message("Request sent ✅", ephemeral=True)
+
+class CollatButtons(discord.ui.View):
+    def __init__(self, author: discord.User, mentioned: discord.User | None):
+        super().__init__(timeout=None)
+        self.author = author
+        self.mentioned = mentioned
+        self.disabled_flag = False
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        # Restrict usage to only the author or mentioned user
+        if interaction.user == self.author or (self.mentioned and interaction.user == self.mentioned):
+            return True
+        await interaction.response.send_message("You are not allowed to interact with this post.", ephemeral=True)
+        return False
+
+    async def disable_all(self, interaction: discord.Interaction):
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(view=self)
+
+    @discord.ui.button(label="Request Item", style=discord.ButtonStyle.primary, emoji="🔔")
+    async def request_item(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self.mentioned:
+            # Open modal instead of error
+            await interaction.response.send_modal(CollatRequestModal(interaction))
+            return
+
+        # Determine who to ping
+        if interaction.user == self.author:
+            target = self.mentioned
+        else:
+            target = self.author
+
+        await interaction.response.defer()
+        await interaction.message.reply(
+            f"{interaction.user.mention} is requesting their item from {target.mention}.",
+            mention_author=True
+        )
+
+    @discord.ui.button(label="Item Returned", style=discord.ButtonStyle.success, emoji="📥")
+    async def item_returned(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Disable all buttons after this
+        await self.disable_all(interaction)
+        await interaction.response.send_message("Item marked as returned. ✅", ephemeral=True)
+
+
+@bot.event
+async def on_message(message: discord.Message):
+    # Only in collat channel
+    if message.channel.id != COLLAT_CHANNEL_ID:
+        return
+    if message.author.bot:
+        return
+    if not message.attachments:  # Require screenshot
+        return
+
+    # Detect first mentioned user in the message
+    mentioned_user = message.mentions[0] if message.mentions else None
+
+    # Add buttons
+    view = CollatButtons(message.author, mentioned_user)
+    await message.reply("Collat actions:", view=view)
+
+# ---------------------------
+# 🔹 Bot Events
 # ---------------------------
 @bot.event
 async def on_ready():
-    for guild in bot.guilds:
-        bot.add_view(RolePanelView(guild))
-    bot.add_view(RSNPanelView())  # register persistent view
-    bot.loop.create_task(rsn_writer())
-    print(f"✅ Logged in as {bot.user}")
-    synced = await tree.sync()
-    print(f"✅ Synced {len(synced)} slash commands.")
+    print(f"Logged in as {bot.user} (ID: {bot.user.id})")
+    await bot.wait_until_ready()
+
+    # ---------------------------
+    # RSN panel → Channel ID: 1280532494139002912
+    # ---------------------------
+    rsn_channel = bot.get_channel(1280532494139002912)
+    if rsn_channel:
+        await send_rsn_panel(rsn_channel)
+
+    # ---------------------------
+    # Time panel → Channel ID: 1398775387139342386
+    # ---------------------------
+    time_channel = bot.get_channel(1398775387139342386)
+    if time_channel:
+        await send_time_panel(time_channel)
+
+    # ---------------------------
+    # Role panel → Channel ID: 1272648586198519818
+    # ---------------------------
+    role_channel = bot.get_channel(1272648586198519818)
+    if role_channel:
+        guild = role_channel.guild
+
+        # Delete old role panel messages
+        async for msg in role_channel.history(limit=100):
+            if msg.author == bot.user:
+                await msg.delete()
+
+        # Intro message
+        await role_channel.send("Select your roles below:")
+
+        # Post each panel as an embed + buttons
+        raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="", color=0x00ff00)
+        await role_channel.send(embed=raid_embed, view=RaidsView(guild))
+
+        boss_embed = discord.Embed(title="⚔︎ 𝔊𝔯𝔬𝔲𝔭 𝔅𝔬𝔰𝔰𝔢𝔰 ⚔︎", description="", color=0x0000ff)
+        await role_channel.send(embed=boss_embed, view=BossesView(guild))
+
+        events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢𝔫𝔱𝔰 ⚔︎", description="", color=0xffff00)
+        await role_channel.send(embed=events_embed, view=EventsView(guild))
+
+    # ---------------------------
+    # Optional: Sync commands
+    # ---------------------------
+    try:
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} commands.")
+    except Exception as e:
+        print(f"Command sync failed: {e}")
 
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
