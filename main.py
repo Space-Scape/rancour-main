@@ -52,7 +52,7 @@ credentials_dict_coffer = {
   "type": os.getenv('COFFER_TYPE'),
   "project_id": os.getenv('COFFER_ID'),
   "private_key_id": os.getenv('COFFER_PRIVATE_KEY_ID'),
-  "private_key": os.getenv('COFFER_PRIVATE_KEY'),
+  "private_key": os.getenv('COFFER_PRIVATE_KEY').replace("\\n", "\n"),
   "client_email": os.getenv('COFFER_CLIENT_EMAIL'),
   "client_id": os.getenv('COFFER_CLIENT_ID'),
   "auth_uri": os.getenv('COFFER_AUTH_URI'),
