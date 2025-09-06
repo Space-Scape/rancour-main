@@ -98,12 +98,10 @@ COLLAT_CHANNEL_ID = 1272648340940525648
 
 @bot.tree.command(name="welcome", description="Welcome the ticket creator and give them the Recruit role.")
 async def welcome(interaction: discord.Interaction):
-    # Make sure command is used inside a ticket thread
     if not isinstance(interaction.channel, discord.Thread):
         await interaction.response.send_message("⚠️ This command must be used inside a ticket thread.", ephemeral=True)
         return
 
-    # Find the ticket creator by scanning recent messages from the Tickets bot
     ticket_creator = None
     async for message in interaction.channel.history(limit=20, oldest_first=True):
         if message.author.bot and message.author.name.lower().startswith("tickets"):
@@ -118,7 +116,6 @@ async def welcome(interaction: discord.Interaction):
         await interaction.response.send_message("⚠️ Could not detect who opened this ticket.", ephemeral=True)
         return
 
-    # Assign roles
     guild = interaction.guild
     roles_to_assign = ["Recruit", "Member", "Boss of the Week", "Skill of the Week", "Events"]
     missing_roles = []
@@ -135,7 +132,6 @@ async def welcome(interaction: discord.Interaction):
         )
         return
 
-    # Build and send embed
     embed = discord.Embed(
         title="🎉 Welcome to the Clan! 🎉",
         description=(
@@ -151,7 +147,6 @@ async def welcome(interaction: discord.Interaction):
         color=discord.Color.blurple()
     )
     
-    # Social links - inline
     embed.add_field(
         name="💭 General Chat",
         value="[Say hello!](https://discord.com/channels/1272629330115297330/1272629331524587623)",
@@ -233,11 +228,77 @@ async def welcome(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
-ROLE_PANEL_CHANNEL_ID = 1234567890  # replace with your channel ID
+# ---------------------------
+# 🔹 New Member Survey
+# ---------------------------
+
+TICKET_CHANNEL_ID = 1272648453264248852
+STAFF_ROLE_ID = 1272635396991221824
+
+
+class SurveyModal(discord.ui.Modal, title="New Member Survey"):
+    answer = discord.ui.TextInput(
+        label="How did you hear about us?",
+        placeholder="Example: OSRS Clans Server",
+        style=discord.TextStyle.paragraph,
+        required=True,
+        max_length=200,
+    )
+
+    def __init__(self, member: discord.Member, ticket_message: discord.Message):
+        super().__init__()
+        self.member = member
+        self.ticket_message = ticket_message
+
+    async def on_submit(self, interaction: discord.Interaction):
+        staff_role = interaction.guild.get_role(STAFF_ROLE_ID)
+        thread = await self.ticket_message.create_thread(
+            name=f"Survey – {self.member.display_name}",
+            type=discord.ChannelType.private_thread,
+            invitable=False
+        )
+        if staff_role:
+            for staff in staff_role.members:
+                await thread.add_user(staff)
+
+        await thread.send(
+            f"📋 **Survey Answer from {self.member.mention}**\n"
+            f"**Q:** How did you hear about us?\n"
+            f"**A:** {self.answer.value}"
+        )
+
+        await interaction.response.send_message(
+            "✅ Thanks! Your response has been submitted.", ephemeral=True
+        )
+
+
+class SurveyButtonView(discord.ui.View):
+    def __init__(self, member: discord.Member, ticket_message: discord.Message):
+        super().__init__(timeout=None)
+        self.member = member
+        self.ticket_message = ticket_message
+
+    @discord.ui.button(label="Fill Survey", style=discord.ButtonStyle.primary, emoji="📝")
+    async def fill_survey(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user != self.member:
+            await interaction.response.send_message(
+                "Only the ticket creator can fill out this survey.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.send_modal(SurveyModal(self.member, self.ticket_message))
+
+@bot.event
+async def on_message(message: discord.Message):
+    if message.channel.id == TICKET_CHANNEL_ID and not message.author.bot:
+        view = SurveyButtonView(message.author, message)
+        await message.reply("📋 New member survey:", view=view)
 
 # -----------------------------
 # Role Button
 # -----------------------------
+
 class RoleButton(Button):
     def __init__(self, role_name: str, emoji=None):
         super().__init__(label=role_name, style=discord.ButtonStyle.secondary, emoji=emoji, custom_id=role_name)
@@ -267,6 +328,7 @@ class RoleButton(Button):
 # -----------------------------
 # Views for each group
 # -----------------------------
+
 class RaidsView(View):
     def __init__(self, guild: discord.Guild):
         super().__init__(timeout=None)
@@ -386,7 +448,6 @@ class RSNModal(discord.ui.Modal, title="Register your RuneScape Name"):
         except Exception as e:
             print(f"❌ Error writing RSN: {e}")
 
-        # Add Registered role if not already
         guild = modal_interaction.guild
         if guild:
             registered_role = discord.utils.get(guild.roles, name=REGISTERED_ROLE_NAME)
@@ -400,7 +461,7 @@ class RSNModal(discord.ui.Modal, title="Register your RuneScape Name"):
 
 class RSNPanelView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=None)  # Persistent view: no timeout
+        super().__init__(timeout=None)
 
     @discord.ui.button(
         label="Register RSN",
@@ -470,7 +531,6 @@ class TimePanelView(discord.ui.View):
         self.add_item(Button(label="Late Night (10PM–2AM)", style=discord.ButtonStyle.primary, custom_id="time_latenight"))
 
 
-# Timezones and flags
 TIMEZONE_DATA = {
     "PST": ("America/Los_Angeles", "🇺🇸"),
     "MST": ("America/Denver", "🇺🇸"),
@@ -588,12 +648,6 @@ async def time_panel(interaction: discord.Interaction):
     )
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-
-from datetime import datetime
-import discord
-from discord import app_commands
-from discord.ui import Modal, TextInput
-
 # ---------------------------
 # 🔹 Coffer
 # ---------------------------
@@ -614,7 +668,6 @@ def parse_amount(input_str: str) -> int:
         except ValueError:
             raise ValueError("Invalid amount format")
     else:
-        # treat raw numbers as millions as before (float to support decimals)
         try:
             number_part = float(input_str)
             return int(number_part * 1_000_000)
@@ -659,7 +712,6 @@ def get_current_total_and_holders_and_owed():
             total -= amount
             inferred_holders[name] = inferred_holders.get(name, 0) - amount
 
-    # Apply any latest 'holding' and 'owed' overrides
     for row in records:
         name = row.get("Name")
         amount = int(row.get("Amount", 0))
@@ -670,7 +722,6 @@ def get_current_total_and_holders_and_owed():
         elif entry_type == "owed":
             inferred_owed[name] = amount
 
-    # Remove zero or negative amounts
     holders = {k: v for k, v in inferred_holders.items() if v > 0}
     owed = {k: v for k, v in inferred_owed.items() if v > 0}
 
@@ -678,8 +729,6 @@ def get_current_total_and_holders_and_owed():
 
 
 def escape_markdown(text: str) -> str:
-    # Escape all Discord markdown special characters to avoid formatting issues
-    # From Discord docs: \* _ ~ ` > | (and some others)
     to_escape = r"\*_~`>|"
     return re.sub(f"([{re.escape(to_escape)}])", r"\\\1", text)
 
@@ -714,11 +763,10 @@ class DepositWithdrawModal(Modal, title="Deposit/Withdraw"):
         if self.action == "Deposit":
             log_coffer_entry(name, amount, "deposit", amount)
 
-            # Adjust holding if user already holds money
             if current_holding > 0:
                 new_holding = max(current_holding - amount, 0)
             else:
-                new_holding = 0  # no holdings previously
+                new_holding = 0
 
             log_coffer_entry(name, new_holding, "holding", 0)
 
@@ -730,10 +778,8 @@ class DepositWithdrawModal(Modal, title="Deposit/Withdraw"):
                 ephemeral=False
             )
 
-        else:  # Withdraw
+        else:
             log_coffer_entry(name, amount, "withdraw", -amount)
-
-            # Holdings not changed on withdraw here
 
             verb = "withdrew"
             formatted_amount = format_million(amount)
@@ -807,11 +853,9 @@ async def holding(
         )
         return
 
-    # Get current holdings
     _, holders, _ = get_current_total_and_holders_and_owed()
     current_amt = holders.get(name, 0)
 
-    # Add entered amount to current
     new_amt = current_amt + amt
 
     if new_amt > 0:
@@ -937,7 +981,6 @@ async def send_rsn_panel(channel: discord.TextChannel):
 
 async def send_time_panel(channel: discord.TextChannel):
     await channel.purge(limit=10)
-    # Fix here: Send the embed + TimezoneView like the command does, NOT the old TimePanelView buttons
     view = TimezoneView(channel.guild)
     embed = discord.Embed(
         title="🕒 Select Your Usual Timezones",
@@ -968,12 +1011,10 @@ class CollatRequestModal(discord.ui.Modal, title="Request Item"):
 
     def __init__(self, interaction: discord.Interaction):
         super().__init__()
-        self.interaction = interaction  # who clicked the button
-
+        self.interaction = interaction
     async def on_submit(self, interaction: discord.Interaction):
         entered_name = str(self.target_username.value).strip()
 
-        # Try to find the member in the guild
         guild = interaction.guild
         target_member = discord.utils.find(
             lambda m: m.name == entered_name or m.display_name == entered_name,
@@ -987,7 +1028,6 @@ class CollatRequestModal(discord.ui.Modal, title="Request Item"):
             )
             return
 
-        # Post reply under the original collat message with proper mentions
         await interaction.message.reply(
             f"{self.interaction.user.mention} is requesting their item from {target_member.mention}",
             mention_author=True,
@@ -1003,7 +1043,6 @@ class CollatButtons(discord.ui.View):
         self.disabled_flag = False
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        # Restrict usage to only the author or mentioned user
         if interaction.user == self.author or (self.mentioned and interaction.user == self.mentioned):
             return True
         await interaction.response.send_message("You are not allowed to interact with this post.", ephemeral=True)
@@ -1017,11 +1056,9 @@ class CollatButtons(discord.ui.View):
     @discord.ui.button(label="Request Item", style=discord.ButtonStyle.primary, emoji="🔔")
     async def request_item(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self.mentioned:
-            # Open modal instead of error
             await interaction.response.send_modal(CollatRequestModal(interaction))
             return
 
-        # Determine who to ping
         if interaction.user == self.author:
             target = self.mentioned
         else:
@@ -1035,25 +1072,21 @@ class CollatButtons(discord.ui.View):
 
     @discord.ui.button(label="Item Returned", style=discord.ButtonStyle.success, emoji="📥")
     async def item_returned(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Disable all buttons after this
         await self.disable_all(interaction)
         await interaction.response.send_message("Item marked as returned. ✅", ephemeral=True)
 
 
 @bot.event
 async def on_message(message: discord.Message):
-    # Only in collat channel
     if message.channel.id != COLLAT_CHANNEL_ID:
         return
     if message.author.bot:
         return
-    if not message.attachments:  # Require screenshot
+    if not message.attachments:
         return
 
-    # Detect first mentioned user in the message
     mentioned_user = message.mentions[0] if message.mentions else None
 
-    # Add buttons
     view = CollatButtons(message.author, mentioned_user)
     await message.reply("Collat actions:", view=view)
 
@@ -1065,36 +1098,24 @@ async def on_ready():
     print(f"Logged in as {bot.user} (ID: {bot.user.id})")
     await bot.wait_until_ready()
 
-    # ---------------------------
-    # RSN panel → Channel ID: 1280532494139002912
-    # ---------------------------
     rsn_channel = bot.get_channel(1280532494139002912)
     if rsn_channel:
         await send_rsn_panel(rsn_channel)
 
-    # ---------------------------
-    # Time panel → Channel ID: 1398775387139342386
-    # ---------------------------
     time_channel = bot.get_channel(1398775387139342386)
     if time_channel:
         await send_time_panel(time_channel)
 
-    # ---------------------------
-    # Role panel → Channel ID: 1272648586198519818
-    # ---------------------------
     role_channel = bot.get_channel(1272648586198519818)
     if role_channel:
         guild = role_channel.guild
 
-        # Delete old role panel messages
         async for msg in role_channel.history(limit=100):
             if msg.author == bot.user:
                 await msg.delete()
 
-        # Intro message
         await role_channel.send("Select your roles below:")
 
-        # Post each panel as an embed + buttons
         raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="", color=0x00ff00)
         await role_channel.send(embed=raid_embed, view=RaidsView(guild))
 
