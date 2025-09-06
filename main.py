@@ -1026,15 +1026,6 @@ async def on_message(message: discord.Message):
     view = CollatButtons(message.author, mentioned_user)
     await message.reply("Collat actions:", view=view)
 
-import discord
-from discord import app_commands
-from discord.ext import tasks
-from datetime import datetime
-from zoneinfo import ZoneInfo
-import os
-
-bot = discord.Bot()
-
 # ---------------------------
 # 🔹 Configuration
 # ---------------------------
