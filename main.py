@@ -11,6 +11,9 @@ from discord.ui import Modal, TextInput
 from discord.ui import View, Button
 from discord import ButtonStyle
 from typing import Optional
+from discord.ext import commands, tasks
+from datetime import datetime, timedelta
+import pytz
 
 # ---------------------------
 # 🔹 Google Sheets Setup
@@ -1022,6 +1025,68 @@ async def on_message(message: discord.Message):
 
     view = CollatButtons(message.author, mentioned_user)
     await message.reply("Collat actions:", view=view)
+
+# ---------------------------
+# 🔹 Sang Signup Message
+# ---------------------------
+CHANNEL_ID = 1338295765759688767  # Channel where signup is posted
+CST = pytz.timezone("US/Central")  # Central Standard Time
+
+
+SANG_MESSAGE = """Sanguine Sunday Sign Up - Hosted by Macflag 
+Looking for a fun Sunday activity? Look no farther than Sanguine Sunday! Spend an afternoon/evening sending TOBs with clan members. The focus on this event is on Learners and general KC.
+
+We plan to have mentors on hand to help out with the learners. Learner is someone who need the mechanics explained for each room. 
+
+LEARNERS - please review this thread, watch the xzact guides, and get your plugins setup before Sunday - <#1388887895837773895>
+
+No matter if you're a learner or an experienced raider, we STRONGLY ENCOURAGE you use one of the setups in this thread. We have setups for both learners and experienced (rancour meta setup) - <#1388884558191268070>
+
+If you want to participate, leave a reaction to the post depending on your skill level. 
+
+⚪ - Learner
+🔵 - Proficient
+🔴 - Mentor
+
+https://discord.com/events/1272629330115297330/1386302870646816788
+
+@Mentor TOB @Sanguine Sunday - Learn ToB! @Theatre of Blood @Events
+"""
+
+# ---------------------------
+# 🔹 Manual Slash Command
+# ---------------------------
+
+@bot.tree.command(name="sangsignup", description="Post the Sanguine Sunday signup message")
+async def sangsignup(interaction: discord.Interaction):
+    msg = await channel.send(SANG_MESSAGE)
+    # Add reactions for signups
+    await msg.add_reaction("⚪")
+    await msg.add_reaction("🔵")
+    await msg.add_reaction("🔴")
+    await interaction.response.send_message("✅ Sanguine Sunday signup posted!", ephemeral=True)
+    
+# ---------------------------
+# 🔹 Scheduled Task
+# ---------------------------
+
+@tasks.loop(minutes=1)
+async def weekly_sangsignup():
+    now = datetime.now(CST)
+    # Check if it's Friday 11:00 AM CST
+    if now.weekday() == 4 and now.hour == 11 and now.minute == 0:
+        channel = bot.get_channel(CHANNEL_ID)
+        if channel:
+            msg = await channel.send(SANG_MESSAGE)
+            await msg.add_reaction("⚪")
+            await msg.add_reaction("🔵")
+            await msg.add_reaction("🔴")
+
+@weekly_sangsignup.before_loop
+async def before_weekly_sangsignup():
+    await bot.wait_until_ready()
+
+weekly_sangsignup.start()
 
 # ---------------------------
 # 🔹 Bot Events
