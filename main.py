@@ -1026,7 +1026,13 @@ async def on_message(message: discord.Message):
     view = CollatButtons(message.author, mentioned_user)
     await message.reply("Collat actions:", view=view)
 
+from discord import app_commands
+from discord.ext import tasks
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 CHANNEL_ID = 1338295765759688767
+STAFF_ROLE_ID = 1272635396991221824
 CST = ZoneInfo("America/Chicago")
 
 # ---------------------------
@@ -1058,13 +1064,29 @@ https://discord.com/events/1272629330115297330/1386302870646816788
 # ---------------------------
 
 @bot.tree.command(name="sangsignup", description="Post the Sanguine Sunday signup message")
-async def sangsignup(interaction: discord.Interaction):
-    msg = await channel.send(SANG_MESSAGE)
-    # Add reactions for signups
-    await msg.add_reaction("⚪")
-    await msg.add_reaction("🔵")
-    await msg.add_reaction("🔴")
-    await interaction.response.send_message("✅ Sanguine Sunday signup posted!", ephemeral=True)
+@app_commands.describe(channel="Optional channel where the signup should be posted")
+async def sangsignup(interaction: discord.Interaction, channel: discord.TextChannel | None = None):
+    if not any(r.id == STAFF_ROLE_ID for r in interaction.user.roles):
+        await interaction.response.send_message(
+            "❌ You don’t have permission to use this command.",
+            ephemeral=True
+        )
+        return
+
+    target_channel = channel or interaction.channel
+
+    if target_channel:
+        msg = await target_channel.send(SANG_MESSAGE)
+        await msg.add_reaction("⚪")
+        await msg.add_reaction("🔵")
+        await msg.add_reaction("🔴")
+        await interaction.response.send_message(
+            f"✅ Sanguine Sunday signup posted in {target_channel.mention}",
+            ephemeral=True
+        )
+    else:
+        await interaction.response.send_message("⚠️ Could not resolve a channel.", ephemeral=True)
+
 # ---------------------------
 # 🔹 Scheduled Task
 # ---------------------------
@@ -1072,7 +1094,6 @@ async def sangsignup(interaction: discord.Interaction):
 @tasks.loop(minutes=1)
 async def weekly_sangsignup():
     now = datetime.now(CST)
-    # Check if it's Friday 11:00 AM CST
     if now.weekday() == 4 and now.hour == 11 and now.minute == 0:
         channel = bot.get_channel(CHANNEL_ID)
         if channel:
@@ -1085,14 +1106,16 @@ async def weekly_sangsignup():
 async def before_weekly_sangsignup():
     await bot.wait_until_ready()
 
-weekly_sangsignup.start()
-
 # ---------------------------
 # 🔹 Bot Events
 # ---------------------------
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user} (ID: {bot.user.id})")
+    print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
+
+    if not weekly_sangsignup.is_running():
+        weekly_sangsignup.start()
+    
     await bot.wait_until_ready()
 
     rsn_channel = bot.get_channel(1280532494139002912)
