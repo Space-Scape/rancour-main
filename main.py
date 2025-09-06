@@ -1057,9 +1057,9 @@ If you want to participate, leave a reaction to the post depending on your skill
 🔵 - Proficient
 🔴 - Mentor
 
-https://discord.com/events/1272629330115297330/1386302870646816788
+||https://discord.com/events/1272629330115297330/1386302870646816788||
 
-<@&{MENTOR_ROLE}> <@&{SANG_ROLE}> <@&{TOB_ROLE}> <@&{EVENTS_ROLE}>
+||<@&{MENTOR_ROLE}> <@&{SANG_ROLE}> <@&{TOB_ROLE}> <@&{EVENTS_ROLE}>||
 """
 
 # ---------------------------
