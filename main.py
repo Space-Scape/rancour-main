@@ -229,11 +229,12 @@ async def welcome(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 # ---------------------------
-# 🔹 New Member Survey (Ticket-based, no owner detection)
+# 🔹 New Member Survey (Ticket Threads)
 # ---------------------------
 
-TICKET_CATEGORY_ID = 1272648453264248852
+TICKET_HUB_CHANNEL_ID = 1272648453264248852
 STAFF_ROLE_ID = 1272635396991221824
+
 
 class SurveyModal(discord.ui.Modal, title="New Member Survey"):
     answer = discord.ui.TextInput(
@@ -244,14 +245,14 @@ class SurveyModal(discord.ui.Modal, title="New Member Survey"):
         max_length=200,
     )
 
-    def __init__(self, ticket_channel: discord.TextChannel):
+    def __init__(self, ticket_thread: discord.Thread):
         super().__init__()
-        self.ticket_channel = ticket_channel
+        self.ticket_thread = ticket_thread
 
     async def on_submit(self, interaction: discord.Interaction):
         staff_role = interaction.guild.get_role(STAFF_ROLE_ID)
 
-        thread = await self.ticket_channel.create_thread(
+        private_thread = await self.ticket_thread.create_thread(
             name=f"Survey – {interaction.user.display_name}",
             type=discord.ChannelType.private_thread,
             invitable=False
@@ -259,9 +260,11 @@ class SurveyModal(discord.ui.Modal, title="New Member Survey"):
 
         if staff_role:
             for staff in staff_role.members:
-                await thread.add_user(staff)
-
-        await thread.send(
+                try:
+                    await private_thread.add_user(staff)
+                except discord.Forbidden:
+                    pass
+        await private_thread.send(
             f"📋 **Survey Answer from {interaction.user.mention}**\n"
             f"**Q:** How did you hear about us?\n"
             f"**A:** {self.answer.value}"
@@ -273,23 +276,24 @@ class SurveyModal(discord.ui.Modal, title="New Member Survey"):
 
 
 class SurveyButtonView(discord.ui.View):
-    def __init__(self, ticket_channel: discord.TextChannel):
+    def __init__(self, ticket_thread: discord.Thread):
         super().__init__(timeout=None)
-        self.ticket_channel = ticket_channel
+        self.ticket_thread = ticket_thread
 
     @discord.ui.button(label="Fill Survey", style=discord.ButtonStyle.primary, emoji="📝")
     async def fill_survey(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(SurveyModal(self.ticket_channel))
+        await interaction.response.send_modal(SurveyModal(self.ticket_thread))
+
 
 # ---------------------------
-# 🔹 Post Survey Button When Ticket Channel is Created
+# 🔹 Post Survey Button When Ticket is Created
 # ---------------------------
 
 @bot.event
-async def on_guild_channel_create(channel: discord.abc.GuildChannel):
-    if isinstance(channel, discord.TextChannel) and channel.category_id == TICKET_CATEGORY_ID:
-        view = SurveyButtonView(channel)
-        await channel.send("📋 Please fill out our quick survey:", view=view)
+async def on_thread_create(thread: discord.Thread):
+    if thread.parent and thread.parent.id == TICKET_HUB_CHANNEL_ID:
+        view = SurveyButtonView(thread)
+        await thread.send("📋 Please fill out our quick survey:", view=view)
 
 # -----------------------------
 # Role Button
