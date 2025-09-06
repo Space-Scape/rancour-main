@@ -13,7 +13,7 @@ from discord import ButtonStyle
 from typing import Optional
 from discord.ext import commands, tasks
 from datetime import datetime, timedelta
-import pytz
+from zoneinfo import ZoneInfo 
 
 # ---------------------------
 # 🔹 Google Sheets Setup
@@ -1026,12 +1026,12 @@ async def on_message(message: discord.Message):
     view = CollatButtons(message.author, mentioned_user)
     await message.reply("Collat actions:", view=view)
 
+CHANNEL_ID = 1338295765759688767
+CST = ZoneInfo("America/Chicago")
+
 # ---------------------------
 # 🔹 Sang Signup Message
 # ---------------------------
-CHANNEL_ID = 1338295765759688767  # Channel where signup is posted
-CST = pytz.timezone("US/Central")  # Central Standard Time
-
 
 SANG_MESSAGE = """Sanguine Sunday Sign Up - Hosted by Macflag 
 Looking for a fun Sunday activity? Look no farther than Sanguine Sunday! Spend an afternoon/evening sending TOBs with clan members. The focus on this event is on Learners and general KC.
@@ -1065,7 +1065,6 @@ async def sangsignup(interaction: discord.Interaction):
     await msg.add_reaction("🔵")
     await msg.add_reaction("🔴")
     await interaction.response.send_message("✅ Sanguine Sunday signup posted!", ephemeral=True)
-    
 # ---------------------------
 # 🔹 Scheduled Task
 # ---------------------------
