@@ -1026,20 +1026,32 @@ async def on_message(message: discord.Message):
     view = CollatButtons(message.author, mentioned_user)
     await message.reply("Collat actions:", view=view)
 
+import discord
 from discord import app_commands
 from discord.ext import tasks
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import os
 
+bot = discord.Bot()
+
+# ---------------------------
+# 🔹 Configuration
+# ---------------------------
 CHANNEL_ID = 1338295765759688767
 STAFF_ROLE_ID = 1272635396991221824
 CST = ZoneInfo("America/Chicago")
 
-# ---------------------------
-# 🔹 Sang Signup Message
-# ---------------------------
+# Role IDs to ping
+MENTOR_ROLE = 1306021911830073414
+SANG_ROLE = 1387153629072592916
+TOB_ROLE = 1272694636921753701
+EVENTS_ROLE = 1298358942887317555
 
-SANG_MESSAGE = """Sanguine Sunday Sign Up - Hosted by Macflag 
+# ---------------------------
+# 🔹 Sanguine Sunday Message
+# ---------------------------
+SANG_MESSAGE = f"""Sanguine Sunday Sign Up - Hosted by Macflag 
 Looking for a fun Sunday activity? Look no farther than Sanguine Sunday! Spend an afternoon/evening sending TOBs with clan members. The focus on this event is on Learners and general KC.
 
 We plan to have mentors on hand to help out with the learners. Learner is someone who need the mechanics explained for each room. 
@@ -1056,16 +1068,16 @@ If you want to participate, leave a reaction to the post depending on your skill
 
 https://discord.com/events/1272629330115297330/1386302870646816788
 
-@Mentor TOB @Sanguine Sunday - Learn ToB! @Theatre of Blood @Events
+<@&{MENTOR_ROLE}> <@&{SANG_ROLE}> <@&{TOB_ROLE}> <@&{EVENTS_ROLE}>
 """
 
 # ---------------------------
 # 🔹 Manual Slash Command
 # ---------------------------
-
 @bot.tree.command(name="sangsignup", description="Post the Sanguine Sunday signup message")
 @app_commands.describe(channel="Optional channel where the signup should be posted")
 async def sangsignup(interaction: discord.Interaction, channel: discord.TextChannel | None = None):
+    # Staff-only permission
     if not any(r.id == STAFF_ROLE_ID for r in interaction.user.roles):
         await interaction.response.send_message(
             "❌ You don’t have permission to use this command.",
@@ -1074,7 +1086,6 @@ async def sangsignup(interaction: discord.Interaction, channel: discord.TextChan
         return
 
     target_channel = channel or interaction.channel
-
     if target_channel:
         msg = await target_channel.send(SANG_MESSAGE)
         await msg.add_reaction("⚪")
@@ -1090,10 +1101,10 @@ async def sangsignup(interaction: discord.Interaction, channel: discord.TextChan
 # ---------------------------
 # 🔹 Scheduled Task
 # ---------------------------
-
 @tasks.loop(minutes=1)
 async def weekly_sangsignup():
     now = datetime.now(CST)
+    # Friday 11:00 AM CST
     if now.weekday() == 4 and now.hour == 11 and now.minute == 0:
         channel = bot.get_channel(CHANNEL_ID)
         if channel:
@@ -1115,9 +1126,10 @@ async def on_ready():
 
     if not weekly_sangsignup.is_running():
         weekly_sangsignup.start()
-    
+
     await bot.wait_until_ready()
 
+    # Example role panels (existing logic)
     rsn_channel = bot.get_channel(1280532494139002912)
     if rsn_channel:
         await send_rsn_panel(rsn_channel)
@@ -1145,13 +1157,14 @@ async def on_ready():
         events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢𝔫𝔱𝔰 ⚔︎", description="", color=0xffff00)
         await role_channel.send(embed=events_embed, view=EventsView(guild))
 
-    # ---------------------------
-    # Optional: Sync commands
-    # ---------------------------
+    # Sync slash commands
     try:
         synced = await bot.tree.sync()
         print(f"Synced {len(synced)} commands.")
     except Exception as e:
         print(f"Command sync failed: {e}")
 
+# ---------------------------
+# 🔹 Run Bot
+# ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
