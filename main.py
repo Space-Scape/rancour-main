@@ -184,16 +184,30 @@ async def ticketscore(interaction: discord.Interaction):
 
 @tasks.loop(hours=24)
 async def reset_scores():
+    """Resets weekly and monthly scores for tickets and messages."""
     today = datetime.utcnow()
-    all_values = ticket_scores_sheet.get_all_values()
 
+    # ---------------------------
+    # Reset TicketScores
+    # ---------------------------
+    ticket_rows = ticket_scores_sheet.get_all_values()
     if today.weekday() == 0:  # Monday → reset weekly
-        for i in range(2, len(all_values) + 1):
-            ticket_scores_sheet.update_cell(i, 3, 0)
-
+        for i in range(2, len(ticket_rows) + 1):
+            ticket_scores_sheet.update_cell(i, 3, 0)  # Weekly
     if today.day == 1:  # First of month → reset monthly
-        for i in range(2, len(all_values) + 1):
-            ticket_scores_sheet.update_cell(i, 4, 0)
+        for i in range(2, len(ticket_rows) + 1):
+            ticket_scores_sheet.update_cell(i, 4, 0)  # Monthly
+
+    # ---------------------------
+    # Reset TicketMessageScores
+    # ---------------------------
+    message_rows = message_scores_sheet.get_all_values()
+    if today.weekday() == 0:  # Monday → reset weekly
+        for i in range(2, len(message_rows) + 1):
+            message_scores_sheet.update_cell(i, 3, 0)  # Weekly
+    if today.day == 1:  # First of month → reset monthly
+        for i in range(2, len(message_rows) + 1):
+            message_scores_sheet.update_cell(i, 4, 0)  # Monthly
 
 @reset_scores.before_loop
 async def before_reset():
@@ -209,20 +223,30 @@ def get_or_create_message_row(mod_name: str):
     """Find moderator row or create it if missing."""
     try:
         cell = message_scores_sheet.find(mod_name)
-        return cell.row
-    except gspread.CellNotFound:  # gspread 6.x+
-        # Append new row with zero score
-        message_scores_sheet.append_row([mod_name, "0"])
+        row = cell.row if cell else None
+    except Exception:
+        row = None
+
+    if not row:
+        message_scores_sheet.append_row([mod_name, "0", "0", "0"])
         cell = message_scores_sheet.find(mod_name)
-        return cell.row
+        row = cell.row
+
+    return row
 
 def increment_message_score(mod_name: str):
+    """Increment message score for a moderator."""
     row = get_or_create_message_row(mod_name)
     values = message_scores_sheet.row_values(row)
-    while len(values) < 2:
+
+    while len(values) < 4:
         values.append("0")
-    score = int(values[1]) + 1
-    message_scores_sheet.update(f"B{row}", [[score]])  # 2D list required
+
+    overall = int(values[1]) + 1
+    weekly = int(values[2]) + 1
+    monthly = int(values[3]) + 1
+
+    message_scores_sheet.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
 
 # ---------------------------
 # 🔹 Event for message tracking
