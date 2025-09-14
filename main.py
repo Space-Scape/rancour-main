@@ -108,12 +108,15 @@ def get_or_create_mod_row(mod_name: str):
     """Find moderator row or create it if missing."""
     try:
         cell = ticket_scores_sheet.find(mod_name)
-        return cell.row
-    except CellNotFound:
-        # Append new row with zeros
-        ticket_scores_sheet.append_row([mod_name, "0", "0", "0"])
-        cell = ticket_scores_sheet.find(mod_name)
-        return cell.row
+        if cell:
+            return cell.row
+    except Exception:
+        pass  # cell not found
+
+    # Append new row with zeros
+    ticket_scores_sheet.append_row([mod_name, "0", "0", "0"])
+    cell = ticket_scores_sheet.find(mod_name)
+    return cell.row
 
 def increment_ticket_score(mod_name: str):
     """Increment scores for moderator across Overall, Weekly, and Monthly."""
