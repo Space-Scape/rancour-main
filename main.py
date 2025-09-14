@@ -102,8 +102,6 @@ COLLAT_CHANNEL_ID = 1272648340940525648
 TICKET_SCORES_TAB_NAME = "TicketScores"
 ticket_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(TICKET_SCORES_TAB_NAME)
 
-from gspread import CellNotFound
-
 def get_or_create_mod_row(mod_name: str):
     """Find moderator row or create it if missing."""
     try:
