@@ -96,6 +96,97 @@ LISTEN_CHANNEL_ID = 1272875477555482666
 COLLAT_CHANNEL_ID = 1272648340940525648
 
 # ---------------------------
+# 🔹 Ticket Scores Setup
+# ---------------------------
+TICKET_SCORES_TAB_NAME = "TicketScores"
+ticket_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(TICKET_SCORES_TAB_NAME)
+
+def get_or_create_mod_row(mod_name: str):
+    """Find moderator row or create it if missing."""
+    try:
+        cell = ticket_scores_sheet.find(mod_name)
+        return cell.row
+    except gspread.exceptions.CellNotFound:
+        # Append new row with zeros
+        ticket_scores_sheet.append_row([mod_name, "0", "0", "0"])
+        cell = ticket_scores_sheet.find(mod_name)
+        return cell.row
+
+def increment_ticket_score(mod_name: str):
+    """Increment scores for moderator across Overall, Weekly, and Monthly."""
+    row = get_or_create_mod_row(mod_name)
+    values = ticket_scores_sheet.row_values(row)
+
+    while len(values) < 4:
+        values.append("0")
+
+    overall = int(values[1]) + 1
+    weekly = int(values[2]) + 1
+    monthly = int(values[3]) + 1
+
+    ticket_scores_sheet.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
+
+@bot.tree.command(name="ticketscore", description="Show ticket scores (weekly, monthly, overall).")
+async def ticketscore(interaction: discord.Interaction):
+    loop = asyncio.get_running_loop()
+
+    def fetch_scores():
+        rows = ticket_scores_sheet.get_all_values()[1:]  # skip header row
+        scores = []
+        for row in rows:
+            if len(row) >= 4:
+                name = row[0]
+                try:
+                    overall = int(row[1])
+                    weekly = int(row[2])
+                    monthly = int(row[3])
+                except ValueError:
+                    overall, weekly, monthly = 0, 0, 0
+                scores.append((name, overall, weekly, monthly))
+        return sorted(scores, key=lambda x: x[1], reverse=True)
+
+    scores = await loop.run_in_executor(None, fetch_scores)
+
+    embed = discord.Embed(
+        title="🎟️ Ticket Scores Leaderboard",
+        description="Weekly resets every Monday • Monthly resets on the 1st",
+        color=discord.Color.gold()
+    )
+
+    if scores:
+        table = "\n".join(
+            [f"**{i+1}. {name}** — 🏆 {overall} | 📅 {monthly} | 📆 {weekly}"
+             for i, (name, overall, weekly, monthly) in enumerate(scores)]
+        )
+    else:
+        table = "No scores recorded yet."
+
+    embed.add_field(
+        name="Moderator — Overall | Monthly | Weekly",
+        value=table,
+        inline=False
+    )
+
+    await interaction.response.send_message(embed=embed)
+
+@tasks.loop(hours=24)
+async def reset_scores():
+    today = datetime.utcnow()
+    all_values = ticket_scores_sheet.get_all_values()
+
+    if today.weekday() == 0:  # Monday → reset weekly
+        for i in range(2, len(all_values) + 1):
+            ticket_scores_sheet.update_cell(i, 3, 0)
+
+    if today.day == 1:  # First of month → reset monthly
+        for i in range(2, len(all_values) + 1):
+            ticket_scores_sheet.update_cell(i, 4, 0)
+
+@reset_scores.before_loop
+async def before_reset():
+    await bot.wait_until_ready()
+
+# ---------------------------
 # 🔹 Welcome
 # ---------------------------
 
@@ -202,9 +293,9 @@ async def welcome(interaction: discord.Interaction):
     
     embed.add_field(
         name=(
-            "<:corporal:1273838960367505532> **Want to learn raids?**\n"
+            "<:corporal:1406217420187893771> **Want to learn raids?**\n"
             "Once you've been here for two weeks and earned your "
-            "<:corporal:1273838960367505532> rank, you can open a mentor ticket "
+            "<:corporal:1406217420187893771> rank, you can open a mentor ticket "
             "for guidance on PVM!"
         ),
         value="",
@@ -212,7 +303,7 @@ async def welcome(interaction: discord.Interaction):
     )
     embed.add_field(
         name=(
-            "<:mentor:1273838962753929307> **Want to mentor others?**\n"
+            "<:mentor:1406802212382052412> **Want to mentor others?**\n"
             "Please open a mentor rank request in <#1272648472184487937>. "
             "State which raid you’d like to mentor and an admin will reach out to you."
         ),
@@ -230,6 +321,12 @@ async def welcome(interaction: discord.Interaction):
     )
 
     await interaction.response.send_message(embed=embed)
+
+    def update_score():
+        increment_ticket_score(str(interaction.user))
+
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, update_score)
 
 # -----------------------------
 # Role Button
@@ -1110,6 +1207,9 @@ async def before_weekly_sangsignup():
 async def on_ready():
     print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
 
+    if not reset_scores.is_running():
+        reset_scores.start()
+    
     if not weekly_sangsignup.is_running():
         weekly_sangsignup.start()
 
