@@ -214,19 +214,19 @@ message_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).workshee
 
 def get_or_create_message_row(mod_name: str):
     """Find the mod's row in TicketMessageScores, or create a new one at the bottom."""
-    all_values = ticket_message_scores_sheet.get_all_values()  # 2D list
+    all_values = message_scores_sheet.get_all_values()  # <-- use the correct variable
     for i, row in enumerate(all_values, start=1):  # gspread rows are 1-indexed
         if len(row) > 0 and row[0] == mod_name:
             return i  # found the mod
     # mod not found, append a new row
-    ticket_message_scores_sheet.append_row([mod_name, 0])
+    message_scores_sheet.append_row([mod_name, 0])
     return len(all_values) + 1
 
 def increment_message_score(mod_name: str):
     row = get_or_create_message_row(mod_name)
-    cell = ticket_message_scores_sheet.cell(row, 2)  # column 2 = message count
+    cell = message_scores_sheet.cell(row, 2)  # column 2 = message count
     new_count = int(cell.value or 0) + 1
-    ticket_message_scores_sheet.update_cell(row, 2, new_count)
+    message_scores_sheet.update_cell(row, 2, new_count)
     
 # ---------------------------
 # 🔹 Welcome
