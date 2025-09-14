@@ -1124,15 +1124,16 @@ async def before_weekly_sangsignup():
 async def on_ready():
     print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
 
+    # Start background tasks if not running
     if not reset_scores.is_running():
         reset_scores.start()
     
     if not weekly_sangsignup.is_running():
         weekly_sangsignup.start()
 
-    await bot.wait_until_ready()
-
-    # Example role panels (existing logic)
+    # ---------------------------
+    # Example role panels
+    # ---------------------------
     rsn_channel = bot.get_channel(1280532494139002912)
     if rsn_channel:
         await send_rsn_panel(rsn_channel)
@@ -1145,10 +1146,12 @@ async def on_ready():
     if role_channel:
         guild = role_channel.guild
 
+        # Delete old bot messages
         async for msg in role_channel.history(limit=100):
             if msg.author == bot.user:
                 await msg.delete()
 
+        # Send fresh role selection
         await role_channel.send("Select your roles below:")
 
         raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="", color=0x00ff00)
@@ -1160,12 +1163,14 @@ async def on_ready():
         events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢𝔫𝔱𝔰 ⚔︎", description="", color=0xffff00)
         await role_channel.send(embed=events_embed, view=EventsView(guild))
 
-    # Sync slash commands
+    # ---------------------------
+    # Sync all slash commands
+    # ---------------------------
     try:
         synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} commands.")
+        print(f"✅ Synced {len(synced)} commands.")
     except Exception as e:
-        print(f"Command sync failed: {e}")
+        print(f"❌ Command sync failed: {e}")
 
 # ---------------------------
 # 🔹 Run Bot
