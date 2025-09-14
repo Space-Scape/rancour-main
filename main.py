@@ -176,13 +176,13 @@ async def ticketscore(interaction: discord.Interaction):
     # Ticket Scores
     if ticket_scores:
         ticket_table = "\n".join(
-            [f"**{i+1}. {name}** — 🏆 {overall} | 📅 {monthly} | 📆 {weekly}"
+            [f"**{i+1}. {name}** — 📊 {overall} | 📆 {monthly} | 📆 {weekly}"
              for i, (name, overall, monthly, weekly) in enumerate(ticket_scores)]
         )
     else:
         ticket_table = "No ticket scores recorded yet."
     embed.add_field(
-        name="🎫 Ticket Scores — Moderator | Overall | Monthly | Weekly",
+        name="🎫 Ticket Scores - Total, Month, Week",
         value=ticket_table,
         inline=False
     )
@@ -190,13 +190,13 @@ async def ticketscore(interaction: discord.Interaction):
     # Message Scores
     if message_scores:
         message_table = "\n".join(
-            [f"**{i+1}. {name}** — ✉️ {overall} | 📅 {monthly} | 📆 {weekly}"
+            [f"**{i+1}. {name}** — ✉️ {overall} | 📆 {monthly} | 📆 {weekly}"
              for i, (name, overall, monthly, weekly) in enumerate(message_scores)]
         )
     else:
         message_table = "No message scores recorded yet."
     embed.add_field(
-        name="✉️ Message Scores — Moderator | Overall | Monthly | Weekly",
+        name="✉️ Message Scores - Total, Month, Week",
         value=message_table,
         inline=False
     )
