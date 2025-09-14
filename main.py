@@ -131,7 +131,7 @@ async def ticketscore(interaction: discord.Interaction):
     loop = asyncio.get_running_loop()
 
     def fetch_scores():
-        rows = ticket_scores_sheet.get_all_values()[1:]  # skip header row
+        rows = ticket_scores_sheet.get_all_values()[1:]  # skip header
         scores = []
         for row in rows:
             if len(row) >= 4:
@@ -142,7 +142,7 @@ async def ticketscore(interaction: discord.Interaction):
                     monthly = int(row[3])
                 except ValueError:
                     overall, weekly, monthly = 0, 0, 0
-                scores.append((name, overall, weekly, monthly))
+                scores.append((name, overall, monthly, weekly))
         return sorted(scores, key=lambda x: x[1], reverse=True)
 
     scores = await loop.run_in_executor(None, fetch_scores)
