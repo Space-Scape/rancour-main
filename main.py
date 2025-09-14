@@ -200,6 +200,47 @@ async def before_reset():
     await bot.wait_until_ready()
 
 # ---------------------------
+# 🔹 Ticket Message Scores Setup
+# ---------------------------
+MESSAGE_SCORES_TAB_NAME = "TicketMessageScores"
+message_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(MESSAGE_SCORES_TAB_NAME)
+
+def get_or_create_msg_mod_row(mod_name: str):
+    try:
+        cell = message_scores_sheet.find(mod_name)
+        return cell.row
+    except gspread.CellNotFound:  # or handle gspread API error
+        message_scores_sheet.append_row([mod_name, "0", "0", "0"])
+        return message_scores_sheet.find(mod_name).row
+
+def increment_message_score(mod_name: str):
+    row = get_or_create_msg_mod_row(mod_name)
+    values = message_scores_sheet.row_values(row)
+    while len(values) < 4:
+        values.append("0")
+    overall = int(values[1]) + 1
+    weekly = int(values[2]) + 1
+    monthly = int(values[3]) + 1
+    message_scores_sheet.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
+
+# ---------------------------
+# 🔹 Event for message tracking
+# ---------------------------
+@bot.event
+async def on_message(message: discord.Message):
+    if message.author.bot:
+        return
+    # Check if this is a ticket thread
+    if isinstance(message.channel, discord.Thread):
+        guild_member = message.guild.get_member(message.author.id)
+        if guild_member and "Clan Staff" in [role.name for role in guild_member.roles]:
+            mod_name = guild_member.nick or guild_member.name
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, increment_message_score, mod_name)
+
+    await bot.process_commands(message)
+
+# ---------------------------
 # 🔹 Welcome
 # ---------------------------
 
