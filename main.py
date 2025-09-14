@@ -202,6 +202,7 @@ async def before_reset():
 # ---------------------------
 # 🔹 Ticket Message Scores Setup
 # ---------------------------
+TICKET_CATEGORY_ID = 1272633972286947521 
 MESSAGE_SCORES_TAB_NAME = "TicketMessageScores"
 message_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(MESSAGE_SCORES_TAB_NAME)
 
@@ -230,13 +231,16 @@ def increment_message_score(mod_name: str):
 async def on_message(message: discord.Message):
     if message.author.bot:
         return
-    # Check if this is a ticket thread
+
+    # Ensure this is a thread under the ticket category
     if isinstance(message.channel, discord.Thread):
-        guild_member = message.guild.get_member(message.author.id)
-        if guild_member and "Clan Staff" in [role.name for role in guild_member.roles]:
-            mod_name = guild_member.nick or guild_member.name
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, increment_message_score, mod_name)
+        parent = message.channel.parent
+        if parent and parent.category_id == TICKET_CATEGORY_ID:
+            guild_member = message.guild.get_member(message.author.id)
+            if guild_member and "Clan Staff" in [role.name for role in guild_member.roles]:
+                mod_name = guild_member.nick or guild_member.name
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, increment_message_score, mod_name)
 
     await bot.process_commands(message)
 
