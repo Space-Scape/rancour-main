@@ -200,39 +200,43 @@ async def before_reset():
     await bot.wait_until_ready()
 
 # ---------------------------
-# 🔹 Ticket Message Scores Setup
+# 🔹 Message Scores Setup
 # ---------------------------
-TICKET_CATEGORY_ID = 1272633972286947521 
 MESSAGE_SCORES_TAB_NAME = "TicketMessageScores"
 message_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(MESSAGE_SCORES_TAB_NAME)
 
-def get_or_create_msg_mod_row(mod_name: str):
+def get_or_create_message_row(mod_name: str):
+    """Find moderator row or create it if missing."""
     try:
         cell = message_scores_sheet.find(mod_name)
         return cell.row
-    except gspread.CellNotFound:  # or handle gspread API error
-        message_scores_sheet.append_row([mod_name, "0", "0", "0"])
-        return message_scores_sheet.find(mod_name).row
+    except gspread.CellNotFound:  # gspread 6.x+
+        # Append new row with zero score
+        message_scores_sheet.append_row([mod_name, "0"])
+        cell = message_scores_sheet.find(mod_name)
+        return cell.row
 
 def increment_message_score(mod_name: str):
-    row = get_or_create_msg_mod_row(mod_name)
+    """Increment message score for a moderator."""
+    row = get_or_create_message_row(mod_name)
     values = message_scores_sheet.row_values(row)
-    while len(values) < 4:
+
+    while len(values) < 2:
         values.append("0")
-    overall = int(values[1]) + 1
-    weekly = int(values[2]) + 1
-    monthly = int(values[3]) + 1
-    message_scores_sheet.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
+
+    score = int(values[1]) + 1
+    message_scores_sheet.update(f"B{row}", score)
 
 # ---------------------------
 # 🔹 Event for message tracking
 # ---------------------------
+TICKET_CATEGORY_ID = 1272633972286947521  # Your ticket category
+
 @bot.event
 async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
-    # Ensure this is a thread under the ticket category
     if isinstance(message.channel, discord.Thread):
         parent = message.channel.parent
         if parent and parent.category_id == TICKET_CATEGORY_ID:
@@ -243,6 +247,7 @@ async def on_message(message: discord.Message):
                 await loop.run_in_executor(None, increment_message_score, mod_name)
 
     await bot.process_commands(message)
+
 
 # ---------------------------
 # 🔹 Welcome
