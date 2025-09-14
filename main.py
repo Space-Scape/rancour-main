@@ -166,7 +166,7 @@ async def ticketscore(interaction: discord.Interaction):
         return sorted(scores, key=lambda x: x[1], reverse=True)
 
     ticket_scores = await loop.run_in_executor(None, fetch_scores, ticket_scores_sheet)
-    message_scores = await loop.run_in_executor(None, fetch_scores, ticket_message_scores_sheet)
+    message_scores = await loop.run_in_executor(None, fetch_scores, message_scores_sheet)
 
     embed = discord.Embed(
         title="🎟️ Ticket & Message Scores",
@@ -243,7 +243,7 @@ def get_or_create_message_row(mod_name: str):
 def increment_message_score(mod_name: str):
     """Increment overall, weekly, and monthly message scores for a moderator."""
     try:
-        all_values = ticket_message_scores_sheet.get_all_values()
+        all_values = message_scores_sheet.get_all_values()
         header = all_values[0]
         rows = all_values[1:]
 
@@ -279,7 +279,7 @@ def increment_message_score(mod_name: str):
         monthly += 1
 
         # Update sheet
-        ticket_message_scores_sheet.update(f"B{row_index}:D{row_index}", [[overall, monthly, weekly]])
+        message_scores_sheet.update(f"B{row_index}:D{row_index}", [[overall, monthly, weekly]])
 
         print(f"[DEBUG] Incremented message score for {mod_name}: {overall}/{monthly}/{weekly}")
     except Exception as e:
@@ -291,14 +291,14 @@ async def reset_weekly_message_scores():
     today = datetime.datetime.now(ZoneInfo("UTC")).date()
     if today.weekday() == 0:  # Monday
         try:
-            all_values = ticket_message_scores_sheet.get_all_values()
+            all_values = message_scores_sheet.get_all_values()
             rows = all_values[1:]  # skip header
             for i, row in enumerate(rows, start=2):
                 if len(row) >= 4:
                     overall = row[1]
                     monthly = row[2]
                     # reset weekly to 0
-                    ticket_message_scores_sheet.update(f"B{i}:D{i}", [[overall, monthly, 0]])
+                    message_scores_sheet.update(f"D{row_index}", [[0]])
             print("[INFO] Weekly message scores reset.")
         except Exception as e:
             print(f"[ERROR] Failed to reset weekly message scores: {e}")
@@ -309,14 +309,14 @@ async def reset_monthly_message_scores():
     today = datetime.datetime.now(ZoneInfo("UTC")).date()
     if today.day == 1:
         try:
-            all_values = ticket_message_scores_sheet.get_all_values()
+            all_values = message_scores_sheet.get_all_values()
             rows = all_values[1:]  # skip header
             for i, row in enumerate(rows, start=2):
                 if len(row) >= 4:
                     overall = row[1]
                     weekly = row[3]
                     # reset monthly to 0
-                    ticket_message_scores_sheet.update(f"B{i}:D{i}", [[overall, 0, weekly]])
+                    message_scores_sheet.update(f"C{row_index}:D{row_index}", [[0, 0]])
             print("[INFO] Monthly message scores reset.")
         except Exception as e:
             print(f"[ERROR] Failed to reset monthly message scores: {e}")
