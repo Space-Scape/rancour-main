@@ -287,7 +287,7 @@ def increment_message_score(mod_name: str):
 # Weekly reset (every Monday 00:00 UTC)
 @tasks.loop(hours=24)
 async def reset_weekly_message_scores():
-    today = datetime.datetime.now(ZoneInfo("UTC")).date()
+    today = datetime.now(ZoneInfo("UTC")).date()
     if today.weekday() == 0:  # Monday
         try:
             all_values = message_scores_sheet.get_all_values()
@@ -305,7 +305,7 @@ async def reset_weekly_message_scores():
 # Monthly reset (on the 1st)
 @tasks.loop(hours=24)
 async def reset_monthly_message_scores():
-    today = datetime.datetime.now(ZoneInfo("UTC")).date()
+    today = datetime.now(ZoneInfo("UTC")).date()
     if today.day == 1:
         try:
             all_values = message_scores_sheet.get_all_values()
