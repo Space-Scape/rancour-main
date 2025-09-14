@@ -85,6 +85,7 @@ tree = bot.tree
 # ---------------------------
 # 🔹 Channel IDs + Role
 # ---------------------------
+
 SUBMISSION_CHANNEL_ID = 1391921214909579336
 REVIEW_CHANNEL_ID = 1391921254034047066
 LOG_CHANNEL_ID = 1391921275332722749
@@ -94,48 +95,45 @@ BANK_CHANNEL_ID = 1276197776849633404
 CURRENCY_SYMBOL = " 💰"
 LISTEN_CHANNEL_ID = 1272875477555482666
 COLLAT_CHANNEL_ID = 1272648340940525648
-TICKET_CATEGORY_ID = 1272633972286947521  # Your ticket category
-STAFF_ROLE_NAME = "Clan Staff"
 
 # ---------------------------
-# 🔹 Ticket & Message Scores Setup
+# 🔹 Ticket Scores Setup
 # ---------------------------
 TICKET_SCORES_TAB_NAME = "TicketScores"
-MESSAGE_SCORES_TAB_NAME = "TicketMessageScores"
-
 ticket_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(TICKET_SCORES_TAB_NAME)
-message_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(MESSAGE_SCORES_TAB_NAME)
 
-def get_or_create_row(sheet_obj, mod_name: str):
-    """Find a moderator row or create it if missing."""
+def get_or_create_mod_row(mod_name: str):
+    """Find moderator row or create it if missing."""
     try:
-        cell = sheet_obj.find(mod_name)
+        cell = ticket_scores_sheet.find(mod_name)
         if cell:
             return cell.row
     except Exception:
-        pass
-    sheet_obj.append_row([mod_name, "0", "0", "0"])
-    cell = sheet_obj.find(mod_name)
+        pass  # cell not found
+
+    # Append new row with zeros
+    ticket_scores_sheet.append_row([mod_name, "0", "0", "0"])
+    cell = ticket_scores_sheet.find(mod_name)
     return cell.row
 
-def increment_score(sheet_obj, mod_name: str):
-    """Increment scores for Overall, Weekly, Monthly."""
-    row = get_or_create_row(sheet_obj, mod_name)
-    values = sheet_obj.row_values(row)
+def increment_ticket_score(mod_name: str):
+    """Increment scores for moderator across Overall, Weekly, and Monthly."""
+    row = get_or_create_mod_row(mod_name)
+    values = ticket_scores_sheet.row_values(row)
+
     while len(values) < 4:
         values.append("0")
+
     overall = int(values[1]) + 1
     weekly = int(values[2]) + 1
     monthly = int(values[3]) + 1
-    sheet_obj.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
 
-# ---------------------------
-# 🔹 Ticket Scores Command
-# ---------------------------
+    ticket_scores_sheet.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
+
 @bot.tree.command(name="ticketscore", description="Show ticket scores (weekly, monthly, overall).")
 async def ticketscore(interaction: discord.Interaction):
     guild = interaction.guild
-    staff_role = discord.utils.get(guild.roles, name=STAFF_ROLE_NAME)
+    staff_role = discord.utils.get(guild.roles, name="Clan Staff")
     if not staff_role or staff_role not in interaction.user.roles:
         await interaction.response.send_message(
             "⚠️ You do not have permission to view ticket scores.", ephemeral=True
@@ -184,28 +182,53 @@ async def ticketscore(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 # ---------------------------
-# 🔹 Reset Task
+# 🔹 Reset Loop
 # ---------------------------
 @tasks.loop(hours=24)
 async def reset_scores():
     today = datetime.utcnow()
-    for sheet_obj in [ticket_scores_sheet, message_scores_sheet]:
-        rows = sheet_obj.get_all_values()
-        for i in range(2, len(rows)+1):
-            if today.weekday() == 0:  # Monday → weekly
-                sheet_obj.update_cell(i, 3, 0)
-            if today.day == 1:  # First of month → monthly
-                sheet_obj.update_cell(i, 4, 0)
+    all_values = ticket_scores_sheet.get_all_values()
+
+    if today.weekday() == 0:  # Monday → reset weekly
+        for i in range(2, len(all_values) + 1):
+            ticket_scores_sheet.update_cell(i, 3, 0)
+
+    if today.day == 1:  # First of month → reset monthly
+        for i in range(2, len(all_values) + 1):
+            ticket_scores_sheet.update_cell(i, 4, 0)
 
 @reset_scores.before_loop
 async def before_reset():
     await bot.wait_until_ready()
 
-reset_scores.start()
+# ---------------------------
+# 🔹 Message Scores Setup
+# ---------------------------
+MESSAGE_SCORES_TAB_NAME = "TicketMessageScores"
+message_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(MESSAGE_SCORES_TAB_NAME)
+
+def get_or_create_message_row(mod_name: str):
+    try:
+        cell = message_scores_sheet.find(mod_name)
+        return cell.row
+    except gspread.CellNotFound:  # gspread 6.x+
+        message_scores_sheet.append_row([mod_name, "0"])
+        cell = message_scores_sheet.find(mod_name)
+        return cell.row
+
+def increment_message_score(mod_name: str):
+    row = get_or_create_message_row(mod_name)
+    values = message_scores_sheet.row_values(row)
+    while len(values) < 2:
+        values.append("0")
+    score = int(values[1]) + 1
+    message_scores_sheet.update(f"B{row}", [[score]])
 
 # ---------------------------
-# 🔹 Event: Increment Message Score
+# 🔹 Event for message tracking
 # ---------------------------
+TICKET_CATEGORY_ID = 1272633972286947521
+
 @bot.event
 async def on_message(message: discord.Message):
     if message.author.bot:
@@ -214,63 +237,13 @@ async def on_message(message: discord.Message):
     if isinstance(message.channel, discord.Thread):
         parent = message.channel.parent
         if parent and parent.category and parent.category.id == TICKET_CATEGORY_ID:
-            member = message.guild.get_member(message.author.id)
-            if member and STAFF_ROLE_NAME in [role.name for role in member.roles]:
-                mod_name = member.nick or member.name
+            guild_member = message.guild.get_member(message.author.id)
+            if guild_member and "Clan Staff" in [role.name for role in guild_member.roles]:
+                mod_name = guild_member.nick or guild_member.name
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, increment_score, message_scores_sheet, mod_name)
+                await loop.run_in_executor(None, increment_message_score, mod_name)
 
     await bot.process_commands(message)
-
-# ---------------------------
-# 🔹 Welcome Command
-# ---------------------------
-@bot.tree.command(name="welcome", description="Welcome the ticket creator and give them the Recruit role.")
-async def welcome(interaction: discord.Interaction):
-    if not isinstance(interaction.channel, discord.Thread):
-        await interaction.response.send_message("⚠️ This command must be used inside a ticket thread.", ephemeral=True)
-        return
-
-    ticket_creator = None
-    async for msg in interaction.channel.history(limit=20, oldest_first=True):
-        if msg.author.bot and msg.author.name.lower().startswith("tickets"):
-            for mention in msg.mentions:
-                if not mention.bot:
-                    ticket_creator = mention
-                    break
-        if ticket_creator:
-            break
-
-    if not ticket_creator:
-        await interaction.response.send_message("⚠️ Could not detect who opened this ticket.", ephemeral=True)
-        return
-
-    guild = interaction.guild
-    roles_to_assign = ["Recruit", "Member", "Boss of the Week", "Skill of the Week", "Events"]
-    missing_roles = []
-    for role_name in roles_to_assign:
-        role = discord.utils.get(guild.roles, name=role_name)
-        if role:
-            await ticket_creator.add_roles(role)
-        else:
-            missing_roles.append(role_name)
-
-    if missing_roles:
-        await interaction.response.send_message(
-            f"⚠️ Missing roles: {', '.join(missing_roles)}. Please check the server roles.", ephemeral=True
-        )
-        return
-
-    embed = discord.Embed(
-        title="🎉 Welcome to the Clan! 🎉",
-        description=f"Happy to have you with us, {ticket_creator.mention}! 🎊",
-        color=discord.Color.blurple()
-    )
-    await interaction.response.send_message(embed=embed)
-
-    # Increment ticket score for moderator
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, increment_score, ticket_scores_sheet, interaction.user.display_name)
 
 # -----------------------------
 # Role Button
