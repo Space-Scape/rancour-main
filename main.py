@@ -135,7 +135,7 @@ def increment_ticket_score(mod_name: str):
 
     ticket_scores_sheet.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
 
-@bot.tree.command(name="ticketscore", description="Show ticket scores and message scores separately.")
+@bot.tree.command(name="ticketscore", description="Show ticket and message scores (weekly, monthly, overall).")
 async def ticketscore(interaction: discord.Interaction):
     guild = interaction.guild
     staff_role = discord.utils.get(guild.roles, name="Clan Staff")
@@ -147,40 +147,26 @@ async def ticketscore(interaction: discord.Interaction):
 
     loop = asyncio.get_running_loop()
 
-    def fetch_ticket_scores():
-        rows = ticket_scores_sheet.get_all_values()[1:]  # skip header
+    def fetch_scores(sheet):
+        rows = sheet.get_all_values()[1:]  # skip header
         scores = []
         for row in rows:
             if len(row) >= 4:
                 name = row[0]
                 try:
                     overall = int(row[1])
-                    weekly = int(row[2])
-                    monthly = int(row[3])
+                    monthly = int(row[2])
+                    weekly = int(row[3])
                 except ValueError:
-                    overall, weekly, monthly = 0, 0, 0
-                scores.append((name, overall, monthly, weekly))
+                    overall, monthly, weekly = 0, 0, 0
+                # Convert to nickname if possible
+                member = guild.get_member_named(name) or guild.get_member(int(name.split("/")[0])) if "/" in name else None
+                display_name = member.display_name if member else name
+                scores.append((display_name, overall, monthly, weekly))
         return sorted(scores, key=lambda x: x[1], reverse=True)
 
-    def fetch_message_scores():
-        rows = message_scores_sheet.get_all_values()[1:]  # skip header
-        scores = []
-        for row in rows:
-            if len(row) >= 2:
-                user_id = row[0]
-                try:
-                    count = int(row[1])
-                except ValueError:
-                    count = 0
-                member = guild.get_member(int(user_id))
-                display_name = member.display_name if member else user_id
-                scores.append((display_name, count))
-        return sorted(scores, key=lambda x: x[1], reverse=True)
-
-    ticket_scores, message_scores = await asyncio.gather(
-        loop.run_in_executor(None, fetch_ticket_scores),
-        loop.run_in_executor(None, fetch_message_scores)
-    )
+    ticket_scores = await loop.run_in_executor(None, fetch_scores, ticket_scores_sheet)
+    message_scores = await loop.run_in_executor(None, fetch_scores, ticket_message_scores_sheet)
 
     embed = discord.Embed(
         title="🎟️ Ticket & Message Scores",
@@ -188,7 +174,7 @@ async def ticketscore(interaction: discord.Interaction):
         color=discord.Color.gold()
     )
 
-    # Ticket Scores Section
+    # Ticket Scores
     if ticket_scores:
         ticket_table = "\n".join(
             [f"**{i+1}. {name}** — 🏆 {overall} | 📅 {monthly} | 📆 {weekly}"
@@ -196,29 +182,27 @@ async def ticketscore(interaction: discord.Interaction):
         )
     else:
         ticket_table = "No ticket scores recorded yet."
-
     embed.add_field(
         name="🎫 Ticket Scores — Moderator | Overall | Monthly | Weekly",
         value=ticket_table,
         inline=False
     )
 
-    # Message Scores Section
+    # Message Scores
     if message_scores:
         message_table = "\n".join(
-            [f"**{i+1}. {name}** — ✉️ {count}" for i, (name, count) in enumerate(message_scores)]
+            [f"**{i+1}. {name}** — ✉️ {overall} | 📅 {monthly} | 📆 {weekly}"
+             for i, (name, overall, monthly, weekly) in enumerate(message_scores)]
         )
     else:
         message_table = "No message scores recorded yet."
-
     embed.add_field(
-        name="✉️ Message Scores — Moderator | Messages",
+        name="✉️ Message Scores — Moderator | Overall | Monthly | Weekly",
         value=message_table,
         inline=False
     )
 
     await interaction.response.send_message(embed=embed)
-
 
 # ---------------------------
 # 🔹 Reset Loop
@@ -257,11 +241,86 @@ def get_or_create_message_row(mod_name: str):
     return len(all_values) + 1
 
 def increment_message_score(mod_name: str):
-    row = get_or_create_message_row(mod_name)
-    cell = message_scores_sheet.cell(row, 2)  # column 2 = message count
-    new_count = int(cell.value or 0) + 1
-    message_scores_sheet.update_cell(row, 2, new_count)
-    
+    """Increment overall, weekly, and monthly message scores for a moderator."""
+    try:
+        all_values = ticket_message_scores_sheet.get_all_values()
+        header = all_values[0]
+        rows = all_values[1:]
+
+        # Find row for mod
+        for i, row in enumerate(rows, start=2):
+            if row and row[0] == mod_name:
+                row_index = i
+                break
+        else:
+            # Add new row if mod not found
+            row_index = len(rows) + 2
+            ticket_message_scores_sheet.append_row([mod_name, 0, 0, 0])
+            rows.append([mod_name, 0, 0, 0])
+
+        # Read current values
+        current = rows[row_index-2]  # offset by header and 1-indexed
+        try:
+            overall = int(current[1])
+        except (IndexError, ValueError):
+            overall = 0
+        try:
+            monthly = int(current[2])
+        except (IndexError, ValueError):
+            monthly = 0
+        try:
+            weekly = int(current[3])
+        except (IndexError, ValueError):
+            weekly = 0
+
+        # Increment
+        overall += 1
+        weekly += 1
+        monthly += 1
+
+        # Update sheet
+        ticket_message_scores_sheet.update(f"B{row_index}:D{row_index}", [[overall, monthly, weekly]])
+
+        print(f"[DEBUG] Incremented message score for {mod_name}: {overall}/{monthly}/{weekly}")
+    except Exception as e:
+        print(f"[ERROR] increment_message_score: {e}")
+
+# Weekly reset (every Monday 00:00 UTC)
+@tasks.loop(hours=24)
+async def reset_weekly_message_scores():
+    today = datetime.datetime.now(ZoneInfo("UTC")).date()
+    if today.weekday() == 0:  # Monday
+        try:
+            all_values = ticket_message_scores_sheet.get_all_values()
+            rows = all_values[1:]  # skip header
+            for i, row in enumerate(rows, start=2):
+                if len(row) >= 4:
+                    overall = row[1]
+                    monthly = row[2]
+                    # reset weekly to 0
+                    ticket_message_scores_sheet.update(f"B{i}:D{i}", [[overall, monthly, 0]])
+            print("[INFO] Weekly message scores reset.")
+        except Exception as e:
+            print(f"[ERROR] Failed to reset weekly message scores: {e}")
+
+# Monthly reset (on the 1st)
+@tasks.loop(hours=24)
+async def reset_monthly_message_scores():
+    today = datetime.datetime.now(ZoneInfo("UTC")).date()
+    if today.day == 1:
+        try:
+            all_values = ticket_message_scores_sheet.get_all_values()
+            rows = all_values[1:]  # skip header
+            for i, row in enumerate(rows, start=2):
+                if len(row) >= 4:
+                    overall = row[1]
+                    weekly = row[3]
+                    # reset monthly to 0
+                    ticket_message_scores_sheet.update(f"B{i}:D{i}", [[overall, 0, weekly]])
+            print("[INFO] Monthly message scores reset.")
+        except Exception as e:
+            print(f"[ERROR] Failed to reset monthly message scores: {e}")
+
 # ---------------------------
 # 🔹 Welcome
 # ---------------------------
@@ -1290,6 +1349,12 @@ async def on_ready():
     # Start background tasks if not running
     if not reset_scores.is_running():
         reset_scores.start()
+
+    if not reset_weekly_message_scores.is_running():
+        reset_weekly_message_scores.start()
+        
+    if not reset_monthly_message_scores.is_running():
+        reset_monthly_message_scores.start()
     
     if not weekly_sangsignup.is_running():
         weekly_sangsignup.start()
