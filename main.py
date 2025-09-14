@@ -4,7 +4,6 @@ from discord.ext import commands
 from discord import app_commands
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
-from datetime import datetime, timezone
 import asyncio
 import re
 from discord.ui import Modal, TextInput
@@ -12,8 +11,8 @@ from discord.ui import View, Button
 from discord import ButtonStyle
 from typing import Optional
 from discord.ext import commands, tasks
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo 
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from gspread.exceptions import APIError, GSpreadException
 
 # ---------------------------
