@@ -98,6 +98,7 @@ WATCH_CHANNEL_IDS = [
     1272648453264248852,
     1272648472184487937
 ]
+STAFF_ROLE_ID = 1272635396991221824
 
 
 # ---------------------------
@@ -229,19 +230,24 @@ async def before_reset():
 MESSAGE_SCORES_TAB_NAME = "TicketMessageScores"
 message_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(MESSAGE_SCORES_TAB_NAME)
 
-def get_or_create_message_row(mod_name: str):
-    """Find the mod's row in TicketMessageScores, or create a new one at the bottom."""
+def get_display_name(member: discord.Member) -> str:
+    """Return nickname if set, otherwise username."""
+    return member.nick if member.nick else member.name
+
+def get_or_create_message_row(member: discord.Member):
+    """Find the member's row in TicketMessageScores, or create it."""
+    mod_name = get_display_name(member)
     all_values = message_scores_sheet.get_all_values()
-    for i, row in enumerate(all_values, start=1):  # gspread is 1-indexed
+    for i, row in enumerate(all_values, start=1):
         if len(row) > 0 and row[0] == mod_name:
             return i
-    # Not found, append new row with zeros
     message_scores_sheet.append_row([mod_name, "0", "0", "0"])
     return len(all_values) + 1
 
-def increment_message_score(mod_name: str):
-    """Increment overall, monthly, and weekly message scores for a moderator."""
-    row = get_or_create_message_row(mod_name)
+def increment_message_score(member: discord.Member):
+    """Increment overall, monthly, and weekly message scores for a member."""
+    mod_name = get_display_name(member)
+    row = get_or_create_message_row(member)
     values = message_scores_sheet.row_values(row)
 
     while len(values) < 4:
@@ -1192,7 +1198,7 @@ async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
-    # Determine the parent channel ID
+    # Determine the parent channel ID (handles threads + text channels)
     parent_channel_id = None
     if isinstance(message.channel, discord.Thread):
         parent_channel_id = message.channel.parent.id
@@ -1203,12 +1209,16 @@ async def on_message(message: discord.Message):
     if parent_channel_id not in WATCH_CHANNEL_IDS:
         return
 
-    mod_name = str(message.author)
-    print(f"[DEBUG] Incrementing message score for {mod_name} in {message.channel.name}")
+    # Only count if user has the Staff role
+    if not any(role.id == STAFF_ROLE_ID for role in message.author.roles):
+        return
 
-    # Update spreadsheet asynchronously
+    display_name = message.author.nick or message.author.name
+    print(f"[DEBUG] Incrementing message score for {display_name} in {message.channel.name}")
+
+    # Update spreadsheet asynchronously (pass full Member, not string)
     loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, increment_message_score, mod_name)
+    await loop.run_in_executor(None, increment_message_score, message.author)
 
     # Collat notifier
     if message.channel.id == COLLAT_CHANNEL_ID and message.attachments:
@@ -1216,13 +1226,13 @@ async def on_message(message: discord.Message):
         view = CollatButtons(message.author, mentioned_user)
         await message.reply("Collat actions:", view=view)
 
+    # Ensure commands still work
     await bot.process_commands(message)
 
 # ---------------------------
 # 🔹 Configuration
 # ---------------------------
 CHANNEL_ID = 1338295765759688767
-STAFF_ROLE_ID = 1272635396991221824
 CST = ZoneInfo("America/Chicago")
 
 # Role IDs to ping
