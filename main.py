@@ -207,22 +207,22 @@ async def before_reset():
 MESSAGE_SCORES_TAB_NAME = "TicketMessageScores"
 message_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(MESSAGE_SCORES_TAB_NAME)
 
+from gspread.exceptions import CellNotFound
+
 def get_or_create_message_row(mod_name: str):
     try:
-        cell = message_scores_sheet.find(mod_name)
+        cell = ticket_message_scores_sheet.find(mod_name)
         return cell.row
-    except gspread.CellNotFound:  # gspread 6.x+
-        message_scores_sheet.append_row([mod_name, "0"])
-        cell = message_scores_sheet.find(mod_name)
-        return cell.row
+    except CellNotFound:
+        ticket_message_scores_sheet.append_row([mod_name, 0])
+        # return the newly added row number
+        return len(ticket_message_scores_sheet.get_all_values())
 
 def increment_message_score(mod_name: str):
     row = get_or_create_message_row(mod_name)
-    values = message_scores_sheet.row_values(row)
-    while len(values) < 2:
-        values.append("0")
-    score = int(values[1]) + 1
-    message_scores_sheet.update(f"B{row}", [[score]])
+    current_value = int(ticket_message_scores_sheet.cell(row, 2).value)
+    ticket_message_scores_sheet.update_cell(row, 2, current_value + 1)
+
 
 # ---------------------------
 # 🔹 Event for message tracking
