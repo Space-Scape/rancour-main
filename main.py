@@ -343,57 +343,52 @@ async def rsn_writer():
             print(f"Error writing RSN to sheet: {e}")
         rsn_write_queue.task_done()
 
+class RSNModal(discord.ui.Modal, title="Register RSN"):
+    rsn = discord.ui.TextInput(label="RuneScape Name", placeholder="Enter your RSN")
 
-class RSNModal(discord.ui.Modal, title="Register your RuneScape Name"):
-    rsn = discord.ui.TextInput(
-        label="Enter your RuneScape Name 🧙",
-        placeholder="e.g. Zezima",
-        required=True,
-        max_length=12
-    )
-
-    async def on_submit(self, modal_interaction: discord.Interaction):
-        member = modal_interaction.user
-        rsn_value = self.rsn.value
-
-        now = datetime.now(timezone.utc)
-        day = now.day
-        timestamp = now.strftime(f"%B {day}, %Y at %I:%M%p")
+    async def on_submit(self, interaction: discord.Interaction):
+        # ✅ Defer immediately so the interaction doesn't expire
+        await interaction.response.defer(thinking=True, ephemeral=True)
 
         try:
-            cell = rsn_sheet.find(str(member.id))
+            loop = asyncio.get_running_loop()
+
+            # Example: find existing row for the user
+            def get_cell():
+                return rsn_sheet.find(str(interaction.user.id))  # blocking call
+            cell = await loop.run_in_executor(None, get_cell)
+
             if cell:
-                # Get current "New RSN"
-                old_rsn = rsn_sheet.cell(cell.row, 4).value or ""
-                # Move it into "Old RSN"
-                rsn_sheet.update_cell(cell.row, 3, old_rsn)
-                # Update New RSN + Date/Time
-                rsn_sheet.update_cell(cell.row, 4, rsn_value)
-                rsn_sheet.update_cell(cell.row, 5, timestamp)
-                print(f"✅ Updated RSN for {member} ({member.id}) to {rsn_value}")
+                # Update RSN
+                def update_cell():
+                    old_rsn = rsn_sheet.cell(cell.row, 4).value or ""
+                    rsn_sheet.update_cell(cell.row, 4, str(self.rsn))
+                    return old_rsn
+                old_rsn = await loop.run_in_executor(None, update_cell)
+
+                await interaction.followup.send(
+                    f"✅ Updated RSN for {interaction.user.mention} "
+                    f"from **{old_rsn}** to **{self.rsn}**"
+                )
             else:
-                # New entry
-                rsn_sheet.append_row([
-                    member.display_name,
-                    str(member.id),
-                    "",
-                    rsn_value,
-                    timestamp
-                ])
-                print(f"✅ Added new RSN for {member} ({member.id}) as {rsn_value}")
+                # Add new row
+                def append_row():
+                    rsn_sheet.append_row([
+                        str(interaction.user),
+                        str(interaction.user.id),
+                        str(interaction.user.display_name),
+                        str(self.rsn),
+                    ])
+                await loop.run_in_executor(None, append_row)
+
+                await interaction.followup.send(
+                    f"✅ Added new RSN for {interaction.user.mention}: **{self.rsn}**"
+                )
+
         except Exception as e:
-            print(f"❌ Error writing RSN: {e}")
-
-        guild = modal_interaction.guild
-        if guild:
-            registered_role = discord.utils.get(guild.roles, name=REGISTERED_ROLE_NAME)
-            if registered_role and registered_role not in member.roles:
-                await member.add_roles(registered_role, reason="Registered RSN")
-
-        await modal_interaction.response.send_message(
-            f"✅ Your RuneScape name has been submitted as **{rsn_value}**.",
-            ephemeral=True
-        )
+            await interaction.followup.send(
+                f"❌ Failed to update RSN: `{e}`"
+            )
 
 class RSNPanelView(discord.ui.View):
     def __init__(self):
