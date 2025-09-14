@@ -1139,12 +1139,14 @@ async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
-    # Ticket message tracking
+    # --- Track Clan Staff messages in specified threads ---
     if isinstance(message.channel, discord.Thread):
-        parent = message.channel.parent
-        if parent and parent.category and parent.category.id == TICKET_CATEGORY_ID:
+        parent_channel_id = message.channel.parent.id if message.channel.parent else None
+        STAFF_THREAD_PARENTS = {1272648453264248852, 1272648472184487937}
+
+        if parent_channel_id in STAFF_THREAD_PARENTS:
             guild_member = message.guild.get_member(message.author.id)
-            if guild_member and "Clan Staff" in [role.name for role in guild_member.roles]:
+            if guild_member and any(role.name == "Clan Staff" for role in guild_member.roles):
                 mod_name = guild_member.nick or guild_member.name
                 loop = asyncio.get_running_loop()
                 await loop.run_in_executor(None, increment_message_score, mod_name)
