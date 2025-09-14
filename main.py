@@ -95,6 +95,11 @@ BANK_CHANNEL_ID = 1276197776849633404
 CURRENCY_SYMBOL = " 💰"
 LISTEN_CHANNEL_ID = 1272875477555482666
 COLLAT_CHANNEL_ID = 1272648340940525648
+WATCH_CHANNEL_IDS = [
+    1272648453264248852,
+    1272648472184487937
+]
+
 
 # ---------------------------
 # 🔹 Ticket Scores Setup
@@ -1124,23 +1129,29 @@ class CollatButtons(discord.ui.View):
         await self.disable_all(interaction)
         await interaction.response.send_message("Item marked as returned. ✅", ephemeral=True)
 
-
 @bot.event
 async def on_message(message: discord.Message):
+    # Ignore bot messages
     if message.author.bot:
         return
 
-    # --- Track Clan Staff messages in specified threads ---
+    # Determine the parent channel ID
+    parent_channel_id = None
     if isinstance(message.channel, discord.Thread):
-        parent_channel_id = message.channel.parent.id if message.channel.parent else None
-        STAFF_THREAD_PARENTS = {1272648453264248852, 1272648472184487937}
+        parent_channel_id = message.channel.parent.id
+    elif isinstance(message.channel, discord.TextChannel):
+        parent_channel_id = message.channel.id
 
-        if parent_channel_id in STAFF_THREAD_PARENTS:
-            guild_member = message.guild.get_member(message.author.id)
-            if guild_member and any(role.name == "Clan Staff" for role in guild_member.roles):
-                mod_name = guild_member.nick or guild_member.name
-                loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, increment_message_score, mod_name)
+    # Only process messages in the watch channels
+    if parent_channel_id not in WATCH_CHANNEL_IDS:
+        return
+
+    mod_name = str(message.author)
+    print(f"[DEBUG] Incrementing message score for {mod_name} in {message.channel.name}")
+
+    # Update spreadsheet asynchronously
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, increment_message_score, mod_name)
 
     # Collat notifier
     if message.channel.id == COLLAT_CHANNEL_ID and message.attachments:
