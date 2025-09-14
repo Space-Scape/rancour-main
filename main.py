@@ -229,21 +229,134 @@ def increment_message_score(mod_name: str):
 # ---------------------------
 TICKET_CATEGORY_ID = 1272633972286947521
 
-@bot.event
-async def on_message(message: discord.Message):
-    if message.author.bot:
+# ---------------------------
+# 🔹 Welcome
+# ---------------------------
+@bot.tree.command(name="welcome", description="Welcome the ticket creator and give them the Recruit role.")
+async def welcome(interaction: discord.Interaction):
+    if not isinstance(interaction.channel, discord.Thread):
+        await interaction.response.send_message(
+            "⚠️ This command must be used inside a ticket thread.", ephemeral=True
+        )
         return
 
-    if isinstance(message.channel, discord.Thread):
-        parent = message.channel.parent
-        if parent and parent.category and parent.category.id == TICKET_CATEGORY_ID:
-            guild_member = message.guild.get_member(message.author.id)
-            if guild_member and "Clan Staff" in [role.name for role in guild_member.roles]:
-                mod_name = guild_member.nick or guild_member.name
-                loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, increment_message_score, mod_name)
+    ticket_creator = None
+    async for message in interaction.channel.history(limit=20, oldest_first=True):
+        if message.author.bot and message.author.name.lower().startswith("tickets"):
+            for mention in message.mentions:
+                if not mention.bot:
+                    ticket_creator = mention
+                    break
+        if ticket_creator:
+            break
 
-    await bot.process_commands(message)
+    if not ticket_creator:
+        await interaction.response.send_message(
+            "⚠️ Could not detect who opened this ticket.", ephemeral=True
+        )
+        return
+
+    guild = interaction.guild
+    roles_to_assign = ["Recruit", "Member", "Boss of the Week", "Skill of the Week", "Events"]
+    missing_roles = []
+
+    for role_name in roles_to_assign:
+        role = discord.utils.get(guild.roles, name=role_name)
+        if role:
+            await ticket_creator.add_roles(role)
+        else:
+            missing_roles.append(role_name)
+
+    if missing_roles:
+        await interaction.response.send_message(
+            f"⚠️ Missing roles: {', '.join(missing_roles)}. Please check the server roles.",
+            ephemeral=True
+        )
+        return
+
+    # --- Your embed stays exactly as you wrote it ---
+    embed = discord.Embed(
+        title="🎉 Welcome to the Clan! 🎉",
+        description=(
+            f"Happy to have you with us, {ticket_creator.mention}! 🎊\n\n"
+            "📜 Please make sure you visit our [Guidelines]"
+            "(https://discord.com/channels/1272629330115297330/1272629843552501802) "
+            "to ensure you're aware of the rules.\n\n"
+            "**💡 Self-Role Assign**\n"
+            "[Click here](https://discord.com/channels/1272629330115297330/1272648586198519818) — "
+            "Select roles to be pinged for bosses, raids, and other activities, "
+            "including **@Sanguine Sunday** for Theatre of Blood **learner** runs on Sundays. 🩸\n\n"
+        ),
+        color=discord.Color.blurple()
+    )
+
+    # --- All your embed fields are untouched ---
+    embed.add_field(name="💭 General Chat", value="[Say hello!](https://discord.com/channels/1272629330115297330/1272629331524587623)", inline=True)
+    embed.add_field(name="✨ Achievements", value="[Show off your gains](https://discord.com/channels/1272629330115297330/1272629331524587624)", inline=True)
+    embed.add_field(name="💬 Clan Chat", value="[Stay updated](https://discord.com/channels/1272629330115297330/1272875477555482666)", inline=True)
+    embed.add_field(name="🏹 Team Finder", value="[Find PVM teams](https://discord.com/channels/1272629330115297330/1272648555772776529)", inline=True)
+    embed.add_field(name="📢 Events", value="[Check upcoming events](https://discord.com/channels/1272629330115297330/1272646577432825977)", inline=True)
+    embed.add_field(name="⚔️ Rank Up", value="[Request a rank up](https://discord.com/channels/1272629330115297330/1272648472184487937)\n", inline=True)
+    embed.add_field(name=" ", value=" ", inline=True)
+    embed.add_field(name="🎓 Mentor Info", value="", inline=True)
+    embed.add_field(name=" ", value=" ", inline=True)
+    embed.add_field(
+        name=(
+            "<:corporal:1406217420187893771> **Want to learn raids?**\n"
+            "Once you've been here for two weeks and earned your "
+            "<:corporal:1406217420187893771> rank, you can open a mentor ticket "
+            "for guidance on PVM!"
+        ),
+        value="", inline=True
+    )
+    embed.add_field(
+        name=(
+            "<:mentor:1406802212382052412> **Want to mentor others?**\n"
+            "Please open a mentor rank request in <#1272648472184487937>. "
+            "State which raid you’d like to mentor and an admin will reach out to you."
+        ),
+        value="", inline=True
+    )
+    embed.add_field(
+        name="⚠️ Need Help?",
+        value=(
+            "If you encounter any issues, please reach out to Clan Staff or use the "
+            "[Support Ticket channel](https://discord.com/channels/1272629330115297330/1272648498554077304)."
+        ),
+        inline=False
+    )
+
+    await interaction.response.send_message(embed=embed)
+
+    # ---------------------------
+    # Update ticket scoreboard
+    # ---------------------------
+    loop = asyncio.get_running_loop()
+
+    def update_score():
+        mod_name = interaction.user.display_name
+        try:
+            cell = ticket_scores_sheet.find(mod_name)
+            row = cell.row if cell else None
+        except Exception:
+            row = None
+
+        if not row:
+            ticket_scores_sheet.append_row([mod_name, "0", "0", "0"])
+            cell = ticket_scores_sheet.find(mod_name)
+            row = cell.row
+
+        values = ticket_scores_sheet.row_values(row)
+        while len(values) < 4:
+            values.append("0")
+
+        overall = int(values[1]) + 1
+        weekly = int(values[2]) + 1
+        monthly = int(values[3]) + 1
+
+        ticket_scores_sheet.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
+
+    await loop.run_in_executor(None, update_score)
 
 # -----------------------------
 # Role Button
@@ -1023,17 +1136,26 @@ class CollatButtons(discord.ui.View):
 
 @bot.event
 async def on_message(message: discord.Message):
-    if message.channel.id != COLLAT_CHANNEL_ID:
-        return
     if message.author.bot:
         return
-    if not message.attachments:
-        return
 
-    mentioned_user = message.mentions[0] if message.mentions else None
+    # Ticket message tracking
+    if isinstance(message.channel, discord.Thread):
+        parent = message.channel.parent
+        if parent and parent.category and parent.category.id == TICKET_CATEGORY_ID:
+            guild_member = message.guild.get_member(message.author.id)
+            if guild_member and "Clan Staff" in [role.name for role in guild_member.roles]:
+                mod_name = guild_member.nick or guild_member.name
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, increment_message_score, mod_name)
 
-    view = CollatButtons(message.author, mentioned_user)
-    await message.reply("Collat actions:", view=view)
+    # Collat notifier
+    if message.channel.id == COLLAT_CHANNEL_ID and message.attachments:
+        mentioned_user = message.mentions[0] if message.mentions else None
+        view = CollatButtons(message.author, mentioned_user)
+        await message.reply("Collat actions:", view=view)
+
+    await bot.process_commands(message)
 
 # ---------------------------
 # 🔹 Configuration
