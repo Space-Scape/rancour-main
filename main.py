@@ -217,15 +217,12 @@ def get_or_create_message_row(mod_name: str):
         return cell.row
 
 def increment_message_score(mod_name: str):
-    """Increment message score for a moderator."""
     row = get_or_create_message_row(mod_name)
     values = message_scores_sheet.row_values(row)
-
     while len(values) < 2:
         values.append("0")
-
     score = int(values[1]) + 1
-    message_scores_sheet.update(f"B{row}", [[score]])
+    message_scores_sheet.update(f"B{row}", [[score]])  # 2D list required
 
 # ---------------------------
 # 🔹 Event for message tracking
@@ -239,7 +236,6 @@ async def on_message(message: discord.Message):
 
     if isinstance(message.channel, discord.Thread):
         parent = message.channel.parent
-        # Correct category check
         if parent and parent.category and parent.category.id == TICKET_CATEGORY_ID:
             guild_member = message.guild.get_member(message.author.id)
             if guild_member and "Clan Staff" in [role.name for role in guild_member.roles]:
@@ -391,28 +387,29 @@ async def welcome(interaction: discord.Interaction):
     loop = asyncio.get_running_loop()
 
     def update_score():
-        mod_name = interaction.user.display_name  # <-- server nickname
+        mod_name = interaction.user.display_name
         try:
             cell = ticket_scores_sheet.find(mod_name)
             row = cell.row if cell else None
         except Exception:
             row = None
-
+    
         if not row:
             # Add new moderator row with zeros
             ticket_scores_sheet.append_row([mod_name, "0", "0", "0"])
             cell = ticket_scores_sheet.find(mod_name)
             row = cell.row
-
+    
         # Increment Overall, Weekly, Monthly
         values = ticket_scores_sheet.row_values(row)
         while len(values) < 4:
             values.append("0")
-
+    
         overall = int(values[1]) + 1
         weekly = int(values[2]) + 1
         monthly = int(values[3]) + 1
-
+    
+        # Must pass 2D list
         ticket_scores_sheet.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
 
     await loop.run_in_executor(None, update_score)
