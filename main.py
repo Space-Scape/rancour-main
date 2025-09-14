@@ -85,7 +85,6 @@ tree = bot.tree
 # ---------------------------
 # 🔹 Channel IDs + Role
 # ---------------------------
-
 SUBMISSION_CHANNEL_ID = 1391921214909579336
 REVIEW_CHANNEL_ID = 1391921254034047066
 LOG_CHANNEL_ID = 1391921275332722749
@@ -95,46 +94,48 @@ BANK_CHANNEL_ID = 1276197776849633404
 CURRENCY_SYMBOL = " 💰"
 LISTEN_CHANNEL_ID = 1272875477555482666
 COLLAT_CHANNEL_ID = 1272648340940525648
+TICKET_CATEGORY_ID = 1272633972286947521  # Your ticket category
+STAFF_ROLE_NAME = "Clan Staff"
 
 # ---------------------------
-# 🔹 Ticket Scores Setup
+# 🔹 Ticket & Message Scores Setup
 # ---------------------------
 TICKET_SCORES_TAB_NAME = "TicketScores"
-ticket_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(TICKET_SCORES_TAB_NAME)
+MESSAGE_SCORES_TAB_NAME = "TicketMessageScores"
 
-def get_or_create_mod_row(mod_name: str):
-    """Find moderator row or create it if missing."""
+ticket_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(TICKET_SCORES_TAB_NAME)
+message_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(MESSAGE_SCORES_TAB_NAME)
+
+def get_or_create_row(sheet_obj, mod_name: str):
+    """Find a moderator row or create it if missing."""
     try:
-        cell = ticket_scores_sheet.find(mod_name)
+        cell = sheet_obj.find(mod_name)
         if cell:
             return cell.row
     except Exception:
-        pass  # cell not found
-
-    # Append new row with zeros
-    ticket_scores_sheet.append_row([mod_name, "0", "0", "0"])
-    cell = ticket_scores_sheet.find(mod_name)
+        pass
+    sheet_obj.append_row([mod_name, "0", "0", "0"])
+    cell = sheet_obj.find(mod_name)
     return cell.row
 
-def increment_ticket_score(mod_name: str):
-    """Increment scores for moderator across Overall, Weekly, and Monthly."""
-    row = get_or_create_mod_row(mod_name)
-    values = ticket_scores_sheet.row_values(row)
-
+def increment_score(sheet_obj, mod_name: str):
+    """Increment scores for Overall, Weekly, Monthly."""
+    row = get_or_create_row(sheet_obj, mod_name)
+    values = sheet_obj.row_values(row)
     while len(values) < 4:
         values.append("0")
-
     overall = int(values[1]) + 1
     weekly = int(values[2]) + 1
     monthly = int(values[3]) + 1
+    sheet_obj.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
 
-    ticket_scores_sheet.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
-
+# ---------------------------
+# 🔹 Ticket Scores Command
+# ---------------------------
 @bot.tree.command(name="ticketscore", description="Show ticket scores (weekly, monthly, overall).")
 async def ticketscore(interaction: discord.Interaction):
-    # Check if user has Clan Staff role
     guild = interaction.guild
-    staff_role = discord.utils.get(guild.roles, name="Clan Staff")
+    staff_role = discord.utils.get(guild.roles, name=STAFF_ROLE_NAME)
     if not staff_role or staff_role not in interaction.user.roles:
         await interaction.response.send_message(
             "⚠️ You do not have permission to view ticket scores.", ephemeral=True
@@ -182,77 +183,29 @@ async def ticketscore(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
+# ---------------------------
+# 🔹 Reset Task
+# ---------------------------
 @tasks.loop(hours=24)
 async def reset_scores():
-    """Resets weekly and monthly scores for tickets and messages."""
     today = datetime.utcnow()
-
-    # ---------------------------
-    # Reset TicketScores
-    # ---------------------------
-    ticket_rows = ticket_scores_sheet.get_all_values()
-    if today.weekday() == 0:  # Monday → reset weekly
-        for i in range(2, len(ticket_rows) + 1):
-            ticket_scores_sheet.update_cell(i, 3, 0)  # Weekly
-    if today.day == 1:  # First of month → reset monthly
-        for i in range(2, len(ticket_rows) + 1):
-            ticket_scores_sheet.update_cell(i, 4, 0)  # Monthly
-
-    # ---------------------------
-    # Reset TicketMessageScores
-    # ---------------------------
-    message_rows = message_scores_sheet.get_all_values()
-    if today.weekday() == 0:  # Monday → reset weekly
-        for i in range(2, len(message_rows) + 1):
-            message_scores_sheet.update_cell(i, 3, 0)  # Weekly
-    if today.day == 1:  # First of month → reset monthly
-        for i in range(2, len(message_rows) + 1):
-            message_scores_sheet.update_cell(i, 4, 0)  # Monthly
+    for sheet_obj in [ticket_scores_sheet, message_scores_sheet]:
+        rows = sheet_obj.get_all_values()
+        for i in range(2, len(rows)+1):
+            if today.weekday() == 0:  # Monday → weekly
+                sheet_obj.update_cell(i, 3, 0)
+            if today.day == 1:  # First of month → monthly
+                sheet_obj.update_cell(i, 4, 0)
 
 @reset_scores.before_loop
 async def before_reset():
     await bot.wait_until_ready()
 
-# ---------------------------
-# 🔹 Message Scores Setup
-# ---------------------------
-MESSAGE_SCORES_TAB_NAME = "TicketMessageScores"
-message_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(MESSAGE_SCORES_TAB_NAME)
-
-def get_or_create_message_row(mod_name: str):
-    """Find moderator row or create it if missing."""
-    try:
-        cell = message_scores_sheet.find(mod_name)
-        row = cell.row if cell else None
-    except Exception:
-        row = None
-
-    if not row:
-        message_scores_sheet.append_row([mod_name, "0", "0", "0"])
-        cell = message_scores_sheet.find(mod_name)
-        row = cell.row
-
-    return row
-
-def increment_message_score(mod_name: str):
-    """Increment message score for a moderator."""
-    row = get_or_create_message_row(mod_name)
-    values = message_scores_sheet.row_values(row)
-
-    while len(values) < 4:
-        values.append("0")
-
-    overall = int(values[1]) + 1
-    weekly = int(values[2]) + 1
-    monthly = int(values[3]) + 1
-
-    message_scores_sheet.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
+reset_scores.start()
 
 # ---------------------------
-# 🔹 Event for message tracking
+# 🔹 Event: Increment Message Score
 # ---------------------------
-TICKET_CATEGORY_ID = 1272633972286947521  # Your ticket category
-
 @bot.event
 async def on_message(message: discord.Message):
     if message.author.bot:
@@ -261,18 +214,17 @@ async def on_message(message: discord.Message):
     if isinstance(message.channel, discord.Thread):
         parent = message.channel.parent
         if parent and parent.category and parent.category.id == TICKET_CATEGORY_ID:
-            guild_member = message.guild.get_member(message.author.id)
-            if guild_member and "Clan Staff" in [role.name for role in guild_member.roles]:
-                mod_name = guild_member.nick or guild_member.name
+            member = message.guild.get_member(message.author.id)
+            if member and STAFF_ROLE_NAME in [role.name for role in member.roles]:
+                mod_name = member.nick or member.name
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, increment_message_score, mod_name)
+                await loop.run_in_executor(None, increment_score, message_scores_sheet, mod_name)
 
     await bot.process_commands(message)
 
 # ---------------------------
-# 🔹 Welcome
+# 🔹 Welcome Command
 # ---------------------------
-
 @bot.tree.command(name="welcome", description="Welcome the ticket creator and give them the Recruit role.")
 async def welcome(interaction: discord.Interaction):
     if not isinstance(interaction.channel, discord.Thread):
@@ -280,9 +232,9 @@ async def welcome(interaction: discord.Interaction):
         return
 
     ticket_creator = None
-    async for message in interaction.channel.history(limit=20, oldest_first=True):
-        if message.author.bot and message.author.name.lower().startswith("tickets"):
-            for mention in message.mentions:
+    async for msg in interaction.channel.history(limit=20, oldest_first=True):
+        if msg.author.bot and msg.author.name.lower().startswith("tickets"):
+            for mention in msg.mentions:
                 if not mention.bot:
                     ticket_creator = mention
                     break
@@ -311,132 +263,14 @@ async def welcome(interaction: discord.Interaction):
 
     embed = discord.Embed(
         title="🎉 Welcome to the Clan! 🎉",
-        description=(
-            f"Happy to have you with us, {ticket_creator.mention}! 🎊\n\n"
-            "📜 Please make sure you visit our [Guidelines]"
-            "(https://discord.com/channels/1272629330115297330/1272629843552501802) "
-            "to ensure you're aware of the rules.\n\n"
-            "**💡 Self-Role Assign**\n"
-            "[Click here](https://discord.com/channels/1272629330115297330/1272648586198519818) — "
-            "Select roles to be pinged for bosses, raids, and other activities, "
-            "including **@Sanguine Sunday** for Theatre of Blood **learner** runs on Sundays. 🩸\n\n"
-        ),
+        description=f"Happy to have you with us, {ticket_creator.mention}! 🎊",
         color=discord.Color.blurple()
     )
-    
-    embed.add_field(
-        name="💭 General Chat",
-        value="[Say hello!](https://discord.com/channels/1272629330115297330/1272629331524587623)",
-        inline=True
-    )
-    embed.add_field(
-        name="✨ Achievements",
-        value="[Show off your gains](https://discord.com/channels/1272629330115297330/1272629331524587624)",
-        inline=True
-    )
-    embed.add_field(
-        name="💬 Clan Chat",
-        value="[Stay updated](https://discord.com/channels/1272629330115297330/1272875477555482666)",
-        inline=True
-    )
-    
-    embed.add_field(
-        name="🏹 Team Finder",
-        value="[Find PVM teams](https://discord.com/channels/1272629330115297330/1272648555772776529)",
-        inline=True
-    )
-    embed.add_field(
-        name="📢 Events",
-        value="[Check upcoming events](https://discord.com/channels/1272629330115297330/1272646577432825977)",
-        inline=True
-    )
-    embed.add_field(
-        name="⚔️ Rank Up",
-        value="[Request a rank up](https://discord.com/channels/1272629330115297330/1272648472184487937)\n",
-        inline=True
-    )
-    
-    embed.add_field(
-        name=" ",
-        value=" ",
-        inline=True
-    )
-    
-    embed.add_field(
-        name="🎓 Mentor Info",
-        value="",
-        inline=True
-    )
-
-    embed.add_field(
-        name=" ",
-        value=" ",
-        inline=True
-    )
-    
-    embed.add_field(
-        name=(
-            "<:corporal:1406217420187893771> **Want to learn raids?**\n"
-            "Once you've been here for two weeks and earned your "
-            "<:corporal:1406217420187893771> rank, you can open a mentor ticket "
-            "for guidance on PVM!"
-        ),
-        value="",
-        inline=True
-    )
-    embed.add_field(
-        name=(
-            "<:mentor:1406802212382052412> **Want to mentor others?**\n"
-            "Please open a mentor rank request in <#1272648472184487937>. "
-            "State which raid you’d like to mentor and an admin will reach out to you."
-        ),
-        value="",
-        inline=True
-    )
-    
-    embed.add_field(
-        name="⚠️ Need Help?",
-        value=(
-            "If you encounter any issues, please reach out to Clan Staff or use the "
-            "[Support Ticket channel](https://discord.com/channels/1272629330115297330/1272648498554077304)."
-        ),
-        inline=False
-    )
-
     await interaction.response.send_message(embed=embed)
 
-    # ---------------------------
-    # Update ticket scoreboard
-    # ---------------------------
+    # Increment ticket score for moderator
     loop = asyncio.get_running_loop()
-
-    def update_score():
-        mod_name = interaction.user.display_name
-        try:
-            cell = ticket_scores_sheet.find(mod_name)
-            row = cell.row if cell else None
-        except Exception:
-            row = None
-    
-        if not row:
-            # Add new moderator row with zeros
-            ticket_scores_sheet.append_row([mod_name, "0", "0", "0"])
-            cell = ticket_scores_sheet.find(mod_name)
-            row = cell.row
-    
-        # Increment Overall, Weekly, Monthly
-        values = ticket_scores_sheet.row_values(row)
-        while len(values) < 4:
-            values.append("0")
-    
-        overall = int(values[1]) + 1
-        weekly = int(values[2]) + 1
-        monthly = int(values[3]) + 1
-    
-        # Must pass 2D list
-        ticket_scores_sheet.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
-
-    await loop.run_in_executor(None, update_score)
+    await loop.run_in_executor(None, increment_score, ticket_scores_sheet, interaction.user.display_name)
 
 # -----------------------------
 # Role Button
