@@ -135,7 +135,7 @@ def increment_ticket_score(mod_name: str):
 
     ticket_scores_sheet.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
 
-@bot.tree.command(name="ticketscore", description="Show ticket scores (weekly, monthly, overall).")
+@bot.tree.command(name="ticketscore", description="Show ticket scores (weekly, monthly, overall) and message scores.")
 async def ticketscore(interaction: discord.Interaction):
     guild = interaction.guild
     staff_role = discord.utils.get(guild.roles, name="Clan Staff")
@@ -148,9 +148,10 @@ async def ticketscore(interaction: discord.Interaction):
     loop = asyncio.get_running_loop()
 
     def fetch_scores():
-        rows = ticket_scores_sheet.get_all_values()[1:]  # skip header
-        scores = []
-        for row in rows:
+        # Ticket scores
+        ticket_rows = ticket_scores_sheet.get_all_values()[1:]  # skip header
+        tickets = {}
+        for row in ticket_rows:
             if len(row) >= 4:
                 name = row[0]
                 try:
@@ -159,27 +160,43 @@ async def ticketscore(interaction: discord.Interaction):
                     monthly = int(row[3])
                 except ValueError:
                     overall, weekly, monthly = 0, 0, 0
-                scores.append((name, overall, monthly, weekly))
-        return sorted(scores, key=lambda x: x[1], reverse=True)
+                tickets[name] = {"overall": overall, "weekly": weekly, "monthly": monthly}
+
+        # Message scores
+        message_rows = message_scores_sheet.get_all_values()[1:]  # skip header
+        messages = {row[0]: int(row[1]) if len(row) > 1 and row[1].isdigit() else 0 for row in message_rows}
+
+        # Merge names
+        all_mods = set(tickets.keys()) | set(messages.keys())
+        combined = []
+        for name in all_mods:
+            overall = tickets.get(name, {}).get("overall", 0)
+            weekly = tickets.get(name, {}).get("weekly", 0)
+            monthly = tickets.get(name, {}).get("monthly", 0)
+            msg_count = messages.get(name, 0)
+            combined.append((name, overall, monthly, weekly, msg_count))
+
+        # Sort by overall tickets
+        return sorted(combined, key=lambda x: x[1], reverse=True)
 
     scores = await loop.run_in_executor(None, fetch_scores)
 
     embed = discord.Embed(
-        title="🎟️ Ticket Scores Leaderboard",
+        title="🎟️ Ticket & Message Scores Leaderboard",
         description="Weekly resets every Monday • Monthly resets on the 1st",
         color=discord.Color.gold()
     )
 
     if scores:
         table = "\n".join(
-            [f"**{i+1}. {name}** — 🏆 {overall} | 📅 {monthly} | 📆 {weekly}"
-             for i, (name, overall, weekly, monthly) in enumerate(scores)]
+            [f"**{i+1}. {name}** — 🏆 {overall} | 📅 {monthly} | 📆 {weekly} | ✉️ {msg_count}"
+             for i, (name, overall, monthly, weekly, msg_count) in enumerate(scores)]
         )
     else:
         table = "No scores recorded yet."
 
     embed.add_field(
-        name="Moderator — Overall | Monthly | Weekly",
+        name="Moderator — Overall | Monthly | Weekly | Messages",
         value=table,
         inline=False
     )
