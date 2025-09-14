@@ -176,7 +176,7 @@ async def ticketscore(interaction: discord.Interaction):
     # Ticket Scores
     if ticket_scores:
         ticket_table = "\n".join(
-            [f"**{i+1}. {name}** — 📊 {overall} | 📆 {monthly} | 📆 {weekly}"
+            [f"**{i+1}. {name}** — 📊 {overall} | 🗓️ {monthly} | 📆 {weekly}"
              for i, (name, overall, monthly, weekly) in enumerate(ticket_scores)]
         )
     else:
@@ -190,7 +190,7 @@ async def ticketscore(interaction: discord.Interaction):
     # Message Scores
     if message_scores:
         message_table = "\n".join(
-            [f"**{i+1}. {name}** — ✉️ {overall} | 📆 {monthly} | 📆 {weekly}"
+            [f"**{i+1}. {name}** — ✉️ {overall} | 🗓️ {monthly} | 📆 {weekly}"
              for i, (name, overall, monthly, weekly) in enumerate(message_scores)]
         )
     else:
