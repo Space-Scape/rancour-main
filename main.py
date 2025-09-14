@@ -231,58 +231,28 @@ message_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).workshee
 
 def get_or_create_message_row(mod_name: str):
     """Find the mod's row in TicketMessageScores, or create a new one at the bottom."""
-    all_values = message_scores_sheet.get_all_values()  # <-- use the correct variable
-    for i, row in enumerate(all_values, start=1):  # gspread rows are 1-indexed
+    all_values = message_scores_sheet.get_all_values()
+    for i, row in enumerate(all_values, start=1):  # gspread is 1-indexed
         if len(row) > 0 and row[0] == mod_name:
-            return i  # found the mod
-    # mod not found, append a new row
-    message_scores_sheet.append_row([mod_name, 0])
+            return i
+    # Not found, append new row with zeros
+    message_scores_sheet.append_row([mod_name, "0", "0", "0"])
     return len(all_values) + 1
 
 def increment_message_score(mod_name: str):
-    """Increment overall, weekly, and monthly message scores for a moderator."""
-    try:
-        all_values = message_scores_sheet.get_all_values()
-        header = all_values[0]
-        rows = all_values[1:]
+    """Increment overall, monthly, and weekly message scores for a moderator."""
+    row = get_or_create_message_row(mod_name)
+    values = message_scores_sheet.row_values(row)
 
-        # Find row for mod
-        for i, row in enumerate(rows, start=2):
-            if row and row[0] == mod_name:
-                row_index = i
-                break
-        else:
-            # Add new row if mod not found
-            row_index = len(rows) + 2
-            ticket_message_scores_sheet.append_row([mod_name, 0, 0, 0])
-            rows.append([mod_name, 0, 0, 0])
+    while len(values) < 4:
+        values.append("0")
 
-        # Read current values
-        current = rows[row_index-2]  # offset by header and 1-indexed
-        try:
-            overall = int(current[1])
-        except (IndexError, ValueError):
-            overall = 0
-        try:
-            monthly = int(current[2])
-        except (IndexError, ValueError):
-            monthly = 0
-        try:
-            weekly = int(current[3])
-        except (IndexError, ValueError):
-            weekly = 0
+    overall = int(values[1]) + 1
+    monthly = int(values[2]) + 1
+    weekly = int(values[3]) + 1
 
-        # Increment
-        overall += 1
-        weekly += 1
-        monthly += 1
-
-        # Update sheet
-        message_scores_sheet.update(f"B{row_index}:D{row_index}", [[overall, monthly, weekly]])
-
-        print(f"[DEBUG] Incremented message score for {mod_name}: {overall}/{monthly}/{weekly}")
-    except Exception as e:
-        print(f"[ERROR] increment_message_score: {e}")
+    message_scores_sheet.update(f"B{row}:D{row}", [[overall, monthly, weekly]])
+    print(f"[DEBUG] Incremented message score for {mod_name}: {overall}/{monthly}/{weekly}")
 
 # Weekly reset (every Monday 00:00 UTC)
 @tasks.loop(hours=24)
@@ -291,13 +261,9 @@ async def reset_weekly_message_scores():
     if today.weekday() == 0:  # Monday
         try:
             all_values = message_scores_sheet.get_all_values()
-            rows = all_values[1:]  # skip header
-            for i, row in enumerate(rows, start=2):
+            for i, row in enumerate(all_values[1:], start=2):  # skip header
                 if len(row) >= 4:
-                    overall = row[1]
-                    monthly = row[2]
-                    # reset weekly to 0
-                    message_scores_sheet.update(f"D{row_index}", [[0]])
+                    message_scores_sheet.update_cell(i, 4, 0)  # weekly = col D
             print("[INFO] Weekly message scores reset.")
         except Exception as e:
             print(f"[ERROR] Failed to reset weekly message scores: {e}")
@@ -309,13 +275,9 @@ async def reset_monthly_message_scores():
     if today.day == 1:
         try:
             all_values = message_scores_sheet.get_all_values()
-            rows = all_values[1:]  # skip header
-            for i, row in enumerate(rows, start=2):
+            for i, row in enumerate(all_values[1:], start=2):
                 if len(row) >= 4:
-                    overall = row[1]
-                    weekly = row[3]
-                    # reset monthly to 0
-                    message_scores_sheet.update(f"C{row_index}:D{row_index}", [[0, 0]])
+                    message_scores_sheet.update_cell(i, 3, 0)  # monthly = col C
             print("[INFO] Monthly message scores reset.")
         except Exception as e:
             print(f"[ERROR] Failed to reset monthly message scores: {e}")
