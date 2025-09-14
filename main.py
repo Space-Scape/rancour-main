@@ -132,6 +132,15 @@ def increment_ticket_score(mod_name: str):
 
 @bot.tree.command(name="ticketscore", description="Show ticket scores (weekly, monthly, overall).")
 async def ticketscore(interaction: discord.Interaction):
+    # Check if user has Clan Staff role
+    guild = interaction.guild
+    staff_role = discord.utils.get(guild.roles, name="Clan Staff")
+    if not staff_role or staff_role not in interaction.user.roles:
+        await interaction.response.send_message(
+            "⚠️ You do not have permission to view ticket scores.", ephemeral=True
+        )
+        return
+
     loop = asyncio.get_running_loop()
 
     def fetch_scores():
