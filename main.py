@@ -326,10 +326,36 @@ async def welcome(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
-    def update_score():
-        increment_ticket_score(str(interaction.user))
-
+    # ---------------------------
+    # Update ticket scoreboard
+    # ---------------------------
     loop = asyncio.get_running_loop()
+
+    def update_score():
+        mod_name = interaction.user.display_name  # <-- server nickname
+        try:
+            cell = ticket_scores_sheet.find(mod_name)
+            row = cell.row if cell else None
+        except Exception:
+            row = None
+
+        if not row:
+            # Add new moderator row with zeros
+            ticket_scores_sheet.append_row([mod_name, "0", "0", "0"])
+            cell = ticket_scores_sheet.find(mod_name)
+            row = cell.row
+
+        # Increment Overall, Weekly, Monthly
+        values = ticket_scores_sheet.row_values(row)
+        while len(values) < 4:
+            values.append("0")
+
+        overall = int(values[1]) + 1
+        weekly = int(values[2]) + 1
+        monthly = int(values[3]) + 1
+
+        ticket_scores_sheet.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
+
     await loop.run_in_executor(None, update_score)
 
 # -----------------------------
