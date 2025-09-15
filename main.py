@@ -490,7 +490,7 @@ class EventsView(View):
         self.add_item(RoleButton("Boss of the Week", get_emoji("botw")))
         self.add_item(RoleButton("Skill of the Week", get_emoji("sotw")))
         self.add_item(RoleButton("Sanguine Sunday - Learn ToB!", get_emoji("sanguine_sunday")))
-        self.add_item(RoleButton("PvP", get_emoji("💀")))
+        self.add_item(RoleButton("PvP", get_emoji("skull")))
 
 # ---------------------------
 # 🔹 RSN Commands
