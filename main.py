@@ -485,13 +485,12 @@ class EventsView(View):
     def __init__(self, guild: discord.Guild):
         super().__init__(timeout=None)
         get_emoji = lambda name: discord.utils.get(guild.emojis, name=name)
-
         self.add_item(RoleButton("Raffles", get_emoji("raffle")))
         self.add_item(RoleButton("Events", get_emoji("event")))
         self.add_item(RoleButton("Boss of the Week", get_emoji("botw")))
         self.add_item(RoleButton("Skill of the Week", get_emoji("sotw")))
         self.add_item(RoleButton("Sanguine Sunday - Learn ToB!", get_emoji("sanguine_sunday")))
-
+        self.add_item(RoleButton("PvP", get_emoji("💀")))
 
 # ---------------------------
 # 🔹 RSN Commands
