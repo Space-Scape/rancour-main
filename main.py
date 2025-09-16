@@ -18,6 +18,7 @@ from gspread.exceptions import APIError, GSpreadException
 # ---------------------------
 # 🔹 Google Sheets Setup
 # ---------------------------
+
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive"
@@ -51,6 +52,7 @@ rsn_sheet = sheet_client.open_by_key("1ZwJiuVMp-3p8UH0NCVYTV9_UVI26jl5kWu2nvdspl
 # ---------------------------
 # 🔹 Coffer Sheets Setup
 # ---------------------------
+
 credentials_dict_coffer = {
   "type": os.getenv('COFFER_TYPE'),
   "project_id": os.getenv('COFFER_ID'),
@@ -94,16 +96,18 @@ BANK_CHANNEL_ID = 1276197776849633404
 CURRENCY_SYMBOL = " 💰"
 LISTEN_CHANNEL_ID = 1272875477555482666
 COLLAT_CHANNEL_ID = 1272648340940525648
+
 WATCH_CHANNEL_IDS = [
     1272648453264248852,
     1272648472184487937
 ]
-STAFF_ROLE_ID = 1272635396991221824
 
+STAFF_ROLE_ID = 1272635396991221824
 
 # ---------------------------
 # 🔹 Ticket Scores Setup
 # ---------------------------
+
 TICKET_SCORES_TAB_NAME = "TicketScores"
 ticket_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(TICKET_SCORES_TAB_NAME)
 
@@ -114,9 +118,8 @@ def get_or_create_mod_row(mod_name: str):
         if cell:
             return cell.row
     except Exception:
-        pass  # cell not found
+        pass
 
-    # Append new row with zeros
     ticket_scores_sheet.append_row([mod_name, "0", "0", "0"])
     cell = ticket_scores_sheet.find(mod_name)
     return cell.row
@@ -148,7 +151,7 @@ async def ticketscore(interaction: discord.Interaction):
     loop = asyncio.get_running_loop()
 
     def fetch_scores(sheet):
-        rows = sheet.get_all_values()[1:]  # skip header
+        rows = sheet.get_all_values()[1:]
         scores = []
         for row in rows:
             if len(row) >= 4:
@@ -159,7 +162,6 @@ async def ticketscore(interaction: discord.Interaction):
                     weekly = int(row[3])
                 except ValueError:
                     overall, monthly, weekly = 0, 0, 0
-                # Convert to nickname if possible
                 member = guild.get_member_named(name) or guild.get_member(int(name.split("/")[0])) if "/" in name else None
                 display_name = member.display_name if member else name
                 scores.append((display_name, overall, monthly, weekly))
@@ -174,7 +176,6 @@ async def ticketscore(interaction: discord.Interaction):
         color=discord.Color.gold()
     )
 
-    # Ticket Scores
     if ticket_scores:
         ticket_table = "\n".join(
             [f"**{i+1}. {name}** — 👋 {overall} | 🗓️ {monthly} | 📆 {weekly}"
@@ -188,7 +189,6 @@ async def ticketscore(interaction: discord.Interaction):
         inline=False
     )
 
-    # Message Scores
     if message_scores:
         message_table = "\n".join(
             [f"**{i+1}. {name}** — ✉️ {overall} | 🗓️ {monthly} | 📆 {weekly}"
@@ -207,16 +207,17 @@ async def ticketscore(interaction: discord.Interaction):
 # ---------------------------
 # 🔹 Reset Loop
 # ---------------------------
+
 @tasks.loop(hours=24)
 async def reset_scores():
     today = datetime.utcnow()
     all_values = ticket_scores_sheet.get_all_values()
 
-    if today.weekday() == 0:  # Monday → reset weekly
+    if today.weekday() == 0:
         for i in range(2, len(all_values) + 1):
             ticket_scores_sheet.update_cell(i, 3, 0)
 
-    if today.day == 1:  # First of month → reset monthly
+    if today.day == 1:
         for i in range(2, len(all_values) + 1):
             ticket_scores_sheet.update_cell(i, 4, 0)
 
@@ -227,6 +228,7 @@ async def before_reset():
 # ---------------------------
 # 🔹 Message Scores Setup
 # ---------------------------
+
 MESSAGE_SCORES_TAB_NAME = "TicketMessageScores"
 message_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(MESSAGE_SCORES_TAB_NAME)
 
@@ -260,21 +262,19 @@ def increment_message_score(member: discord.Member):
     message_scores_sheet.update(f"B{row}:D{row}", [[overall, monthly, weekly]])
     print(f"[DEBUG] Incremented message score for {mod_name}: {overall}/{monthly}/{weekly}")
 
-# Weekly reset (every Monday 00:00 UTC)
 @tasks.loop(hours=24)
 async def reset_weekly_message_scores():
     today = datetime.now(ZoneInfo("UTC")).date()
-    if today.weekday() == 0:  # Monday
+    if today.weekday() == 0:
         try:
             all_values = message_scores_sheet.get_all_values()
-            for i, row in enumerate(all_values[1:], start=2):  # skip header
+            for i, row in enumerate(all_values[1:], start=2):
                 if len(row) >= 4:
-                    message_scores_sheet.update_cell(i, 4, 0)  # weekly = col D
+                    message_scores_sheet.update_cell(i, 4, 0)
             print("[INFO] Weekly message scores reset.")
         except Exception as e:
             print(f"[ERROR] Failed to reset weekly message scores: {e}")
 
-# Monthly reset (on the 1st)
 @tasks.loop(hours=24)
 async def reset_monthly_message_scores():
     today = datetime.now(ZoneInfo("UTC")).date()
@@ -283,7 +283,7 @@ async def reset_monthly_message_scores():
             all_values = message_scores_sheet.get_all_values()
             for i, row in enumerate(all_values[1:], start=2):
                 if len(row) >= 4:
-                    message_scores_sheet.update_cell(i, 3, 0)  # monthly = col C
+                    message_scores_sheet.update_cell(i, 3, 0)
             print("[INFO] Monthly message scores reset.")
         except Exception as e:
             print(f"[ERROR] Failed to reset monthly message scores: {e}")
@@ -291,6 +291,7 @@ async def reset_monthly_message_scores():
 # ---------------------------
 # 🔹 Welcome
 # ---------------------------
+
 @bot.tree.command(name="welcome", description="Welcome the ticket creator and give them the Recruit role.")
 async def welcome(interaction: discord.Interaction):
     if not isinstance(interaction.channel, discord.Thread):
@@ -333,7 +334,6 @@ async def welcome(interaction: discord.Interaction):
         )
         return
 
-    # --- Your embed stays exactly as you wrote it ---
     embed = discord.Embed(
         title="🎉 Welcome to the Clan! 🎉",
         description=(
@@ -349,7 +349,6 @@ async def welcome(interaction: discord.Interaction):
         color=discord.Color.blurple()
     )
 
-    # --- All your embed fields are untouched ---
     embed.add_field(name="💭 General Chat", value="[Say hello!](https://discord.com/channels/1272629330115297330/1272629331524587623)", inline=True)
     embed.add_field(name="✨ Achievements", value="[Show off your gains](https://discord.com/channels/1272629330115297330/1272629331524587624)", inline=True)
     embed.add_field(name="💬 Clan Chat", value="[Stay updated](https://discord.com/channels/1272629330115297330/1272875477555482666)", inline=True)
@@ -390,6 +389,7 @@ async def welcome(interaction: discord.Interaction):
     # ---------------------------
     # Update ticket scoreboard
     # ---------------------------
+   
     loop = asyncio.get_running_loop()
 
     def update_score():
@@ -491,6 +491,7 @@ class EventsView(View):
         self.add_item(RoleButton("Skill of the Week", get_emoji("sotw")))
         self.add_item(RoleButton("Sanguine Sunday - Learn ToB!", get_emoji("sanguine_sunday")))
         self.add_item(RoleButton("PvP", "💀"))
+
 # ---------------------------
 # 🔹 RSN Commands
 # ---------------------------
@@ -531,19 +532,16 @@ class RSNModal(discord.ui.Modal, title="Register RSN"):
     rsn = discord.ui.TextInput(label="RuneScape Name", placeholder="Enter your RSN")
 
     async def on_submit(self, interaction: discord.Interaction):
-        # ✅ Defer immediately so the interaction doesn't expire
         await interaction.response.defer(thinking=True, ephemeral=True)
 
         try:
             loop = asyncio.get_running_loop()
 
-            # Example: find existing row for the user
             def get_cell():
-                return rsn_sheet.find(str(interaction.user.id))  # blocking call
+                return rsn_sheet.find(str(interaction.user.id))
             cell = await loop.run_in_executor(None, get_cell)
 
             if cell:
-                # Update RSN
                 def update_cell():
                     old_rsn = rsn_sheet.cell(cell.row, 4).value or ""
                     rsn_sheet.update_cell(cell.row, 4, str(self.rsn))
@@ -555,7 +553,6 @@ class RSNModal(discord.ui.Modal, title="Register RSN"):
                     f"from **{old_rsn}** to **{self.rsn}**"
                 )
             else:
-                # Add new row
                 def append_row():
                     rsn_sheet.append_row([
                         str(interaction.user),
@@ -1052,7 +1049,6 @@ async def bank(interaction: discord.Interaction):
     total, holders, owed = get_current_total_and_holders_and_owed()
     guild = interaction.guild
 
-    # Sum all holdings to add to the clan coffer total
     total_holding = sum(holders.values())
     clan_coffer_total = total + total_holding
 
@@ -1124,13 +1120,15 @@ class CollatRequestModal(discord.ui.Modal, title="Request Item"):
         max_length=50,
     )
 
-    def __init__(self, interaction: discord.Interaction):
+    def __init__(self, parent_message: discord.Message, requester: discord.User):
         super().__init__()
-        self.interaction = interaction
+        self.parent_message = parent_message
+        self.requester = requester
+
     async def on_submit(self, interaction: discord.Interaction):
         entered_name = str(self.target_username.value).strip()
-
         guild = interaction.guild
+
         target_member = discord.utils.find(
             lambda m: m.name == entered_name or m.display_name == entered_name,
             guild.members
@@ -1138,24 +1136,23 @@ class CollatRequestModal(discord.ui.Modal, title="Request Item"):
 
         if not target_member:
             await interaction.response.send_message(
-                "User not found. Please ensure the name matches exactly.",
+                "❌ User not found. Please ensure the name matches exactly.",
                 ephemeral=True
             )
             return
 
-        await interaction.message.reply(
-            f"{self.interaction.user.mention} is requesting their item from {target_member.mention}",
+        await self.parent_message.reply(
+            f"{self.requester.mention} is requesting their item from {target_member.mention}",
             mention_author=True,
         )
-
         await interaction.response.send_message("Request sent ✅", ephemeral=True)
+
 
 class CollatButtons(discord.ui.View):
     def __init__(self, author: discord.User, mentioned: discord.User | None):
         super().__init__(timeout=None)
         self.author = author
         self.mentioned = mentioned
-        self.disabled_flag = False
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user == self.author or (self.mentioned and interaction.user == self.mentioned):
@@ -1171,13 +1168,10 @@ class CollatButtons(discord.ui.View):
     @discord.ui.button(label="Request Item", style=discord.ButtonStyle.primary, emoji="🔔")
     async def request_item(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self.mentioned:
-            await interaction.response.send_modal(CollatRequestModal(interaction))
+            await interaction.response.send_modal(CollatRequestModal(interaction.message, interaction.user))
             return
 
-        if interaction.user == self.author:
-            target = self.mentioned
-        else:
-            target = self.author
+        target = self.mentioned if interaction.user == self.author else self.author
 
         await interaction.response.defer()
         await interaction.message.reply(
@@ -1190,50 +1184,49 @@ class CollatButtons(discord.ui.View):
         await self.disable_all(interaction)
         await interaction.response.send_message("Item marked as returned. ✅", ephemeral=True)
 
+
+# ---------------------------
+# 🔹 Hook into on_message
+# ---------------------------
+
 @bot.event
 async def on_message(message: discord.Message):
-    # Ignore bot messages
     if message.author.bot:
         return
 
-    # Determine the parent channel ID (handles threads + text channels)
     parent_channel_id = None
     if isinstance(message.channel, discord.Thread):
         parent_channel_id = message.channel.parent.id
     elif isinstance(message.channel, discord.TextChannel):
         parent_channel_id = message.channel.id
 
-    # Only process messages in the watch channels
     if parent_channel_id not in WATCH_CHANNEL_IDS:
         return
 
-    # Only count if user has the Staff role
     if not any(role.id == STAFF_ROLE_ID for role in message.author.roles):
         return
 
     display_name = message.author.nick or message.author.name
     print(f"[DEBUG] Incrementing message score for {display_name} in {message.channel.name}")
 
-    # Update spreadsheet asynchronously (pass full Member, not string)
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, increment_message_score, message.author)
 
-    # Collat notifier
+    # Collat watcher
     if message.channel.id == COLLAT_CHANNEL_ID and message.attachments:
         mentioned_user = message.mentions[0] if message.mentions else None
         view = CollatButtons(message.author, mentioned_user)
         await message.reply("Collat actions:", view=view)
 
-    # Ensure commands still work
     await bot.process_commands(message)
 
 # ---------------------------
 # 🔹 Configuration
 # ---------------------------
+
 CHANNEL_ID = 1338295765759688767
 CST = ZoneInfo("America/Chicago")
 
-# Role IDs to ping
 MENTOR_ROLE = 1306021911830073414
 SANG_ROLE = 1387153629072592916
 TOB_ROLE = 1272694636921753701
@@ -1265,6 +1258,7 @@ https://discord.com/events/1272629330115297330/1386302870646816788
 # ---------------------------
 # 🔹 Manual Slash Command
 # ---------------------------
+
 @bot.tree.command(name="sangsignup", description="Post the Sanguine Sunday signup message")
 @app_commands.describe(channel="Optional channel where the signup should be posted")
 async def sangsignup(interaction: discord.Interaction, channel: discord.TextChannel | None = None):
@@ -1292,6 +1286,7 @@ async def sangsignup(interaction: discord.Interaction, channel: discord.TextChan
 # ---------------------------
 # 🔹 Scheduled Task
 # ---------------------------
+
 @tasks.loop(minutes=1)
 async def weekly_sangsignup():
     now = datetime.now(CST)
@@ -1311,11 +1306,11 @@ async def before_weekly_sangsignup():
 # ---------------------------
 # 🔹 Bot Events
 # ---------------------------
+
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
 
-    # Start background tasks if not running
     if not reset_scores.is_running():
         reset_scores.start()
 
@@ -1328,9 +1323,6 @@ async def on_ready():
     if not weekly_sangsignup.is_running():
         weekly_sangsignup.start()
 
-    # ---------------------------
-    # Example role panels
-    # ---------------------------
     rsn_channel = bot.get_channel(1280532494139002912)
     if rsn_channel:
         await send_rsn_panel(rsn_channel)
@@ -1343,12 +1335,10 @@ async def on_ready():
     if role_channel:
         guild = role_channel.guild
 
-        # Delete old bot messages
         async for msg in role_channel.history(limit=100):
             if msg.author == bot.user:
                 await msg.delete()
-
-        # Send fresh role selection
+        
         await role_channel.send("Select your roles below:")
 
         raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="", color=0x00ff00)
@@ -1363,6 +1353,7 @@ async def on_ready():
     # ---------------------------
     # Sync all slash commands
     # ---------------------------
+    
     try:
         synced = await bot.tree.sync()
         print(f"✅ Synced {len(synced)} commands.")
