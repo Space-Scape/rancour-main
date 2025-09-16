@@ -1184,34 +1184,30 @@ class CollatButtons(discord.ui.View):
         await self.disable_all(interaction)
         await interaction.response.send_message("Item marked as returned. ✅", ephemeral=True)
 
-# ---------------------------
-# 🔹 Hook into on_message
-# ---------------------------
 @bot.event
 async def on_message(message: discord.Message):
     if message.author.bot:
         return
-        
+
     parent_channel_id = None
     if isinstance(message.channel, discord.Thread):
         parent_channel_id = message.channel.parent.id
     elif isinstance(message.channel, discord.TextChannel):
         parent_channel_id = message.channel.id
 
-    if parent_channel_id not in WATCH_CHANNEL_IDS:
-        return
+    # ---------------------------
+    # 🎟️ Ticket message scores
+    # ---------------------------
+    if parent_channel_id in WATCH_CHANNEL_IDS:
+        if any(role.id == STAFF_ROLE_ID for role in message.author.roles):
+            display_name = message.author.nick or message.author.name
+            print(f"[DEBUG] Incrementing message score for {display_name} in {message.channel.name}")
 
-    if not any(role.id == STAFF_ROLE_ID for role in message.author.roles):
-        return
-
-    display_name = message.author.nick or message.author.name
-    print(f"[DEBUG] Incrementing message score for {display_name} in {message.channel.name}")
-
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, increment_message_score, message.author)
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, increment_message_score, message.author)
 
     # ---------------------------
-    # 📸 Collat handler
+    # 📸 Collat handler 
     # ---------------------------
     if message.channel.id == COLLAT_CHANNEL_ID:
         print(f"[DEBUG] Message detected in collat channel {COLLAT_CHANNEL_ID}")
