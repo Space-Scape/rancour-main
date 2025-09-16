@@ -1207,21 +1207,25 @@ async def on_message(message: discord.Message):
             await loop.run_in_executor(None, increment_message_score, message.author)
 
     # ---------------------------
-    # 📸 Collat handler 
+    # 📸 Collat handler
     # ---------------------------
     if message.channel.id == COLLAT_CHANNEL_ID:
         print(f"[DEBUG] Message detected in collat channel {COLLAT_CHANNEL_ID}")
         print(f"[DEBUG] Attachments count: {len(message.attachments)} | Mentions count: {len(message.mentions)}")
-
-        if message.attachments or message.mentions:
-            mentioned_user = message.mentions[0] if message.mentions else None
+    
+        # Check for explicit @ mention tokens (not just replies)
+        has_explicit_mention = any(f"<@{u.id}>" in message.content or f"<@!{u.id}>" in message.content for u in message.mentions)
+        has_attachment = len(message.attachments) > 0
+    
+        if has_attachment or has_explicit_mention:
+            mentioned_user = message.mentions[0] if has_explicit_mention else None
             print(f"[DEBUG] Mentioned user: {mentioned_user} | Author: {message.author}")
-
+    
             view = CollatButtons(message.author, mentioned_user)
             await message.reply("Collat actions:", view=view)
             print(f"[DEBUG] ✅ Collat buttons added to message from {message.author}")
         else:
-            print("[DEBUG] ❌ No mentions or attachments, skipping collat buttons.")
+            print("[DEBUG] ❌ No explicit @mentions or attachments, skipping collat buttons.")
 
     await bot.process_commands(message)
 
