@@ -1184,16 +1184,14 @@ class CollatButtons(discord.ui.View):
         await self.disable_all(interaction)
         await interaction.response.send_message("Item marked as returned. ✅", ephemeral=True)
 
-
 # ---------------------------
 # 🔹 Hook into on_message
 # ---------------------------
-
 @bot.event
 async def on_message(message: discord.Message):
     if message.author.bot:
         return
-
+        
     parent_channel_id = None
     if isinstance(message.channel, discord.Thread):
         parent_channel_id = message.channel.parent.id
@@ -1212,11 +1210,22 @@ async def on_message(message: discord.Message):
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, increment_message_score, message.author)
 
-    # Collat watcher
-    if message.channel.id == COLLAT_CHANNEL_ID and message.attachments:
-        mentioned_user = message.mentions[0] if message.mentions else None
-        view = CollatButtons(message.author, mentioned_user)
-        await message.reply("Collat actions:", view=view)
+    # ---------------------------
+    # 📸 Collat handler
+    # ---------------------------
+    if message.channel.id == COLLAT_CHANNEL_ID:
+        print(f"[DEBUG] Message detected in collat channel {COLLAT_CHANNEL_ID}")
+        print(f"[DEBUG] Attachments count: {len(message.attachments)} | Mentions count: {len(message.mentions)}")
+
+        if message.attachments or message.mentions:
+            mentioned_user = message.mentions[0] if message.mentions else None
+            print(f"[DEBUG] Mentioned user: {mentioned_user} | Author: {message.author}")
+
+            view = CollatButtons(message.author, mentioned_user)
+            await message.reply("Collat actions:", view=view)
+            print(f"[DEBUG] ✅ Collat buttons added to message from {message.author}")
+        else:
+            print("[DEBUG] ❌ No mentions or attachments, skipping collat buttons.")
 
     await bot.process_commands(message)
 
