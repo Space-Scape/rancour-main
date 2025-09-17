@@ -1211,21 +1211,33 @@ async def on_message(message: discord.Message):
     # ---------------------------
     if message.channel.id == COLLAT_CHANNEL_ID:
         print(f"[DEBUG] Message detected in collat channel {COLLAT_CHANNEL_ID}")
-        print(f"[DEBUG] Attachments count: {len(message.attachments)} | Mentions count: {len(message.mentions)}")
+        print(f"[DEBUG] Attachments count: {len(message.attachments)} | Mentions count: {len(message.mentions)} | Embeds count: {len(message.embeds)}")
     
-        # Check for explicit @ mention tokens (not just replies)
-        has_explicit_mention = any(f"<@{u.id}>" in message.content or f"<@!{u.id}>" in message.content for u in message.mentions)
         has_attachment = len(message.attachments) > 0
     
-        if has_attachment or has_explicit_mention:
-            mentioned_user = message.mentions[0] if has_explicit_mention else None
-            print(f"[DEBUG] Mentioned user: {mentioned_user} | Author: {message.author}")
+        has_pasted_image = any(
+            (embed.type == "image") or (embed.image or embed.thumbnail)
+            for embed in message.embeds
+        )
+    
+        has_user_mention = len(message.mentions) > 0
+    
+        if message.reference:
+            replied_msg = await message.channel.fetch_message(message.reference.message_id)
+            if has_user_mention and message.mentions[0].id == replied_msg.author.id:
+                print("[DEBUG] Ignoring reply-based mention.")
+                has_user_mention = False
+    
+        if has_attachment or has_pasted_image or has_user_mention:
+            mentioned_user = message.mentions[0] if has_user_mention else None
+            print(f"[DEBUG] Mentioned user: {mentioned_user} | Author: {message.author} | Pasted image? {has_pasted_image}")
     
             view = CollatButtons(message.author, mentioned_user)
             await message.reply("Collat actions:", view=view)
             print(f"[DEBUG] ✅ Collat buttons added to message from {message.author}")
         else:
-            print("[DEBUG] ❌ No explicit @mentions or attachments, skipping collat buttons.")
+            print("[DEBUG] ❌ No valid @mentions, attachments, or pasted images, skipping collat buttons.")
+
 
     await bot.process_commands(message)
 
