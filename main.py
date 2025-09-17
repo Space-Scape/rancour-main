@@ -1211,33 +1211,21 @@ async def on_message(message: discord.Message):
     # ---------------------------
     if message.channel.id == COLLAT_CHANNEL_ID:
         print(f"[DEBUG] Message detected in collat channel {COLLAT_CHANNEL_ID}")
-        print(f"[DEBUG] Attachments count: {len(message.attachments)} | Mentions count: {len(message.mentions)} | Embeds count: {len(message.embeds)}")
+        print(f"[DEBUG] Attachments: {len(message.attachments)} | Mentions: {len(message.mentions)} | Embeds: {len(message.embeds)} | Reply: {message.reference}")
     
-        has_attachment = len(message.attachments) > 0
+        has_pasted_image = any(embed.image for embed in message.embeds)
     
-        has_pasted_image = any(
-            (embed.type == "image") or (embed.image or embed.thumbnail)
-            for embed in message.embeds
-        )
+        is_reply = message.reference is not None
+        valid_mention = None
+        if message.mentions and not is_reply:
+            valid_mention = message.mentions[0]
     
-        has_user_mention = len(message.mentions) > 0
-    
-        if message.reference:
-            replied_msg = await message.channel.fetch_message(message.reference.message_id)
-            if has_user_mention and message.mentions[0].id == replied_msg.author.id:
-                print("[DEBUG] Ignoring reply-based mention.")
-                has_user_mention = False
-    
-        if has_attachment or has_pasted_image or has_user_mention:
-            mentioned_user = message.mentions[0] if has_user_mention else None
-            print(f"[DEBUG] Mentioned user: {mentioned_user} | Author: {message.author} | Pasted image? {has_pasted_image}")
-    
-            view = CollatButtons(message.author, mentioned_user)
+        if valid_mention or message.attachments or has_pasted_image:
+            print(f"[DEBUG] ✅ Triggering collat buttons | Mention: {valid_mention} | Attachments: {len(message.attachments)} | Pasted: {has_pasted_image}")
+            view = CollatButtons(message.author, valid_mention)
             await message.reply("Collat actions:", view=view)
-            print(f"[DEBUG] ✅ Collat buttons added to message from {message.author}")
         else:
-            print("[DEBUG] ❌ No valid @mentions, attachments, or pasted images, skipping collat buttons.")
-
+            print("[DEBUG] ❌ No explicit @mention or screenshot, skipping collat buttons.")
 
     await bot.process_commands(message)
 
