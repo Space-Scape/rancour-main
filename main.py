@@ -1099,7 +1099,7 @@ async def bank(interaction: discord.Interaction):
 
 async def send_rsn_panel(channel: discord.TextChannel):
     await channel.purge(limit=10)
-    await channel.send(":identification_card: **Link your RSN by clicking below:**", view=RSNPanelView())
+    await channel.send(":identification_card: **Link your RSN by clicking below. Use /rsn here to check!**", view=RSNPanelView())
 
 async def send_time_panel(channel: discord.TextChannel):
     await channel.purge(limit=10)
