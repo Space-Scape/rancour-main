@@ -91,7 +91,6 @@ SUBMISSION_CHANNEL_ID = 1391921214909579336
 REVIEW_CHANNEL_ID = 1391921254034047066
 LOG_CHANNEL_ID = 1391921275332722749
 REQUIRED_ROLE_NAME = "Event Staff"
-REGISTERED_ROLE_NAME = "Registered"
 BANK_CHANNEL_ID = 1276197776849633404
 CURRENCY_SYMBOL = " 💰"
 LISTEN_CHANNEL_ID = 1272875477555482666
@@ -541,6 +540,10 @@ class RSNModal(discord.ui.Modal, title="Register RSN"):
                 return rsn_sheet.find(str(interaction.user.id))
             cell = await loop.run_in_executor(None, get_cell)
 
+            # role setup
+            guild = interaction.guild
+            registered_role = discord.utils.get(guild.roles, name="Registered")
+
             if cell:
                 def update_cell():
                     old_rsn = rsn_sheet.cell(cell.row, 4).value or ""
@@ -564,6 +567,14 @@ class RSNModal(discord.ui.Modal, title="Register RSN"):
 
                 await interaction.followup.send(
                     f"✅ Added new RSN for {interaction.user.mention}: **{self.rsn}**"
+                )
+
+            # add role after successful registration
+            if registered_role and registered_role not in interaction.user.roles:
+                await interaction.user.add_roles(registered_role)
+                await interaction.followup.send(
+                    f"🎉 You’ve been given the {registered_role.mention} role!",
+                    ephemeral=True
                 )
 
         except Exception as e:
