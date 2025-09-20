@@ -529,37 +529,46 @@ async def rsn_writer():
         finally:
             rsn_write_queue.task_done()
 
-
 class RSNModal(discord.ui.Modal, title="Register RSN"):
     rsn = discord.ui.TextInput(label="RuneScape Name", placeholder="Enter your RSN")
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        # Queue the sheet update instead of doing it inline
-        await rsn_write_queue.put((interaction.user, str(self.rsn)))
+        try:
+            # enqueue the update instead of writing directly
+            await rsn_write_queue.put((interaction.user, str(self.rsn)))
 
-        # Tell the user immediately
-        await interaction.followup.send(
-            f"✅ Your RSN **{self.rsn}** has been submitted! "
-            "It will be saved in the records shortly."
-        )
-
-        # Handle local stuff (role + nickname) right away
-        guild = interaction.guild
-        registered_role = discord.utils.get(guild.roles, name="Registered")
-        if registered_role and registered_role not in interaction.user.roles:
-            await interaction.user.add_roles(registered_role)
+            # Quick acknowledgement
             await interaction.followup.send(
-                f"🎉 You’ve been given the {registered_role.mention} role!",
+                f"✅ Your RSN **{self.rsn}** has been submitted! "
+                "It will be saved in the records shortly.",
                 ephemeral=True
             )
 
-        try:
-            await interaction.user.edit(nick=str(self.rsn))
-        except discord.Forbidden:
+            # add role after successful registration
+            guild = interaction.guild
+            registered_role = discord.utils.get(guild.roles, name="Registered")
+            if registered_role and registered_role not in interaction.user.roles:
+                await interaction.user.add_roles(registered_role)
+                await interaction.followup.send(
+                    f"🎉 You’ve been given the {registered_role.mention} role!",
+                    ephemeral=True
+                )
+
+            # attempt nickname change
+            try:
+                await interaction.user.edit(nick=str(self.rsn))
+            except discord.Forbidden:
+                await interaction.followup.send(
+                    "⚠️ I don't have permission to change your nickname. "
+                    "Please update it manually.",
+                    ephemeral=True
+                )
+
+        except Exception as e:
             await interaction.followup.send(
-                "⚠️ I don't have permission to change your nickname. Please update it manually.",
+                f"❌ Failed to update RSN: `{e}`",
                 ephemeral=True
             )
 
