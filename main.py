@@ -494,10 +494,10 @@ class EventsView(View):
 # ---------------------------
 # 🔹 RSN Commands
 # ---------------------------
-
 rsn_write_queue = asyncio.Queue()
 
 async def rsn_writer():
+    """Background worker for writing RSNs to Google Sheets."""
     while True:
         member: discord.Member
         rsn_value: str
@@ -505,10 +505,10 @@ async def rsn_writer():
         try:
             cell = rsn_sheet.find(str(member.id))
             now = datetime.now(timezone.utc)
-            day = now.day  # integer day
+            day = now.day  # integer day (no leading zero)
             timestamp = now.strftime(f"%B {day}, %Y at %I:%M%p")
+
             if cell is not None:
-                # Get old RSN before overwriting
                 old_rsn = rsn_sheet.cell(cell.row, 4).value or ""
                 rsn_sheet.update_cell(cell.row, 4, rsn_value)
                 rsn_sheet.update_cell(cell.row, 5, timestamp)
@@ -516,77 +516,53 @@ async def rsn_writer():
             else:
                 old_rsn = ""
                 rsn_sheet.append_row([
-                    member.display_name,
+                    member.display_name,  # current Discord display name
                     str(member.id),
                     old_rsn,
                     rsn_value,
                     timestamp
                 ])
                 print(f"✅ Added new RSN for {member} ({member.id}) as {rsn_value}")
+
         except Exception as e:
-            print(f"Error writing RSN to sheet: {e}")
-        rsn_write_queue.task_done()
+            print(f"❌ Error writing RSN to sheet for {member}: {e}")
+        finally:
+            rsn_write_queue.task_done()
+
 
 class RSNModal(discord.ui.Modal, title="Register RSN"):
     rsn = discord.ui.TextInput(label="RuneScape Name", placeholder="Enter your RSN")
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(thinking=True, ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+
+        # Queue the sheet update instead of doing it inline
+        await rsn_write_queue.put((interaction.user, str(self.rsn)))
+
+        # Tell the user immediately
+        await interaction.followup.send(
+            f"✅ Your RSN **{self.rsn}** has been submitted! "
+            "It will be saved in the records shortly."
+        )
+
+        # Handle local stuff (role + nickname) right away
+        guild = interaction.guild
+        registered_role = discord.utils.get(guild.roles, name="Registered")
+        if registered_role and registered_role not in interaction.user.roles:
+            await interaction.user.add_roles(registered_role)
+            await interaction.followup.send(
+                f"🎉 You’ve been given the {registered_role.mention} role!",
+                ephemeral=True
+            )
 
         try:
-            loop = asyncio.get_running_loop()
-
-            def get_cell():
-                return rsn_sheet.find(str(interaction.user.id))
-            cell = await loop.run_in_executor(None, get_cell)
-
-            guild = interaction.guild
-            registered_role = discord.utils.get(guild.roles, name="Registered")
-
-            if cell:
-                def update_cell():
-                    old_rsn = rsn_sheet.cell(cell.row, 4).value or ""
-                    rsn_sheet.update_cell(cell.row, 4, str(self.rsn))
-                    return old_rsn
-                old_rsn = await loop.run_in_executor(None, update_cell)
-
-                await interaction.followup.send(
-                    f"✅ Updated RSN for {interaction.user.mention} "
-                    f"from **{old_rsn}** to **{self.rsn}**"
-                )
-            else:
-                def append_row():
-                    rsn_sheet.append_row([
-                        str(interaction.user),
-                        str(interaction.user.id),
-                        str(interaction.user.display_name),
-                        str(self.rsn),
-                    ])
-                await loop.run_in_executor(None, append_row)
-
-                await interaction.followup.send(
-                    f"✅ Added new RSN for {interaction.user.mention}: **{self.rsn}**"
-                )
-
-            if registered_role and registered_role not in interaction.user.roles:
-                await interaction.user.add_roles(registered_role)
-                await interaction.followup.send(
-                    f"🎉 You’ve been given the {registered_role.mention} role!",
-                    ephemeral=True
-                )
-
-            try:
-                await interaction.user.edit(nick=str(self.rsn))
-            except discord.Forbidden:
-                await interaction.followup.send(
-                    "⚠️ I don't have permission to change your nickname. Please update it manually.",
-                    ephemeral=True
-                )
-
-        except Exception as e:
+            await interaction.user.edit(nick=str(self.rsn))
+        except discord.Forbidden:
             await interaction.followup.send(
-                f"❌ Failed to update RSN: `{e}`"
+                "⚠️ I don't have permission to change your nickname. Please update it manually.",
+                ephemeral=True
             )
+
 
 class RSNPanelView(discord.ui.View):
     def __init__(self):
@@ -638,6 +614,7 @@ async def rsn(interaction: discord.Interaction):
             ephemeral=True
         )
 
+
 @rsn_panel.error
 async def rsn_panel_error(interaction: discord.Interaction, error):
     if isinstance(error, app_commands.errors.MissingAnyRole):
@@ -645,7 +622,6 @@ async def rsn_panel_error(interaction: discord.Interaction, error):
             "⛔ You do not have permission to use this command.",
             ephemeral=True
         )
-
 
 # ---------------------------
 # 🔹 TimeZones
