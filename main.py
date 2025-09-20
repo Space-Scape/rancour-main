@@ -540,7 +540,6 @@ class RSNModal(discord.ui.Modal, title="Register RSN"):
                 return rsn_sheet.find(str(interaction.user.id))
             cell = await loop.run_in_executor(None, get_cell)
 
-            # role setup
             guild = interaction.guild
             registered_role = discord.utils.get(guild.roles, name="Registered")
 
@@ -569,11 +568,18 @@ class RSNModal(discord.ui.Modal, title="Register RSN"):
                     f"✅ Added new RSN for {interaction.user.mention}: **{self.rsn}**"
                 )
 
-            # add role after successful registration
             if registered_role and registered_role not in interaction.user.roles:
                 await interaction.user.add_roles(registered_role)
                 await interaction.followup.send(
                     f"🎉 You’ve been given the {registered_role.mention} role!",
+                    ephemeral=True
+                )
+
+            try:
+                await interaction.user.edit(nick=str(self.rsn))
+            except discord.Forbidden:
+                await interaction.followup.send(
+                    "⚠️ I don't have permission to change your nickname. Please update it manually.",
                     ephemeral=True
                 )
 
