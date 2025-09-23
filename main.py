@@ -307,20 +307,20 @@ async def rules(interaction: discord.Interaction):
     embed2 = discord.Embed(
         title="📜 The #1 Rule - Respect Others",
         description=(
-            "We have a couple of different rules, but our most important one is respect. "
-            "If you follow this one rule and respect others within the clan you will always be welcome with us.\n\n"
-            "• Jagex rules must be followed at all times.\n"
-            "• Set a positive example within the community.\n"
-            "• Be respectful and supportive to all.\n"
-            "• No discrimination, hate speech or bullying of any kind.\n"
-            "• No disruptive or toxic behaviour within Discord or Clan Chat.\n"
-            "• No NSFW content is allowed in the Discord.\n"
-            "• No scamming, luring or belittling.\n"
-            "• No begging / asking for donations.\n"
-            "• Raise any and all issues or concerns with the Clan Staff.\n"
-_           "• All loot must be split on PvM trips, unless stated otherwise at the start of the trip.\n"
-            "• **ALL Iron Accounts** must communicate that they are going to split loot unless their team agrees to FFA, this includes FFA worlds and Rare and Mega Rare items!\n"
-            "• Adhere to Discord’s own terms of service and community guidelines.\n"
+            "We have a couple of different rules, but our most important one is respect. ",
+            "If you follow this one rule and respect others within the clan you will always be welcome with us.\n\n",
+            "• Jagex rules must be followed at all times.\n",
+            "• Set a positive example within the community.\n",
+            "• Be respectful and supportive to all.\n",
+            "• No discrimination, hate speech or bullying of any kind.\n",
+            "• No disruptive or toxic behaviour within Discord or Clan Chat.\n",
+            "• No NSFW content is allowed in the Discord.\n",
+            "• No scamming, luring or belittling.\n",
+            "• No begging / asking for donations.\n",
+            "• Raise any and all issues or concerns with the Clan Staff.\n",
+            "• All loot must be split on PvM trips, unless stated otherwise at the start of the trip.\n",
+            "• **ALL Iron Accounts** must communicate that they are going to split loot unless their team agrees to FFA, this includes FFA worlds and Rare and Mega Rare items!\n",
+            "• Adhere to Discord’s own terms of service and community guidelines.\n",
             "• Do NOT share other peoples personal information without their consent."
         ),
         color=discord.Color.red()
