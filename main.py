@@ -287,6 +287,83 @@ async def reset_monthly_message_scores():
         except Exception as e:
             print(f"[ERROR] Failed to reset monthly message scores: {e}")
 
+async def rules(interaction: discord.Interaction):
+    embed1 = discord.Embed(
+        title="Rancour PvM: General Information",
+        description="Discord is a clan requirement. We use it for announcements, events, clan discussions, and much more.",
+        color=discord.Color.red()
+    )
+    embed1.add_field(
+        name="📢 Announcements",
+        value="Please do NOT mute the `📌⎮announcements` channel. We'll do our best to minimise the pings, but this is for important information you might need as a member of the community.",
+        inline=False
+    )
+    embed1.add_field(
+        name="💬 Clan Chat and Home Worlds",
+        value="**Clan chat:** `Rancour PvM`\n**USA Home world:** `World 494`\n**UK / EU Home world:** `World 514`",
+        inline=False
+    )
+
+    embed2 = discord.Embed(
+        title="📜 The #1 Rule - Respect Others",
+        description=(
+            "We have a couple of different rules, but our most important one is respect. "
+            "If you follow this one rule and respect others within the clan you will always be welcome with us.\n\n"
+            "• Jagex rules must be followed at all times.\n"
+            "• Set a positive example within the community.\n"
+            "• Be respectful and supportive to all.\n"
+            "• No discrimination, hate speech or bullying of any kind.\n"
+            "• No disruptive or toxic behaviour within Discord or Clan Chat.\n"
+            "• No NSFW content is allowed in the Discord.\n"
+            "• No scamming, luring or belittling.\n"
+            "• No begging / asking for donations.\n"
+            "• Raise any and all issues or concerns with the Clan Staff.\n"
+_           "• All loot must be split on PvM trips, unless stated otherwise at the start of the trip.\n"
+            "• **ALL Iron Accounts** must communicate that they are going to split loot unless their team agrees to FFA, this includes FFA worlds and Rare and Mega Rare items!\n"
+            "• Adhere to Discord’s own terms of service and community guidelines.\n"
+            "• Do NOT share other peoples personal information without their consent."
+        ),
+        color=discord.Color.red()
+    )
+
+    embed3 = discord.Embed(
+        title="⚙️ Clan Systems & Procedures",
+        color=discord.Color.red()
+    )
+    embed3.add_field(
+        name="⚖️ The 3-Strike System",
+        value=(
+            "The community uses a 3 strike system. The only exception is if someone's conduct is so outrageous that it requires immediate action.\n"
+            "• **1st offence** - May result in a recorded warning.\n"
+            "• **2nd offence** - May result in another warning and a time out.\n"
+            "• **3rd offence** - Will result in removal from the clan.\n\n"
+            "*You can appeal a ban or a warning by contacting a Moderator.*"
+        ),
+        inline=False
+    )
+    embed3.add_field(
+        name="🎟️ The Clan Ticket System",
+        value=(
+            "If you wish to become a member, rank up, or submit a support ticket, you must use the following channels:\n"
+            "• Become a member: `👉⎮become-a-member`\n"
+            "• Rank up request: `🍌⎮rank-up`\n"
+            "• Support ticket: `🔔⎮support-ticket`\n"
+            "• Register your RSN: `🔑⎮rsn-registration`"
+        ),
+        inline=False
+    )
+    embed3.add_field(
+        name="👋 Guesting in the clan",
+        value="Any member of the clan is free to invite their friends to the Discord, even if that person doesn't want to join. Guests can access parts of our server but not everything. When joining, friends will need to request the role of guest from clan staff.",
+        inline=False
+    )
+
+    await interaction.response.send_message(
+        content="https://discord.gg/rancour-pvm",
+        embeds=[embed1, embed2, embed3]
+    )
+
+
 # ---------------------------
 # 🔹 Welcome
 # ---------------------------
@@ -1360,7 +1437,93 @@ async def on_ready():
 
         events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢𝔫𝔱𝔰 ⚔︎", description="", color=0xffff00)
         await role_channel.send(embed=events_embed, view=EventsView(guild))
+    
+    if not bot.is_ready_once:
+        print(f'Logged in as {bot.user} (ID: {bot.user.id})')
+        print('------')
 
+        channel = bot.get_channel('1272629843552501802')
+
+        if channel:
+            print(f"Found channel: {channel.name}. Posting rules...")
+            
+            embed1 = discord.Embed(
+                title="Rancour PvM: General Information",
+                description="Discord is a clan requirement. We use it for announcements, events, clan discussions, and much more.",
+                color=discord.Color.red()
+            )
+            embed1.add_field(
+                name="📢 Announcements",
+                value="Please do NOT mute the `📌⎮announcements` channel. We'll do our best to minimise the pings, but this is for important information you might need as a member of the community.",
+                inline=False
+            )
+            embed1.add_field(
+                name="💬 Clan Chat and Home Worlds",
+                value="**Clan chat:** `Rancour PvM`\n**USA Home world:** `World 494`\n**UK / EU Home world:** `World 514`",
+                inline=False
+            )
+
+            embed2 = discord.Embed(
+                title="📜 The #1 Rule - Respect Others",
+                description=(
+                    "We have a couple of different rules, but our most important one is respect. "
+                    "If you follow this one rule and respect others within the clan you will always be welcome with us.\n\n"
+                    "• Jagex rules must be followed at all times.\n"
+                    "• Set a positive example within the community.\n"
+                    "• Be respectful and supportive to all.\n"
+                    "• No discrimination, hate speech or bullying of any kind.\n"
+                    "• No disruptive or toxic behaviour within Discord or Clan Chat.\n"
+                    "• No NSFW content is allowed in the Discord.\n"
+                    "• No scamming, luring or belittling.\n"
+                    "• No begging / asking for donations.\n"
+                    "• Raise any and all issues or concerns with the Clan Staff.\n"
+                    "• All loot must be split on PvM trips, unless stated otherwise at the start of the trip.\n"
+                    "• **ALL Iron Accounts** must communicate that they are going to split loot unless their team agrees to FFA, this includes FFA worlds and Rare and Mega Rare items!\n"
+                    "• Adhere to Discord’s own terms of service and community guidelines.\n"
+                    "• Do NOT share other peoples personal information without their consent."
+                ),
+                color=discord.Color.red()
+            )
+            
+            embed3 = discord.Embed(
+                title="⚙️ Clan Systems & Procedures",
+                color=discord.Color.red()
+            )
+            embed3.add_field(
+                name="⚖️ The 3-Strike System",
+                value=(
+                    "The community uses a 3 strike system. The only exception is if someone's conduct is so outrageous that it requires immediate action.\n"
+                    "• **1st offence** - May result in a recorded warning.\n"
+                    "• **2nd offence** - May result in another warning and a time out.\n"
+                    "• **3rd offence** - Will result in removal from the clan.\n\n"
+                    "*You can appeal a ban or a warning by contacting a Moderator.*"
+                ),
+                inline=False
+            )
+            embed3.add_field(
+                name="🎟️ The Clan Ticket System",
+                value=(
+                    "If you wish to become a member, rank up, or submit a support ticket, you must use the following channels:\n"
+                    "• Become a member: `👉⎮become-a-member`\n"
+                    "• Rank up request: `🍌⎮rank-up`\n"
+                    "• Support ticket: `🔔⎮support-ticket`\n"
+                    "• Register your RSN: `🔑⎮rsn-registration`"
+                ),
+                inline=False
+            )
+            embed3.add_field(
+                name="👋 Guesting in the clan",
+                value="Any member of the clan is free to invite their friends to the Discord, even if that person doesn't want to join. Guests can access parts of our server but not everything. When joining, friends will need to request the role of guest from clan staff.",
+                inline=False
+            )
+            
+            await channel.send(
+                content="https://discord.gg/rancour-pvm",
+                embeds=[embed1, embed2, embed3]
+            )
+            print("Successfully posted rules.")
+            bot.is_ready_once = True
+    
     # ---------------------------
     # Sync all slash commands
     # ---------------------------
