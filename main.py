@@ -226,9 +226,9 @@ async def before_reset():
     await bot.wait_until_ready()
 
 # ---------------------------
-# 🔹 Rules Command (EDITED)
+# 🔹 Rules Command (CORRECTED)
 # ---------------------------
-@app_commands.command(name="rules", description="Post the clan rules message.")
+@bot.tree.command(name="rules", description="Post the clan rules message.")
 @app_commands.checks.has_any_role("Moderators") # Checks for a role named "Moderators"
 async def rules(interaction: discord.Interaction):
     embed1 = discord.Embed(
@@ -261,6 +261,7 @@ async def rules(interaction: discord.Interaction):
             "✦︎ No scamming, luring or belittling.\n"
             "✦︎ No begging / asking for donations.\n"
             "✦︎ Raise any and all issues or concerns with the Clan Staff.\n"
+
             "✦︎ All loot must be split on PvM trips, unless stated otherwise at the start of the trip.\n"
             "✦︎ **ALL Iron Accounts** must communicate that they are going to split loot unless their team agrees to FFA, this includes FFA worlds and Rare and Mega Rare items!\n"
             "✦︎ Adhere to Discord’s own terms of service and community guidelines.\n"
