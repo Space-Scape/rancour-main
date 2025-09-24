@@ -104,49 +104,10 @@ WATCH_CHANNEL_IDS = [
 
 STAFF_ROLE_ID = 1272635396991221824
 
-# ---------------------------
-# 🔹 Ticket Scores Setup
-# ---------------------------
-
-TICKET_SCORES_TAB_NAME = "TicketScores"
-ticket_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(TICKET_SCORES_TAB_NAME)
-
-def get_or_create_mod_row(mod_name: str):
-    """Find moderator row or create it if missing."""
-    try:
-        cell = ticket_scores_sheet.find(mod_name)
-        if cell:
-            return cell.row
-    except Exception:
-        pass
-
-    ticket_scores_sheet.append_row([mod_name, "0", "0", "0"])
-    cell = ticket_scores_sheet.find(mod_name)
-    return cell.row
-
-def increment_ticket_score(mod_name: str):
-    """Increment scores for moderator across Overall, Weekly, and Monthly."""
-    row = get_or_create_mod_row(mod_name)
-    values = ticket_scores_sheet.row_values(row)
-
-    while len(values) < 4:
-        values.append("0")
-
-    overall = int(values[1]) + 1
-    weekly = int(values[2]) + 1
-    monthly = int(values[3]) + 1
-
-    ticket_scores_sheet.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
-
-@bot.tree.command(name="ticketscore", description="Show ticket and message scores (weekly, monthly, overall).")
+@bot.tree.command(name="ticketscore", description="Show /welcome command scores (weekly, monthly, overall).")
+@app_commands.checks.has_any_role("Clan Staff")
 async def ticketscore(interaction: discord.Interaction):
     guild = interaction.guild
-    staff_role = discord.utils.get(guild.roles, name="Clan Staff")
-    if not staff_role or staff_role not in interaction.user.roles:
-        await interaction.response.send_message(
-            "⚠️ You do not have permission to view ticket scores.", ephemeral=True
-        )
-        return
 
     loop = asyncio.get_running_loop()
 
@@ -158,20 +119,23 @@ async def ticketscore(interaction: discord.Interaction):
                 name = row[0]
                 try:
                     overall = int(row[1])
-                    monthly = int(row[2])
-                    weekly = int(row[3])
-                except ValueError:
+                    monthly = int(row[3]) # Swapped to column D for monthly
+                    weekly = int(row[2])  # Swapped to column C for weekly
+                except (ValueError, IndexError):
                     overall, monthly, weekly = 0, 0, 0
-                member = guild.get_member_named(name) or guild.get_member(int(name.split("/")[0])) if "/" in name else None
-                display_name = member.display_name if member else name
+                
+                member = discord.utils.get(guild.members, display_name=name)
+                display_name = name
+                if member:
+                    display_name = member.display_name
+
                 scores.append((display_name, overall, monthly, weekly))
         return sorted(scores, key=lambda x: x[1], reverse=True)
 
     ticket_scores = await loop.run_in_executor(None, fetch_scores, ticket_scores_sheet)
-    message_scores = await loop.run_in_executor(None, fetch_scores, message_scores_sheet)
 
     embed = discord.Embed(
-        title="🎟️ Ticket & Message Scores",
+        title="🎟️ Staff Welcome Command Scores",
         description="Weekly resets every Monday • Monthly resets on the 1st",
         color=discord.Color.gold()
     )
@@ -182,23 +146,11 @@ async def ticketscore(interaction: discord.Interaction):
              for i, (name, overall, monthly, weekly) in enumerate(ticket_scores)]
         )
     else:
-        ticket_table = "No ticket scores recorded yet."
+        ticket_table = "No scores recorded yet."
+        
     embed.add_field(
         name="🎫 /Welcome Commands Used - Total, Month, Week",
         value=ticket_table,
-        inline=False
-    )
-
-    if message_scores:
-        message_table = "\n".join(
-            [f"**{i+1}. {name}** — ✉️ {overall} | 🗓️ {monthly} | 📆 {weekly}"
-             for i, (name, overall, monthly, weekly) in enumerate(message_scores)]
-        )
-    else:
-        message_table = "No message scores recorded yet."
-    embed.add_field(
-        name="✉️ Messages In Tickets - Total, Month, Week",
-        value=message_table,
         inline=False
     )
 
@@ -226,7 +178,65 @@ async def before_reset():
     await bot.wait_until_ready()
 
 # ---------------------------
-# 🔹 Rules Command (FINAL VERSION)
+# 🔹 Info Command (FINAL)
+# ---------------------------
+
+@bot.tree.command(name="info", description="Post general information about the clan.")
+@app_commands.checks.has_any_role("Moderators")
+async def info(interaction: discord.Interaction):
+    """Posts a general information embed for the clan."""
+    await interaction.response.defer(ephemeral=True)
+
+    info_embed = discord.Embed(
+        title="Rancour PvM - Clan Information",
+        description=(
+            "We are a social, international PvM and skilling clan where community is our number one priority. "
+            "We encourage our members to be social; our clan chat is our main hub of communication. "
+            "This is an adult (18+) clan that we want to feel like a home away from home - a family."
+        ),
+        color=discord.Color.blurple()
+    )
+
+    info_embed.add_field(
+        name="What We Offer",
+        value=(
+            "• PvM of all levels\n"
+            "• Skilling\n"
+            "• Raids (Learner friendly)\n"
+            "• Minigames\n"
+            "• Social Events (Movie nights, party games, etc)\n"
+            "• PvP Events (Just for fun - not mandatory!)"
+        ),
+        inline=False
+    )
+
+    info_embed.add_field(
+        name="How to Join & Use Clan Systems",
+        value=(
+            "• **Become a member:** <#1272648453264248852>\n"
+            "• **Request a rank up:** <#1272648472184487937>\n"
+            "• **Get help (Support):** <#1272648498554077304>\n"
+            "• **Register your RSN:** <#1280532494139002912>\n\n"
+            "Guests are always welcome to hang out and get a feel for our community."
+        ),
+        inline=False
+    )
+
+    await interaction.channel.send(embed=info_embed)
+
+    await interaction.followup.send("✅ Clan info panel has been successfully posted.", ephemeral=True)
+
+
+@info.error
+async def info_error(interaction: discord.Interaction, error):
+    if isinstance(error, app_commands.errors.MissingAnyRole):
+        await interaction.response.send_message(
+            "⛔ You do not have permission to use this command.",
+            ephemeral=True
+        )
+
+# ---------------------------
+# 🔹 Rules Command (FINAL)
 # ---------------------------
 
 @bot.tree.command(name="rules", description="Post the clan rules message.")
@@ -239,8 +249,11 @@ async def rules(interaction: discord.Interaction):
     await asyncio.sleep(1)
 
     embed_welcome = discord.Embed(
-        title="",
-        description="`Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are easy to follow. Please note that Staff and Mods may issue warnings if they feel it is necessary to maintain a positive environment.`",
+        title="Welcome!",
+        description=(
+            "Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are easy to follow. Please note that Staff and Mods may issue warnings if they feel it is necessary to maintain a positive environment.\n\n"
+            "Discord is a clan requirement. We use it for announcements, events, clan discussions, and a wide range of other purposes. We also suggest members do NOT mute the <#1272646547020185704> channel. We'll do our best to minimise the pings, but this is for important information you might need if you're going to be a member of the community. Muting <#1385638274504069240> is fine."
+        ),
         color=discord.Color.green()
     )
     await interaction.channel.send(embed=embed_welcome)
@@ -262,28 +275,28 @@ async def rules(interaction: discord.Interaction):
     await asyncio.sleep(1)
 
     rule_data = [
-        ("Rule 1️⃣ - Respect Others",
+        ("Rule 1 - Respect Others",
          "Being respectful to others means treating people the way you’d like to be treated. Another way to look at it is: don’t say anything if you have nothing nice to say, and don’t put others down because they are less experienced than you."),
         
-        ("Rule 2️⃣ - Follow All In-Game & Discord Rules",
-         "This should go without saying, but if rule-breaking is inappropriate for Jagex, it is also inappropriate here.\nThe following will **NOT** be tolerated:\n✦ Racism\n✦ Macroing\n✦ Solicitation\n✦ Advertising websites for GP\n✦ Scamming\n✦ Ethnic slurs\n✦ Hate speech\n\nThis also includes servers that encourages this behavior. Please act your age; failing to do so will result in a ban at the moderator's discretion."),
+        ("Rule 2 - Follow All In-Game & Discord Rules",
+         "This should go without saying, but if rule-breaking is inappropriate for Jagex, it is also inappropriate here.\nThe following will **NOT** be tolerated:\n• Racism\n• Macroing\n• Solicitation\n• Advertising websites for GP\n• Scamming\n• Ethnic slurs\n• Hate speech"),
         
-        ("Rule 3️⃣ - Religious or Political Discussions",
+        ("Rule 3 - No Religious or Political Arguments",
          "Political or religious topics can easily become heated. Discussing them is fine, as they are part of everyday life, but if a conversation turns into a debate, we kindly ask you to take it to your DMs."),
         
-        ("Rule 4️⃣ - Don’t Share Personal Information",
+        ("Rule 4 - Don’t Share Personal Information",
          "You are welcome to share your own personal information, but sharing other people’s personal information without consent will result in a warning and possible ban. Trust is very important, and breaking it with people in our community, or with friends, will make you unwelcome in the clan."),
         
-        ("Rule 5️⃣ - No Sharing Plug-ins from Unofficial Clients",
+        ("Rule 5 - No Sharing Plug-ins from Unofficial Clients",
          "Cheat plug-ins or plug-ins aimed at scamming others through downloads are not allowed, both in-game and on Discord. These plug-ins are often dangerous and can lead to being banned or hacked."),
         
-        ("Rule 6️⃣ - No Scamming, Luring, or Begging",
+        ("Rule 6 - No Scamming, Luring, or Begging",
          "Social engineering, scamming, and luring will result in a RuneWatch case and a ban from the clan, whether it happens to people inside or outside of the clan.\nBegging is extremely irritating and will result in a warning."),
         
-        ("Rule 7️⃣ - All Uniques Must Be Split",
-         "Any unique obtained in group content must be split unless stated otherwise at the start of the raid and agreed upon by all members. You also need to split loot with your team members (who are in the clan), even if you are doing content on a FFA world, in an FFA clan chat, or if you are an Ironman. Ironmen should state they are FFA before *any* new player joins their team if they have not asked."),
+        ("Rule 7 - All Uniques Must Be Split",
+         "Any unique obtained in group content must be split unless stated otherwise at the start of the raid and agreed upon by all members. You also need to split loot with your team members (who are in the clan), even if you are doing content on a FFA world, in an FFA clan chat, or if you are an Ironman."),
         
-        ("Rule 8️⃣ - You Must Have Your In-Game Name in Your Discord Name",
+        ("Rule 8 - You Must Have Your In-Game Name in Your Discord Name",
          "In order to keep track of clan members during events and reach out to you, you **MUST** have your Discord nickname include your in-game name.\n\n"
          "**Acceptable Formats:**\n"
          "✅ `- Discord Name | In-Game Name`\n"
@@ -303,7 +316,6 @@ async def rules(interaction: discord.Interaction):
         await interaction.channel.send(embed=rule_embed)
         await asyncio.sleep(1)
 
-    # --- Confirmation Message ---
     await interaction.followup.send("✅ Rules have been successfully posted.", ephemeral=True)
 
 
@@ -314,7 +326,7 @@ async def rules_error(interaction: discord.Interaction, error):
             "⛔ You do not have permission to use this command.",
             ephemeral=True
         )
-        
+
 # ---------------------------
 # 🔹 Welcome
 # ---------------------------
@@ -1224,17 +1236,6 @@ async def on_message(message: discord.Message):
         parent_channel_id = message.channel.parent.id
     elif isinstance(message.channel, discord.TextChannel):
         parent_channel_id = message.channel.id
-
-    # ---------------------------
-    # 🎟️ Ticket message scores
-    # ---------------------------
-    if parent_channel_id in WATCH_CHANNEL_IDS:
-        if any(role.id == STAFF_ROLE_ID for role in message.author.roles):
-            display_name = message.author.nick or message.author.name
-            print(f"[DEBUG] Incrementing message score for {display_name} in {message.channel.name}")
-
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, increment_message_score, message.author)
 
     # ---------------------------
     # 📸 Collat handler
