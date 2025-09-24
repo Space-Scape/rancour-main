@@ -179,9 +179,9 @@ async def rules(interaction: discord.Interaction):
     await asyncio.sleep(1)
 
     embed_welcome = discord.Embed(
-        title="Welcome!",
+        title="",
         description=(
-            "Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are easy to follow. Please note that Staff and Mods may issue warnings if they feel it is necessary to maintain a positive environment.\n\n"
+            "`Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are easy to follow. Please note that Staff and Mods may issue warnings if they feel it is necessary to maintain a positive environment.`\n\n"
             "Discord is a clan requirement. We use it for announcements, events, clan discussions, and a wide range of other purposes. We also suggest members do NOT mute the <#1272646547020185704> channel. We'll do our best to minimise the pings, but this is for important information you might need if you're going to be a member of the community. Muting <#1385638274504069240> is fine."
         ),
         color=discord.Color.green()
