@@ -232,121 +232,80 @@ async def before_reset():
 @app_commands.checks.has_any_role("Moderators")
 async def rules(interaction: discord.Interaction):
     """Posts a series of embeds detailing the clan rules."""
-    await interaction.response.defer(ephemeral=True)
+    await interaction.response.defer(ephemeral=True) # Acknowledge command, visible only to user
 
-    embed1 = discord.Embed(
-        title="Rancour PvM: General Information",
-        color=discord.Color.red()
+    # --- Embed 1: Welcome Message ---
+    embed_welcome = discord.Embed(
+        title="Welcome!",
+        description="Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are easy to follow. Please note that Staff and Mods may issue warnings if they feel it is necessary to maintain a positive environment.",
+        color=discord.Color.green()
     )
-    embed1.add_field(
-        name="📢 Announcements",
-        value="We highly recommend keeping notifications enabled for the `📌⎮announcements` channel. We limit pings to essential information, and this is the best way to stay informed about important clan news and events.",
-        inline=False
-    )
-    embed1.add_field(
-        name="💬 Clan Chat and Home Worlds",
-        value="**Clan chat:** `Rancour PvM`\n**USA Home world:** `World 494`\n**UK / EU Home world:** `World 514`",
-        inline=False
-    )
-    await interaction.channel.send(embed=embed1)
-    await asyncio.sleep(1)
-    
-    embed_respect = discord.Embed(
-        title="📜 The #1 Rule: Respect Others",
-        description="Our most important rule is to treat everyone with respect. This includes being a good sport, supporting fellow clan members, and fostering a positive and welcoming environment for all. If you follow this principle, you will always be welcome with us.",
-        color=discord.Color.gold()
-    )
-    await interaction.channel.send(embed=embed_respect)
+    await interaction.channel.send(embed=embed_welcome)
     await asyncio.sleep(1)
 
+    # --- Embed 2: 3-Strike System ---
+    embed_strikes = discord.Embed(
+        title="The 3-Strike System",
+        description=(
+            "Our community uses a 3-strike system to manage rule violations. The only exception is if someone’s conduct is severe enough to require immediate action.\n\n"
+            "• **1st Offence:** Will result in a recorded warning.\n"
+            "• **2nd Offence:** Will result in another recorded warning and a temporary time-out.\n"
+            "• **3rd Offence:** Will result in removal from the clan.\n\n"
+            "You can appeal a warning or ban by contacting a Moderator. Appeals are usually handled via a voice call, where you will explain your actions and discuss what is considered acceptable behaviour within the clan.\n\n"
+            "Anyone who receives a warning or ban may appeal to have it removed if they feel it was unjust."
+        ),
+        color=discord.Color.orange()
+    )
+    await interaction.channel.send(embed=embed_strikes)
+    await asyncio.sleep(1)
+
+    # --- All Individual Rules ---
+    # Storing rule data in a list to easily loop through them.
     rule_data = [
-        ("⚖️ Jagex Rules & Fair Play",
-         "Jagex's official rules must be followed at all times. (ToS, AHK/Cheat Clients, etc.)",
-         "*Violating these rules not only puts your own account at risk but also damages the reputation of the clan. We have a zero-tolerance policy for cheating to protect the integrity of our community.*"),
-
-        ("✨ Positive Community",
-         "Set a positive example within the community.",
-         "*This means being a good sport, whether you get a rare drop or not. Congratulate others on their achievements, offer constructive advice to learners, and avoid excessively complaining about bad luck. Your positive attitude contributes to everyone's enjoyment.*"),
-
-        ("🤝 Be Supportive", "Be respectful and supportive to all.", None),
-
-        ("🚫 No Hate Speech", "No discrimination, hate speech, or bullying of any kind.", None),
-
-        ("💬 Keep it Civil",
-         "No disruptive or toxic behaviour within Discord or Clan Chat.",
-         "*“Disruptive” includes spamming, derailing conversations, or starting heated arguments. “Toxic” behaviour includes passive-aggression, making others feel unwelcome, or publicly complaining about fellow clan members. Keep the atmosphere friendly and constructive.*"),
-
-        ("✅ Keep it SFW", "No NSFW (Not Safe For Work) content is allowed in the Discord.", None),
-
-        ("🛡️ Play Fair",
-         "No scamming, luring, or belittling.",
-         "*Scamming and luring are zero-tolerance offenses. \"Belittling\" includes making fun of a player's gear, stats, or mistakes. We are here to support each other, especially those who are learning.*"),
-
-        ("🙏 No Begging",
-         "No begging or asking for donations.",
-         "*It is acceptable to ask to borrow an item for a specific PvM trip (collateral may be required). It is not acceptable to repeatedly ask for free gold or items. We encourage members to be self-sufficient.*"),
-
-        ("🗣️ Communicate Issues",
-         "Raise any and all issues or concerns with the Clan Staff.",
-         "*The proper way to handle an issue with another member or a clan matter is to open a support ticket using <#1272648498554077304>. This ensures your concern is handled privately and officially. Do not start arguments or \"call out\" members in public channels.*"),
-
-        ("💰 Loot Splitting", "All loot must be split on PvM trips, unless the team explicitly agrees to a \"Free-for-All\" (FFA) at the start of the trip.", None),
-
-        ("🛡️ Ironman Loot Rules", "**ALL Iron Accounts** must clearly communicate whether loot will be split or FFA. This must be stated before the trip begins **and re-confirmed each time a new person joins the team.** This applies to all drops, including those on FFA worlds and rare items!", None),
-
-        ("🔗 Discord's Terms of Service",
-         "Adhering to Discord's Terms of Service and Community Guidelines is mandatory. Rules within our clan regarding hate speech, bullying, and NSFW content are direct reflections of Discord's own policies. Violating these specific clan rules may also be reported to Discord Trust & Safety.", None),
-
-        ("🔒 Privacy", "Do NOT share other peoples personal information without their consent.", None),
+        ("Rule 1 - Respect Others",
+         "Being respectful to others means treating people the way you’d like to be treated. Another way to look at it is: don’t say anything if you have nothing nice to say, and don’t put others down because they are less experienced than you."),
+        
+        ("Rule 2 - Follow All In-Game & Discord Rules",
+         "This should go without saying, but if rule-breaking is inappropriate for Jagex, it is also inappropriate here.\nThe following will **NOT** be tolerated:\n• Racism\n• Macroing\n• Solicitation\n• Advertising websites for GP\n• Scamming\n• Ethnic slurs\n• Hate speech"),
+        
+        ("Rule 3 - No Religious or Political Arguments",
+         "Political or religious topics can easily become heated. Discussing them is fine, as they are part of everyday life, but if a conversation turns into a debate, we kindly ask you to take it to your DMs."),
+        
+        ("Rule 4 - Don’t Share Personal Information",
+         "You are welcome to share your own personal information, but sharing other people’s personal information without consent will result in a warning and possible ban. Trust is very important, and breaking it with people in our community, or with friends, will make you unwelcome in the clan."),
+        
+        ("Rule 5 - No Sharing Plug-ins from Unofficial Clients",
+         "Cheat plug-ins or plug-ins aimed at scamming others through downloads are not allowed, both in-game and on Discord. These plug-ins are often dangerous and can lead to being banned or hacked."),
+        
+        ("Rule 6 - No Scamming, Luring, or Begging",
+         "Social engineering, scamming, and luring will result in a RuneWatch case and a ban from the clan, whether it happens to people inside or outside of the clan.\nBegging is extremely irritating and will result in a warning."),
+        
+        ("Rule 7 - All Uniques Must Be Split",
+         "Any unique obtained in group content must be split unless stated otherwise at the start of the raid and agreed upon by all members. You also need to split loot with your team members (who are in the clan), even if you are doing content on a FFA world, in an FFA clan chat, or if you are an Ironman."),
+        
+        ("Rule 8 - You Must Have Your In-Game Name in Your Discord Name",
+         "In order to keep track of clan members during events and reach out to you, you **MUST** have your Discord nickname include your in-game name.\n\n"
+         "**Acceptable Formats:**\n"
+         "✅ `- Discord Name | In-Game Name`\n"
+         "✅ `- Discord Name (In-Game Name)`\n"
+         "✅ `- In-Game Name Only`\n"
+         "❌ `- Discord Name Only`\n\n"
+         "**Enforcement:**\n"
+         "*We will attempt to replace your name for you but may reach out if we do not find an in-game match. If you do not reply you may be mistakenly removed from the Discord.*")
     ]
 
-    for title, description, explanation in rule_data:
+    for title, description in rule_data:
         rule_embed = discord.Embed(
             title=title,
             description=description,
-            color=discord.Color.dark_grey()
+            color=discord.Color.blue()
         )
-        if explanation:
-            rule_embed.add_field(name="Explanation", value=explanation, inline=False)
         await interaction.channel.send(embed=rule_embed)
         await asyncio.sleep(1)
 
-    embed_systems = discord.Embed(
-        title="⚙️ Clan Systems & Procedures",
-        color=discord.Color.red()
-    )
-    embed_systems.add_field(
-        name="⚖️ The 3-Strike System",
-        value=(
-            "The community uses a 3 strike system. The only exception is if someone's conduct is so outrageous that it requires immediate action.\n"
-            "• **1st offence** - May result in a recorded warning.\n"
-            "• **2nd offence** - May result in another warning and a time out.\n"
-            "• **3rd offence** - Will result in removal from the clan.\n\n"
-            "*You can appeal a ban or a warning by contacting a Moderator.*"
-        ),
-        inline=False
-    )
-    embed_systems.add_field(
-        name="🎟️ The Clan Ticket System",
-        value=(
-            "If you wish to become a member, rank up, or submit a support ticket, you must use the following channels:\n"
-            "• **Become a member:** <#1272648453264248852>\n"
-            "• **Rank up request:** <#1272648472184487937>\n"
-            "• **Support ticket:** <#1272648498554077304>\n"
-            "• **Register your RSN:** <#1280532494139002912>"
-        ),
-        inline=False
-    )
-    embed_systems.add_field(
-        name="👋 Guesting in the clan",
-        value="Any member of the clan is free to invite their friends to the Discord, even if that person doesn't want to join. Guests can access parts of our server but not everything. When joining, friends will need to request the role of guest from clan staff.",
-        inline=False
-    )
-    await interaction.channel.send(embed=embed_systems)
-
-    await interaction.channel.send("https://discord.gg/rancour-pvm")
-
+    # --- Confirmation Message ---
     await interaction.followup.send("✅ Rules have been successfully posted.", ephemeral=True)
+
 
 @rules.error
 async def rules_error(interaction: discord.Interaction, error):
@@ -355,7 +314,7 @@ async def rules_error(interaction: discord.Interaction, error):
             "⛔ You do not have permission to use this command.",
             ephemeral=True
         )
-
+        
 # ---------------------------
 # 🔹 Welcome
 # ---------------------------
