@@ -154,9 +154,6 @@ async def info(interaction: discord.Interaction):
 
     await interaction.channel.send(embed=info_embed)
 
-    await interaction.followup.send("✅ Clan info panel has been successfully posted.", ephemeral=True)
-
-
 @info.error
 async def info_error(interaction: discord.Interaction, error):
     if isinstance(error, app_commands.errors.MissingAnyRole):
@@ -217,7 +214,7 @@ async def rules(interaction: discord.Interaction):
         ("Rule 4️⃣ - Don’t Share Others' Personal Information",
          "You are welcome to share your own personal information, but sharing other people’s personal information without consent will result in a warning if it's light enough or a possible ban. Trust is important, and breaking it with people in our community, or with friends, will make you unwelcome in the clan."),
         
-        ("Rule 5️⃣ - No Sharing Plug-ins from Unofficial Clients",
+        ("Rule 5️⃣ - No Sharing or Using Plug-ins from Unofficial Clients",
          "Cheat plug-ins or plug-ins aimed at scamming others through downloads are not allowed, both in-game and on Discord. These plug-ins are often dangerous and can lead to being banned if undeniable proof is given to us."),
         
         ("Rule 6️⃣ - No Scamming, Luring, or Begging",
@@ -234,7 +231,7 @@ async def rules(interaction: discord.Interaction):
          "✅ `- In-Game Name Only`\n"
          "❌ `- Discord Name Only`\n\n"
          "**Enforcement:**\n"
-         "*We will attempt to replace your name for you but may reach out if we do not find an in-game match. If you do not reply you may be mistakenly removed from the Discord.*\nYou can tell if you do not have a rank in-game.")
+         "*We will attempt to replace your name for you, but may reach out if we do not find an in-game match. If you do not reply, you may be mistakenly removed from the Discord.*\nYou can tell in-game by seeing if your rank is empty.")
     ]
 
     for title, description in rule_data:
@@ -245,9 +242,6 @@ async def rules(interaction: discord.Interaction):
         )
         await interaction.channel.send(embed=rule_embed)
         await asyncio.sleep(1)
-
-    await interaction.followup.send("✅ Rules have been successfully posted.", ephemeral=True)
-
 
 @rules.error
 async def rules_error(interaction: discord.Interaction, error):
