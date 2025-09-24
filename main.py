@@ -190,12 +190,12 @@ async def rules(interaction: discord.Interaction):
     await asyncio.sleep(1)
 
     embed_strikes = discord.Embed(
-        title="The 3-Strike System",
+        title="❗The 3-Strike System❗",
         description=(
             "Our community uses a 3-strike system to manage rule violations. The only exception is if someone’s conduct is severe enough to require immediate action.\n\n"
-            "• **1st Offence:** Will result in a recorded warning.\n"
-            "• **2nd Offence:** Will result in another recorded warning and a temporary time-out.\n"
-            "• **3rd Offence:** Will result in removal from the clan.\n\n"
+            "➤ **1st Offence:** Will result in a recorded warning.\n"
+            "➤ **2nd Offence:** Will result in another recorded warning and a temporary time-out.\n"
+            "➤ **3rd Offence:** Will result in removal from the clan.\n\n"
             "You can appeal a warning or ban by contacting a Moderator. Appeals are usually handled via a voice call, where you will explain your actions and discuss what is considered acceptable behaviour within the clan.\n\n"
             "Anyone who receives a warning or ban may appeal to have it removed if they feel it was unjust."
         ),
