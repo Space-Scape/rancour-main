@@ -225,68 +225,10 @@ async def before_reset():
     await bot.wait_until_ready()
 
 # ---------------------------
-# 🔹 Message Scores Setup
+# 🔹 Rules System -----
 # ---------------------------
 
-MESSAGE_SCORES_TAB_NAME = "TicketMessageScores"
-message_scores_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(MESSAGE_SCORES_TAB_NAME)
-
-def get_display_name(member: discord.Member) -> str:
-    """Return nickname if set, otherwise username."""
-    return member.nick if member.nick else member.name
-
-def get_or_create_message_row(member: discord.Member):
-    """Find the member's row in TicketMessageScores, or create it."""
-    mod_name = get_display_name(member)
-    all_values = message_scores_sheet.get_all_values()
-    for i, row in enumerate(all_values, start=1):
-        if len(row) > 0 and row[0] == mod_name:
-            return i
-    message_scores_sheet.append_row([mod_name, "0", "0", "0"])
-    return len(all_values) + 1
-
-def increment_message_score(member: discord.Member):
-    """Increment overall, monthly, and weekly message scores for a member."""
-    mod_name = get_display_name(member)
-    row = get_or_create_message_row(member)
-    values = message_scores_sheet.row_values(row)
-
-    while len(values) < 4:
-        values.append("0")
-
-    overall = int(values[1]) + 1
-    monthly = int(values[2]) + 1
-    weekly = int(values[3]) + 1
-
-    message_scores_sheet.update(f"B{row}:D{row}", [[overall, monthly, weekly]])
-    print(f"[DEBUG] Incremented message score for {mod_name}: {overall}/{monthly}/{weekly}")
-
-@tasks.loop(hours=24)
-async def reset_weekly_message_scores():
-    today = datetime.now(ZoneInfo("UTC")).date()
-    if today.weekday() == 0:
-        try:
-            all_values = message_scores_sheet.get_all_values()
-            for i, row in enumerate(all_values[1:], start=2):
-                if len(row) >= 4:
-                    message_scores_sheet.update_cell(i, 4, 0)
-            print("[INFO] Weekly message scores reset.")
-        except Exception as e:
-            print(f"[ERROR] Failed to reset weekly message scores: {e}")
-
-@tasks.loop(hours=24)
-async def reset_monthly_message_scores():
-    today = datetime.now(ZoneInfo("UTC")).date()
-    if today.day == 1:
-        try:
-            all_values = message_scores_sheet.get_all_values()
-            for i, row in enumerate(all_values[1:], start=2):
-                if len(row) >= 4:
-                    message_scores_sheet.update_cell(i, 3, 0)
-            print("[INFO] Monthly message scores reset.")
-        except Exception as e:
-            print(f"[ERROR] Failed to reset monthly message scores: {e}")
-
+@app_commands.command(name="rules", description="Post the clan rules message.")
 async def rules(interaction: discord.Interaction):
     embed1 = discord.Embed(
         title="Rancour PvM: General Information",
@@ -307,20 +249,20 @@ async def rules(interaction: discord.Interaction):
     embed2 = discord.Embed(
         title="📜 The #1 Rule - Respect Others",
         description=(
-            "We have a couple of different rules, but our most important one is respect. ",
-            "If you follow this one rule and respect others within the clan you will always be welcome with us.\n\n",
-            "• Jagex rules must be followed at all times.\n",
-            "• Set a positive example within the community.\n",
-            "• Be respectful and supportive to all.\n",
-            "• No discrimination, hate speech or bullying of any kind.\n",
-            "• No disruptive or toxic behaviour within Discord or Clan Chat.\n",
-            "• No NSFW content is allowed in the Discord.\n",
-            "• No scamming, luring or belittling.\n",
-            "• No begging / asking for donations.\n",
-            "• Raise any and all issues or concerns with the Clan Staff.\n",
-            "• All loot must be split on PvM trips, unless stated otherwise at the start of the trip.\n",
-            "• **ALL Iron Accounts** must communicate that they are going to split loot unless their team agrees to FFA, this includes FFA worlds and Rare and Mega Rare items!\n",
-            "• Adhere to Discord’s own terms of service and community guidelines.\n",
+            "We have a couple of different rules, but our most important one is respect. \n\n"
+            "If you follow this one rule and respect others within the clan you will always be welcome with us.\n\n"
+            "• Jagex rules must be followed at all times.\n"
+            "• Set a positive example within the community.\n"
+            "• Be respectful and supportive to all.\n"
+            "• No discrimination, hate speech or bullying of any kind.\n"
+            "• No disruptive or toxic behaviour within Discord or Clan Chat.\n"
+            "• No NSFW content is allowed in the Discord.\n"
+            "• No scamming, luring or belittling.\n"
+            "• No begging / asking for donations.\n"
+            "• Raise any and all issues or concerns with the Clan Staff.\n"
+            "• All loot must be split on PvM trips, unless stated otherwise at the start of the trip.\n"
+            "• **ALL Iron Accounts** must communicate that they are going to split loot unless their team agrees to FFA, this includes FFA worlds and Rare and Mega Rare items!\n"
+            "• Adhere to Discord’s own terms of service and community guidelines.\n"
             "• Do NOT share other peoples personal information without their consent."
         ),
         color=discord.Color.red()
@@ -362,7 +304,6 @@ async def rules(interaction: discord.Interaction):
         content="https://discord.gg/rancour-pvm",
         embeds=[embed1, embed2, embed3]
     )
-
 
 # ---------------------------
 # 🔹 Welcome
