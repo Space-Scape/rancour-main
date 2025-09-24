@@ -228,13 +228,13 @@ async def before_reset():
 # ---------------------------
 # 🔹 Rules Command (FINAL VERSION)
 # ---------------------------
+
 @bot.tree.command(name="rules", description="Post the clan rules message.")
 @app_commands.checks.has_any_role("Moderators")
 async def rules(interaction: discord.Interaction):
     """Posts a series of embeds detailing the clan rules."""
-    await interaction.response.defer(ephemeral=True) # Acknowledge command, visible only to user
+    await interaction.response.defer(ephemeral=True)
 
-    # --- Embed 1: Welcome Message ---
     embed_welcome = discord.Embed(
         title="Welcome!",
         description="Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are easy to follow. Please note that Staff and Mods may issue warnings if they feel it is necessary to maintain a positive environment.",
@@ -243,7 +243,6 @@ async def rules(interaction: discord.Interaction):
     await interaction.channel.send(embed=embed_welcome)
     await asyncio.sleep(1)
 
-    # --- Embed 2: 3-Strike System ---
     embed_strikes = discord.Embed(
         title="The 3-Strike System",
         description=(
@@ -262,28 +261,28 @@ async def rules(interaction: discord.Interaction):
     # --- All Individual Rules ---
     # Storing rule data in a list to easily loop through them.
     rule_data = [
-        ("Rule 1 - Respect Others",
+        ("Rule 1️⃣ - Respect Others",
          "Being respectful to others means treating people the way you’d like to be treated. Another way to look at it is: don’t say anything if you have nothing nice to say, and don’t put others down because they are less experienced than you."),
         
-        ("Rule 2 - Follow All In-Game & Discord Rules",
-         "This should go without saying, but if rule-breaking is inappropriate for Jagex, it is also inappropriate here.\nThe following will **NOT** be tolerated:\n• Racism\n• Macroing\n• Solicitation\n• Advertising websites for GP\n• Scamming\n• Ethnic slurs\n• Hate speech"),
+        ("Rule 2️⃣ - Follow All In-Game & Discord Rules",
+         "This should go without saying, but if rule-breaking is inappropriate for Jagex, it is also inappropriate here.\nThe following will **NOT** be tolerated:\n• Racism\n• Macroing\n• Solicitation\n• Advertising websites for GP\n• Scamming\n• Ethnic slurs\n• Hate speech\nThis also includes servers that encourages this behavior. Please act your age; failing to do so will result in a ban at the moderator's discretion."
         
-        ("Rule 3 - No Religious or Political Arguments",
+        ("Rule 3️⃣ - Religious or Political Discussions",
          "Political or religious topics can easily become heated. Discussing them is fine, as they are part of everyday life, but if a conversation turns into a debate, we kindly ask you to take it to your DMs."),
         
-        ("Rule 4 - Don’t Share Personal Information",
+        ("Rule 4️⃣ - Don’t Share Personal Information",
          "You are welcome to share your own personal information, but sharing other people’s personal information without consent will result in a warning and possible ban. Trust is very important, and breaking it with people in our community, or with friends, will make you unwelcome in the clan."),
         
-        ("Rule 5 - No Sharing Plug-ins from Unofficial Clients",
+        ("Rule 5️⃣ - No Sharing Plug-ins from Unofficial Clients",
          "Cheat plug-ins or plug-ins aimed at scamming others through downloads are not allowed, both in-game and on Discord. These plug-ins are often dangerous and can lead to being banned or hacked."),
         
-        ("Rule 6 - No Scamming, Luring, or Begging",
+        ("Rule 6️⃣ - No Scamming, Luring, or Begging",
          "Social engineering, scamming, and luring will result in a RuneWatch case and a ban from the clan, whether it happens to people inside or outside of the clan.\nBegging is extremely irritating and will result in a warning."),
         
-        ("Rule 7 - All Uniques Must Be Split",
-         "Any unique obtained in group content must be split unless stated otherwise at the start of the raid and agreed upon by all members. You also need to split loot with your team members (who are in the clan), even if you are doing content on a FFA world, in an FFA clan chat, or if you are an Ironman."),
+        ("Rule 7️⃣ - All Uniques Must Be Split",
+         "Any unique obtained in group content must be split unless stated otherwise at the start of the raid and agreed upon by all members. You also need to split loot with your team members (who are in the clan), even if you are doing content on a FFA world, in an FFA clan chat, or if you are an Ironman. Ironmen should state they are FFA before *any* new player joins their team if they have not asked."),
         
-        ("Rule 8 - You Must Have Your In-Game Name in Your Discord Name",
+        ("Rule 8️⃣ - You Must Have Your In-Game Name in Your Discord Name",
          "In order to keep track of clan members during events and reach out to you, you **MUST** have your Discord nickname include your in-game name.\n\n"
          "**Acceptable Formats:**\n"
          "✅ `- Discord Name | In-Game Name`\n"
