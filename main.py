@@ -1343,12 +1343,6 @@ async def on_ready():
     if not reset_scores.is_running():
         reset_scores.start()
 
-    if not reset_weekly_message_scores.is_running():
-        reset_weekly_message_scores.start()
-        
-    if not reset_monthly_message_scores.is_running():
-        reset_monthly_message_scores.start()
-    
     if not weekly_sangsignup.is_running():
         weekly_sangsignup.start()
 
