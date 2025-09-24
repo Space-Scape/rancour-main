@@ -104,85 +104,6 @@ WATCH_CHANNEL_IDS = [
 
 STAFF_ROLE_ID = 1272635396991221824
 
-@bot.tree.command(name="ticketscore", description="Show /welcome command scores (weekly, monthly, overall).")
-@app_commands.checks.has_any_role("Clan Staff")
-async def ticketscore(interaction: discord.Interaction):
-    guild = interaction.guild
-
-    loop = asyncio.get_running_loop()
-
-    def fetch_scores(sheet):
-        rows = sheet.get_all_values()[1:]
-        scores = []
-        for row in rows:
-            if len(row) >= 4:
-                name = row[0]
-                try:
-                    overall = int(row[1])
-                    monthly = int(row[3]) # Swapped to column D for monthly
-                    weekly = int(row[2])  # Swapped to column C for weekly
-                except (ValueError, IndexError):
-                    overall, monthly, weekly = 0, 0, 0
-                
-                member = discord.utils.get(guild.members, display_name=name)
-                display_name = name
-                if member:
-                    display_name = member.display_name
-
-                scores.append((display_name, overall, monthly, weekly))
-        return sorted(scores, key=lambda x: x[1], reverse=True)
-
-    ticket_scores = await loop.run_in_executor(None, fetch_scores, ticket_scores_sheet)
-
-    embed = discord.Embed(
-        title="🎟️ Staff Welcome Command Scores",
-        description="Weekly resets every Monday • Monthly resets on the 1st",
-        color=discord.Color.gold()
-    )
-
-    if ticket_scores:
-        ticket_table = "\n".join(
-            [f"**{i+1}. {name}** — 👋 {overall} | 🗓️ {monthly} | 📆 {weekly}"
-             for i, (name, overall, monthly, weekly) in enumerate(ticket_scores)]
-        )
-    else:
-        ticket_table = "No scores recorded yet."
-        
-    embed.add_field(
-        name="🎫 /Welcome Commands Used - Total, Month, Week",
-        value=ticket_table,
-        inline=False
-    )
-
-    await interaction.response.send_message(embed=embed)
-
-# ---------------------------
-# 🔹 Reset Loop
-# ---------------------------
-
-@tasks.loop(hours=24)
-async def reset_scores():
-    global ticket_scores_sheet # Add this line to access the global variable
-    
-    # This line is also updated to fix the deprecation warning
-    today = datetime.now(timezone.utc) 
-    
-    all_values = ticket_scores_sheet.get_all_values()
-
-    # Logic for weekly reset on Mondays
-    if today.weekday() == 0:
-        for i in range(2, len(all_values) + 1):
-            ticket_scores_sheet.update_cell(i, 3, 0)
-
-    # Logic for monthly reset on the 1st
-    if today.day == 1:
-        for i in range(2, len(all_values) + 1):
-            ticket_scores_sheet.update_cell(i, 4, 0)
-
-@reset_scores.before_loop
-async def before_reset():
-    await bot.wait_until_ready()
-
 # ---------------------------
 # 🔹 Info Command (FINAL)
 # ---------------------------
@@ -1355,9 +1276,6 @@ async def before_weekly_sangsignup():
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
-
-    if not reset_scores.is_running():
-        reset_scores.start()
 
     if not weekly_sangsignup.is_running():
         weekly_sangsignup.start()
