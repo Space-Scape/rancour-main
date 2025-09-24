@@ -1,3 +1,4 @@
+# main.py
 import os
 import discord
 from discord.ext import commands
@@ -224,18 +225,12 @@ async def reset_scores():
 async def before_reset():
     await bot.wait_until_ready()
 
-MODERATOR_ROLE_ID = 1272961765034164318
-
+# ---------------------------
+# 🔹 Rules Command (EDITED)
+# ---------------------------
 @app_commands.command(name="rules", description="Post the clan rules message.")
+@app_commands.checks.has_any_role("Moderators") # Checks for a role named "Moderators"
 async def rules(interaction: discord.Interaction):
-    # check if the user has the moderator role
-    if MODERATOR_ROLE_ID not in [role.id for role in interaction.user.roles]:
-        await interaction.response.send_message(
-            "❌ You don’t have permission to use this command.",
-            ephemeral=True
-        )
-        return
-
     embed1 = discord.Embed(
         title="Rancour PvM: General Information",
         description="Discord is a clan requirement. We use it for announcements, events, clan discussions, and much more.",
@@ -310,6 +305,14 @@ async def rules(interaction: discord.Interaction):
         content="https://discord.gg/rancour-pvm",
         embeds=[embed1, embed2, embed3]
     )
+
+@rules.error
+async def rules_error(interaction: discord.Interaction, error):
+    if isinstance(error, app_commands.errors.MissingAnyRole):
+        await interaction.response.send_message(
+            "⛔ You do not have permission to use this command.",
+            ephemeral=True
+        )
 
 # ---------------------------
 # 🔹 Welcome
