@@ -265,7 +265,7 @@ async def rules(interaction: discord.Interaction):
          "Being respectful to others means treating people the way you’d like to be treated. Another way to look at it is: don’t say anything if you have nothing nice to say, and don’t put others down because they are less experienced than you."),
         
         ("Rule 2️⃣ - Follow All In-Game & Discord Rules",
-         "This should go without saying, but if rule-breaking is inappropriate for Jagex, it is also inappropriate here.\nThe following will **NOT** be tolerated:\n• Racism\n• Macroing\n• Solicitation\n• Advertising websites for GP\n• Scamming\n• Ethnic slurs\n• Hate speech\nThis also includes servers that encourages this behavior. Please act your age; failing to do so will result in a ban at the moderator's discretion."
+         "This should go without saying, but if rule-breaking is inappropriate for Jagex, it is also inappropriate here.\nThe following will **NOT** be tolerated:\n• Racism\n• Macroing\n• Solicitation\n• Advertising websites for GP\n• Scamming\n• Ethnic slurs\n• Hate speech\nThis also includes servers that encourages this behavior. Please act your age; failing to do so will result in a ban at the moderator's discretion."),
         
         ("Rule 3️⃣ - Religious or Political Discussions",
          "Political or religious topics can easily become heated. Discussing them is fine, as they are part of everyday life, but if a conversation turns into a debate, we kindly ask you to take it to your DMs."),
