@@ -181,8 +181,8 @@ async def rules(interaction: discord.Interaction):
     embed_welcome = discord.Embed(
         title="",
         description=(
-            "`Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are easy to follow. Please note that Staff and Mods may issue warnings if they feel it is necessary to maintain a positive environment.`\n\n"
-            "Discord is a clan requirement. We use it for announcements, events, clan discussions, and a wide range of other purposes. We also suggest members do NOT mute the <#1272646547020185704> channel. We'll do our best to minimise the pings, but this is for important information you might need if you're going to be a member of the community. Muting <#1385638274504069240> is fine."
+            "`Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are very simple. Please note that Staff and Mods may issue warnings or ban at their discretion if they feel it is necessary to maintain a positive environment.`\n\n"
+            "# Discord is a clan requirement #\n We use it for announcements, events, clan discussions, and a wide range of other purposes. We also suggest members **not** mute the <#1272646547020185704> channel.\n\n*We'll do our best to minimise the pings, but this is for important information you might need if you're going to be a member of the community.*"
         ),
         color=discord.Color.green()
     )
@@ -194,10 +194,10 @@ async def rules(interaction: discord.Interaction):
         description=(
             "Our community uses a 3-strike system to manage rule violations. The only exception is if someone’s conduct is severe enough to require immediate action.\n\n"
             "➤ **1st Offence:** Will result in a recorded warning.\n"
-            "➤ **2nd Offence:** Will result in another recorded warning and a temporary time-out.\n"
-            "➤ **3rd Offence:** Will result in removal from the clan.\n\n"
-            "You can appeal a warning or ban by contacting a Moderator. Appeals are usually handled via a voice call, where you will explain your actions and discuss what is considered acceptable behaviour within the clan.\n\n"
-            "Anyone who receives a warning or ban may appeal to have it removed if they feel it was unjust."
+            "➤ **2nd Offence:** Second recorded warning and a temporary time-out.\n"
+            "➤ **3rd Offence:** Immediate removal from the clan.\n\n"
+            "You can appeal a warning or ban by contacting a **Moderator**. Appeals are usually handled via a *voice call*, where you will explain your actions and discuss what is considered acceptable behaviour within the clan.\n\n"
+            "Anyone who receives a warning or ban may appeal to have it removed if they feel it was unjust by contacting an admin."
         ),
         color=discord.Color.orange()
     )
@@ -209,22 +209,22 @@ async def rules(interaction: discord.Interaction):
          "Being respectful to others means treating people the way you’d like to be treated. Another way to look at it is: don’t say anything if you have nothing nice to say, and don’t put others down because they are less experienced than you."),
         
         ("Rule 2️⃣ - Follow All In-Game & Discord Rules",
-         "This should go without saying, but if rule-breaking is inappropriate for Jagex, it is also inappropriate here.\nThe following will **NOT** be tolerated:\n• Racism\n• Macroing\n• Solicitation\n• Advertising websites for GP\n• Scamming\n• Ethnic slurs\n• Hate speech"),
+         "This should go without saying, but if rule-breaking is inappropriate for Jagex, it is also inappropriate here.\n\nThe following will **NOT** be tolerated:\n\n⊘ Racism\n⊘ Macroing\n⊘ Solicitation\n⊘ Advertising websites for GP\n⊘ Scamming\n⊘ Ethnic slurs\n⊘ Hate speech"),
         
-        ("Rule 3️⃣ - No Religious or Political Arguments",
-         "Political or religious topics can easily become heated. Discussing them is fine, as they are part of everyday life, but if a conversation turns into a debate, we kindly ask you to take it to your DMs."),
+        ("Rule 3️⃣ - No Heated Religious or Political Arguments",
+         "Political or religious topics can easily become hectic. Discussing them is fine, as they are part of everyday life, but if a conversation turns into a debate, we kindly ask you to take it to your DMs."),
         
-        ("Rule 4️⃣ - Don’t Share Personal Information",
-         "You are welcome to share your own personal information, but sharing other people’s personal information without consent will result in a warning and possible ban. Trust is very important, and breaking it with people in our community, or with friends, will make you unwelcome in the clan."),
+        ("Rule 4️⃣ - Don’t Share Others' Personal Information",
+         "You are welcome to share your own personal information, but sharing other people’s personal information without consent will result in a warning if it's light enough or a possible ban. Trust is important, and breaking it with people in our community, or with friends, will make you unwelcome in the clan."),
         
         ("Rule 5️⃣ - No Sharing Plug-ins from Unofficial Clients",
-         "Cheat plug-ins or plug-ins aimed at scamming others through downloads are not allowed, both in-game and on Discord. These plug-ins are often dangerous and can lead to being banned or hacked."),
+         "Cheat plug-ins or plug-ins aimed at scamming others through downloads are not allowed, both in-game and on Discord. These plug-ins are often dangerous and can lead to being banned if undeniable proof is given to us."),
         
         ("Rule 6️⃣ - No Scamming, Luring, or Begging",
          "Social engineering, scamming, and luring will result in a RuneWatch case and a ban from the clan, whether it happens to people inside or outside of the clan.\nBegging is extremely irritating and will result in a warning."),
         
         ("Rule 7️⃣ - All Uniques Must Be Split",
-         "Any unique obtained in group content must be split unless stated otherwise at the start of the raid and agreed upon by all members. You also need to split loot with your team members (who are in the clan), even if you are doing content on a FFA world, in an FFA clan chat, or if you are an Ironman."),
+         "Any unique obtained in group content **must be split** unless stated otherwise before the raid and **agreed upon by all members - This includes members joining your raid**.\nYou also need to split loot with your team members (who are in the clan) **even if** you are doing content on an FFA world, in an FFA clan chat, or if you are an Ironman."),
         
         ("Rule 8️⃣ - You Must Have Your In-Game Name in Your Discord Name",
          "In order to keep track of clan members during events and reach out to you, you **MUST** have your Discord nickname include your in-game name.\n\n"
@@ -234,7 +234,7 @@ async def rules(interaction: discord.Interaction):
          "✅ `- In-Game Name Only`\n"
          "❌ `- Discord Name Only`\n\n"
          "**Enforcement:**\n"
-         "*We will attempt to replace your name for you but may reach out if we do not find an in-game match. If you do not reply you may be mistakenly removed from the Discord.*")
+         "*We will attempt to replace your name for you but may reach out if we do not find an in-game match. If you do not reply you may be mistakenly removed from the Discord.*\nYou can tell if you do not have a rank in-game.")
     ]
 
     for title, description in rule_data:
@@ -464,6 +464,7 @@ class EventsView(View):
 # ---------------------------
 # 🔹 RSN Commands
 # ---------------------------
+
 rsn_write_queue = asyncio.Queue()
 
 async def rsn_writer():
