@@ -105,151 +105,166 @@ WATCH_CHANNEL_IDS = [
 STAFF_ROLE_ID = 1272635396991221824
 
 # ---------------------------
-# 🔹 Info Command (FINAL)
+# 🔹 Info Command
 # ---------------------------
-
 @bot.tree.command(name="info", description="Post general information about the clan.")
 @app_commands.checks.has_any_role("Moderators")
 async def info(interaction: discord.Interaction):
     """Posts a general information embed for the clan."""
-    await interaction.response.defer(ephemeral=True)
+    # Defer the response to give the bot more than 3 seconds to process.
+    await interaction.response.defer(ephemeral=True, thinking=True)
 
+    # Sending the initial banner image
     await interaction.channel.send("https://i.postimg.cc/PdHgKmxC/info.png")
-    await asyncio.sleep(1)
-    
+    await asyncio.sleep(0.5)
+
+    # --- Main Info Embed ---
     info_embed = discord.Embed(
         title="Rancour PvM - Clan Information",
-        description=(
-            "We are a social, international PvM and skilling clan where community is our number one priority. "
-            "We encourage our members to be social; our clan chat is our main hub of communication. "
-            "This is an adult (18+) clan that we want to feel like a home away from home - a family."
-        ),
+        description="""We are a social, international PvM and skilling clan where community is our number one priority.
+        We encourage our members to be social; our clan chat is our main hub of communication.
+        This is an adult (18+) clan that we want to feel like a home away from home - a family.""",
         color=discord.Color.blurple()
     )
-
-    info_embed.add_field(
-        name="What We Offer",
-        value=(
-            "• PvM of all levels\n"
-            "• Skilling\n"
-            "• Raids (Learner friendly)\n"
-            "• Minigames\n"
-            "• Social Events (Movie nights, party games, etc)\n"
-            "• PvP Events (Just for fun - not mandatory!)"
-        ),
-        inline=False
-    )
-
-    info_embed.add_field(
-        name="How to Join & Use Clan Systems",
-        value=(
-            "• **Become a member:** <#1272648453264248852>\n"
-            "• **Request a rank up:** <#1272648472184487937>\n"
-            "• **Get help (Support):** <#1272648498554077304>\n"
-            "• **Register your RSN:** <#1280532494139002912>\n\n"
-            "Guests are always welcome to hang out and get a feel for our community."
-        ),
-        inline=False
-    )
-
     await interaction.channel.send(embed=info_embed)
+    await asyncio.sleep(0.5)
 
-@info.error
-async def info_error(interaction: discord.Interaction, error):
-    if isinstance(error, app_commands.errors.MissingAnyRole):
-        await interaction.response.send_message(
-            "⛔ You do not have permission to use this command.",
-            ephemeral=True
-        )
+    await interaction.channel.send("https://i.postimg.cc/bYgV900Q/border.png")
+    await asyncio.sleep(0.5)
+    
+    # --- What We Offer Embed ---
+    offer_embed = discord.Embed(
+        title="What We Offer",
+        description="""🏹 PvM of all levels
+        🌲 Skilling
+        ⚔️ Raids (Learner friendly)
+        🛡️ Minigames
+        🎉 Social Events""",
+        color=discord.Color.blurple()
+    )
+    await interaction.channel.send(embed=offer_embed)
+    await asyncio.sleep(0.5)
+
+    await interaction.channel.send("https://i.postimg.cc/bYgV900Q/border.png")
+    await asyncio.sleep(0.5)
+
+    # --- Systems Embed ---
+    systems_embed = discord.Embed(
+        title="How to Join & Use Clan Systems",
+        description="""👋 **Become a member:** <#1272648453264248852>
+        🍌 **Request a rank up:** <#1272648472184487937>
+        🔔 **Get help (Support):** <#1272648498554077304>
+        🔑 **Register your RSN:** <#1280532494139002912>
+
+        Guests are always welcome to hang out and get a feel for our community.""",
+        color=discord.Color.blurple()
+    )
+    await interaction.channel.send(embed=systems_embed)
+    await asyncio.sleep(0.5)
+
+    await interaction.channel.send("https://i.postimg.cc/bYgV900Q/border.png")
+    await asyncio.sleep(0.5)
+
+    # --- Key Channels & Roles Embed ---
+    key_channels_embed = discord.Embed(
+        title="Key Channels & Roles",
+        description="""🎯 **Self-Roles:** Grab your roles in <#1272648586198519818> to get pings for bosses, raids, and events.
+        🏹 **Team Finder:** Looking for a group? Head over to <#1272648555772776529>.
+        🎉 **Events:** Check out all upcoming clan events in <#1272646577432825977>.
+        ✨ **Achievements:** Share your drops and level-ups in <#1272629331524587624>.
+        🎓 **Mentoring:** After two weeks and earning the <:corporal:1406217420187893771> rank, you can open a mentor ticket for PVM guidance. Experienced players can apply to become a <:mentor:1406802212382052412> in <#1272648472184487937>.""",
+        color=discord.Color.blurple()
+    )
+    await interaction.channel.send(embed=key_channels_embed)
+    await asyncio.sleep(0.5)
+
+    await interaction.channel.send("https://i.postimg.cc/bYgV900Q/border.png")
+    await asyncio.sleep(0.5)
+
+    # --- Timezones Embed ---
+    timezones_embed = discord.Embed(
+        title="Timezones & Active Hours",
+        description="""Our clan has members from all over the world! We are most active during the EU and NA evenings.
+        You can select your timezone role in 🌐 <#1398775387139342386> to get pings for events in your local time.""",
+        color=discord.Color.blurple()
+    )
+    timezones_embed.set_footer(text=f"Last updated: {datetime.now().strftime('%B %d, %Y')}")
+    await interaction.channel.send(embed=timezones_embed)
+    await asyncio.sleep(0.5)
+
+    await interaction.channel.send("https://discord.gg/rancour-pvm")
+    await interaction.followup.send("✅ Info message has been posted.", ephemeral=True)
+
 
 # ---------------------------
-# 🔹 Rules Command (FINAL)
+# 🔹 Rules Command (Refactored)
 # ---------------------------
-
 @bot.tree.command(name="rules", description="Post the clan rules message.")
 @app_commands.checks.has_any_role("Moderators")
 async def rules(interaction: discord.Interaction):
     """Posts a series of embeds detailing the clan rules."""
-    await interaction.response.defer(ephemeral=True)
+    await interaction.response.defer(ephemeral=True, thinking=True)
 
     await interaction.channel.send("https://i.postimg.cc/RC95Wfj5/rules.png")
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.5) # A small delay to ensure banner sends first
 
+    # --- Welcome & Strikes Embeds ---
     embed_welcome = discord.Embed(
-        title="",
-        description=(
-            "`Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are very simple. Please note that Staff and Mods may issue warnings or ban at their discretion if they feel it is necessary to maintain a positive environment.`\n\n"
-            "# Discord is a clan requirement #\n We use it for announcements, events, clan discussions, and a wide range of other purposes. We also suggest members **not** mute the <#1272646547020185704> channel.\n\n*We'll do our best to minimise the pings, but this is for important information you might need if you're going to be a member of the community.*"
-        ),
+        description="""`Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are very simple. Please note that Staff and Mods may issue warnings or ban at their discretion if they feel it is necessary to maintain a positive environment.`
+
+        # Discord is a clan requirement
+        We use it for announcements, events, clan discussions, and a wide range of other purposes. We also suggest members **not** mute the <#1272646547020185704> channel.
+
+        *We'll do our best to minimise the pings, but this is for important information you might need if you're going to be a member of the community.*""",
         color=discord.Color.green()
     )
     await interaction.channel.send(embed=embed_welcome)
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.5)
+
+    await interaction.channel.send("https://i.postimg.cc/bYgV900Q/border.png")
+    await asyncio.sleep(0.5)
 
     embed_strikes = discord.Embed(
         title="❗The 3-Strike System❗",
-        description=(
-            "Our community uses a 3-strike system to manage rule violations. The only exception is if someone’s conduct is severe enough to require immediate action.\n\n"
-            "➤ **1st Offence:** Will result in a recorded warning.\n"
-            "➤ **2nd Offence:** Second recorded warning and a temporary time-out.\n"
-            "➤ **3rd Offence:** Immediate removal from the clan.\n\n"
-            "You can appeal a warning or ban by contacting a **Moderator**. Appeals are usually handled via a *voice call*, where you will explain your actions and discuss what is considered acceptable behaviour within the clan.\n\n"
-            "Anyone who receives a warning or ban may appeal to have it removed if they feel it was unjust by contacting an admin."
-        ),
+        description="""Our community uses a 3-strike system to manage rule violations. The only exception is if someone’s conduct is severe enough to require immediate action.
+
+        ➤ **1st Offence:** Will result in a recorded warning.
+        ➤ **2nd Offence:** Second recorded warning and a temporary time-out.
+        ➤ **3rd Offence:** Immediate removal from the clan.
+
+        You can appeal a warning or ban by contacting a **Moderator**. Appeals are usually handled via a *voice call*, where you will explain your actions and discuss what is considered acceptable behaviour within the clan.
+
+        Anyone who receives a warning or ban may appeal to have it removed if they feel it was unjust by contacting an admin.""",
         color=discord.Color.orange()
     )
     await interaction.channel.send(embed=embed_strikes)
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.5)
 
+    await interaction.channel.send("https://i.postimg.cc/bYgV900Q/border.png")
+    await asyncio.sleep(0.5)
+
+    # --- Consolidated Rules Embeds ---
     rule_data = [
-        ("Rule 1️⃣ - Respect Others",
-         "Being respectful to others means treating people the way you’d like to be treated. Another way to look at it is: don’t say anything if you have nothing nice to say, and don’t put others down because they are less experienced than you."),
-        
-        ("Rule 2️⃣ - Follow All In-Game & Discord Rules",
-         "This should go without saying, but if rule-breaking is inappropriate for Jagex, it is also inappropriate here.\n\nThe following will **NOT** be tolerated:\n\n⊘ Racism\n⊘ Macroing\n⊘ Solicitation\n⊘ Advertising websites for GP\n⊘ Scamming\n⊘ Ethnic slurs\n⊘ Hate speech"),
-        
-        ("Rule 3️⃣ - No Heated Religious or Political Arguments",
-         "Political or religious topics can easily become hectic. Discussing them is fine, as they are part of everyday life, but if a conversation turns into a debate, we kindly ask you to take it to your DMs."),
-        
-        ("Rule 4️⃣ - Don’t Share Others' Personal Information",
-         "You are welcome to share your own personal information, but sharing other people’s personal information without consent will result in a warning if it's light enough or a possible ban. Trust is important, and breaking it with people in our community, or with friends, will make you unwelcome in the clan."),
-        
-        ("Rule 5️⃣ - No Sharing or Using Plug-ins from Unofficial Clients",
-         "Cheat plug-ins or plug-ins aimed at scamming others through downloads are not allowed, both in-game and on Discord. These plug-ins are often dangerous and can lead to being banned if undeniable proof is given to us."),
-        
-        ("Rule 6️⃣ - No Scamming, Luring, or Begging",
-         "Social engineering, scamming, and luring will result in a RuneWatch case and a ban from the clan, whether it happens to people inside or outside of the clan.\nBegging is extremely irritating and will result in a warning."),
-        
-        ("Rule 7️⃣ - All Uniques Must Be Split",
-         "Any unique obtained in group content **must be split** unless stated otherwise before the raid and **agreed upon by all members - This includes members joining your raid**.\nYou also need to split loot with your team members (who are in the clan) **even if** you are doing content on an FFA world, in an FFA clan chat, or if you are an Ironman."),
-        
-        ("Rule 8️⃣ - You Must Have Your In-Game Name in Your Discord Name",
-         "In order to keep track of clan members during events and reach out to you, you **MUST** have your Discord nickname include your in-game name.\n\n"
-         "**Acceptable Formats:**\n"
-         "✅ `- Discord Name | In-Game Name`\n"
-         "✅ `- Discord Name (In-Game Name)`\n"
-         "✅ `- In-Game Name Only`\n"
-         "❌ `- Discord Name Only`\n\n"
-         "**Enforcement:**\n"
-         "*We will attempt to replace your name for you, but may reach out if we do not find an in-game match. If you do not reply, you may be mistakenly removed from the Discord.*\nYou can tell in-game by seeing if your rank is empty.")
+        ("Rule 1️⃣ - Respect Others", "Being respectful to others means treating people the way you’d like to be treated. Another way to look at it is: don’t say anything if you have nothing nice to say, and don’t put others down because they are less experienced than you."),
+        ("Rule 2️⃣ - Follow All In-Game & Discord Rules", "This should go without saying, but if rule-breaking is inappropriate for Jagex, it is also inappropriate here.\n\nThe following will **NOT** be tolerated:\n\n⊘ Racism\n⊘ Macroing\n⊘ Solicitation\n⊘ Advertising websites for GP\n⊘ Scamming\n⊘ Ethnic slurs\n⊘ Hate speech"),
+        ("Rule 3️⃣ - No Heated Religious or Political Arguments", "Political or religious topics can easily become hectic. Discussing them is fine, as they are part of everyday life, but if a conversation turns into a debate, we kindly ask you to take it to your DMs."),
+        ("Rule 4️⃣ - Don’t Share Others' Personal Information", "You are welcome to share your own personal information, but sharing other people’s personal information without consent will result in a warning if it's light enough or a possible ban. Trust is important, and breaking it with people in our community, or with friends, will make you unwelcome in the clan."),
+        ("Rule 5️⃣ - No Sharing or Using Plug-ins from Unofficial Clients", "Cheat plug-ins or plug-ins aimed at scamming others through downloads are not allowed, both in-game and on a Discord. These plug-ins are often dangerous and can lead to being banned if undeniable proof is given to us."),
+        ("Rule 6️⃣ - No Scamming, Luring, or Begging", "Social engineering, scamming, and luring will result in a RuneWatch case and a ban from the clan, whether it happens to people inside or outside of the clan.\nBegging is extremely irritating and will result in a warning."),
+        ("Rule 7️⃣ - All Uniques Must Be Split", "Any unique obtained in group content **must be split** unless stated otherwise before the raid and **agreed upon by all members - This includes members joining your raid**.\nYou also need to split loot with your team members (who are in the clan) **even if** you are doing content on an FFA world, in an FFA clan chat, or if you are an Ironman."),
+        ("Rule 8️⃣ - You Must Have Your In-Game Name in Your Discord Name", "In order to keep track of clan members during events and reach out to you, you **MUST** have your Discord nickname include your in-game name.\n\n**Acceptable Formats:**\n✅ `- Discord Name | In-Game Name`\n✅ `- Discord Name (In-Game Name)`\n✅ `- In-Game Name Only`\n❌ `- Discord Name Only`\n\n**Enforcement:**\n*We will attempt to replace your name for you, but may reach out if we do not find an in-game match. If you do not reply, you may be mistakenly removed from the Discord.*"),
+        ("Rule 9️⃣ - Be excellent to each other.", "And party on, dudes! This is a community, and we want everyone to feel welcome and have a good time. Help each other out, be supportive, and keep the vibes positive.")
     ]
 
-    for title, description in rule_data:
-        rule_embed = discord.Embed(
-            title=title,
-            description=description,
-            color=discord.Color.blue()
-        )
-        await interaction.channel.send(embed=rule_embed)
-        await asyncio.sleep(1)
+    # A Discord message can contain up to 10 embeds. We create all rule embeds
+    # and send them in a single message to be more efficient.
+    rule_embeds = [
+        discord.Embed(title=title, description=description, color=discord.Color.blue())
+        for title, description in rule_data
+    ]
 
-@rules.error
-async def rules_error(interaction: discord.Interaction, error):
-    if isinstance(error, app_commands.errors.MissingAnyRole):
-        await interaction.response.send_message(
-            "⛔ You do not have permission to use this command.",
-            ephemeral=True
-        )
+    await interaction.channel.send(embeds=rule_embeds)
+    await interaction.followup.send("✅ Rules message has been posted.", ephemeral=True)
 
 # ---------------------------
 # 🔹 Welcome
