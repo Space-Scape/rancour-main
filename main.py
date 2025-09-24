@@ -162,13 +162,19 @@ async def ticketscore(interaction: discord.Interaction):
 
 @tasks.loop(hours=24)
 async def reset_scores():
-    today = datetime.utcnow()
+    global ticket_scores_sheet # Add this line to access the global variable
+    
+    # This line is also updated to fix the deprecation warning
+    today = datetime.now(timezone.utc) 
+    
     all_values = ticket_scores_sheet.get_all_values()
 
+    # Logic for weekly reset on Mondays
     if today.weekday() == 0:
         for i in range(2, len(all_values) + 1):
             ticket_scores_sheet.update_cell(i, 3, 0)
 
+    # Logic for monthly reset on the 1st
     if today.day == 1:
         for i in range(2, len(all_values) + 1):
             ticket_scores_sheet.update_cell(i, 4, 0)
