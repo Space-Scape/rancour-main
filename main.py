@@ -114,6 +114,9 @@ async def info(interaction: discord.Interaction):
     """Posts a general information embed for the clan."""
     await interaction.response.defer(ephemeral=True)
 
+    await interaction.channel.send("https://i.postimg.cc/PdHgKmxC/info.png")
+    await asyncio.sleep(1)
+    
     info_embed = discord.Embed(
         title="Rancour PvM - Clan Information",
         description=(
