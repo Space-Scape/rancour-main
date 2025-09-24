@@ -235,6 +235,9 @@ async def rules(interaction: discord.Interaction):
     """Posts a series of embeds detailing the clan rules."""
     await interaction.response.defer(ephemeral=True)
 
+    await interaction.channel.send("https://i.postimg.cc/RC95Wfj5/rules.png")
+    await asyncio.sleep(1)
+
     embed_welcome = discord.Embed(
         title="",
         description="`Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are easy to follow. Please note that Staff and Mods may issue warnings if they feel it is necessary to maintain a positive environment.`",
