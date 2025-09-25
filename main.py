@@ -285,6 +285,9 @@ async def rank(interaction: discord.Interaction):
     """Posts a series of embeds detailing the clan rank requirements."""
     await interaction.response.defer(ephemeral=True, thinking=True)
 
+    await interaction.channel.send("https://i.postimg.cc/FmWGMS1G/roles.png")
+    await asyncio.sleep(0.5)
+    
     # --- Rank Up Instructions Embed ---
     rank_up_embed = discord.Embed(
         title="Rank Up",
@@ -296,10 +299,8 @@ async def rank(interaction: discord.Interaction):
 ### 4. Your server nickname should match/contain your RSN :bust_in_silhouette: ###""",
         color=discord.Color.light_grey()
     )
-    await interaction.channel.send(embed=rank_up_embed)
-    await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/FmWGMS1G/roles.png")
+    await interaction.channel.send(embed=rank_up_embed)
     await asyncio.sleep(0.5)
 
     # --- Recruit Embed ---
