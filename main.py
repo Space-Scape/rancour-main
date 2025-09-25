@@ -205,7 +205,6 @@ async def info(interaction: discord.Interaction):
     await asyncio.sleep(0.5)
     
     await interaction.channel.send("https://discord.gg/rancour-pvm")
-    await interaction.followup.send("✅ Info message has been posted.", ephemeral=True)
 
 # ---------------------------
 # 🔹 Rules Command (Refactored)
@@ -275,7 +274,6 @@ async def rules(interaction: discord.Interaction):
     ]
 
     await interaction.channel.send(embeds=rule_embeds)
-    await interaction.followup.send("✅ Rules message has been posted.", ephemeral=True
     
 # ---------------------------
 # 🔹 Welcome
