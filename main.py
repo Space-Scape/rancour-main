@@ -206,9 +206,8 @@ async def rules(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True, thinking=True)
 
     await interaction.channel.send("https://i.postimg.cc/RC95Wfj5/rules.png")
-    await asyncio.sleep(0.5) # A small delay to ensure banner sends first
+    await asyncio.sleep(0.5)
 
-    # --- Welcome & Strikes Embeds ---
     embed_welcome = discord.Embed(
         description="""`Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are very simple. Please note that Staff and Mods may issue warnings or ban at their discretion if they feel it is necessary to maintain a positive environment.`
 
@@ -221,7 +220,7 @@ async def rules(interaction: discord.Interaction):
     await interaction.channel.send(embed=embed_welcome)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/44jCRrqZ/rules-strikes.png")
+    await interaction.channel.send("https://i.postimg.cc/7hNJyg9T/rules-strikes.png")
     await asyncio.sleep(0.5)
 
     embed_strikes = discord.Embed(
@@ -240,7 +239,7 @@ async def rules(interaction: discord.Interaction):
     await interaction.channel.send(embed=embed_strikes)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/7YNpJfbP/rules-text.png")
+    await interaction.channel.send("https://i.postimg.cc/c4b4t9vL/rules-text.png")
     await asyncio.sleep(0.5)
 
     rule_data = [
