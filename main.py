@@ -115,7 +115,7 @@ async def info(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True, thinking=True)
 
     # Sending the initial banner image
-    await interaction.channel.send("https://i.postimg.cc/BJm6PC8F/info.png")
+    await interaction.channel.send("https://i.postimg.cc/8G3CWSDP/info.png")
     await asyncio.sleep(0.5)
 
     # --- Main Info Embed ---
@@ -129,7 +129,7 @@ async def info(interaction: discord.Interaction):
     await interaction.channel.send(embed=info_embed)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/gJnMMHV4/border.png")
+    await interaction.channel.send("https://i.postimg.cc/Zn7d5nwq/border.png")
     await asyncio.sleep(0.5)
     
     # --- What We Offer Embed ---
