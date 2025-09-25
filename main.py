@@ -124,53 +124,47 @@ async def info(interaction: discord.Interaction):
         description="""We are a social, international PvM clan where community, fairness, transparency, and fun are our top priorities.
         We encourage our members to be social; our clan chat is our main hub of communication.
         This is an adult (18+) clan that we want to feel like a home away from home. All we ask is that you show respect to your fellow clanmates.""",
-        color=discord.Color.yellow()
+        color=discord.Color.from_rgb(255, 250, 205)
     )
     await interaction.channel.send(embed=info_embed)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/HLNHNVC4/border.png")
+    await interaction.channel.send("https://i.postimg.cc/gJnMMHV4/border.png")
     await asyncio.sleep(0.5)
     
     # --- What We Offer Embed ---
     offer_embed = discord.Embed(
         title="What We Offer",
-        description="""<:tob:1272864087105208364> PvM of all levels
+        description="""PvM of all levels
         <:sotw:1298363808707907685> <:botw:1298362722856997058> Skilling and Bossing Competitions
-        ⚔️ Raids - and learner friendly raids
-        🎡 Games/Bingos - win huge prizes
-        🎉 Social Events - come and hang out!
+        Raids - and learner friendly raids
+        Games/Bingos - win huge prizes
+        Social Events - come and hang out!
         <:sanguine:1406225257588588586> ToB Learner Events - hosted by MacFlag
         <:mentor:1406802212382052412> Mentoring - happy to assist""",
-        color=discord.Color.yellow()
+        color=discord.Color.from_rgb(238, 232, 170)
     )
     await interaction.channel.send(embed=offer_embed)
-    await asyncio.sleep(0.5)
-
-    await interaction.channel.send("https://i.postimg.cc/gJnMMHV4/border.png")
     await asyncio.sleep(0.5)
 
     # --- Requirements Embed ---
     requirements_embed = discord.Embed(
         title="Our Requirements",
-        description="""⚔️ 115+ Combat
-        <:skill:1273597087736397897> 1700+ Total Level
-        <:clogger:1406233084311113808> Medium Combat Achievements
-        🧤 Barrows Gloves
-        🗡 Dragon Defender
-        <:tztok:1406219778502168647> Fire Cape
-        <:vorkath:1273604742756569088> Ava’s Assembler
-        🔴🟢🔵 MA2 Cape
-        <:asgarnia:1299581365804863538> Full Void
-        <:graardor:1272841439386009661> Any: Torso/Bandos/Torva/Oathplate
-        ​𓆩𔓎𓆪 Piety, Thralls
+        description="""༒ 115+ Combat
+        ༒ 1700+ Total Level
+        ༒ Medium Combat Achievements
+        ༒ Barrows Gloves
+        ༒ Dragon Defender
+        ༒ Fire Cape
+        ༒ Ava’s Assembler
+        ༒ MA2 Cape
+        ༒ Full Void
+        ༒ Any: Torso/Bandos/Torva/Oathplate
+        ༒ Piety, Thralls
         ༒ 1/3: BGS/DWH/Elder Maul""",
-        color=discord.Color.yellow()
+        color=discord.Color.from_rgb(240, 230, 140)
     )
     await interaction.channel.send(embed=requirements_embed)
-    await asyncio.sleep(0.5)
-
-    await interaction.channel.send("https://i.postimg.cc/gJnMMHV4/border.png")
     await asyncio.sleep(0.5)
 
     # --- Systems Embed ---
@@ -182,12 +176,9 @@ async def info(interaction: discord.Interaction):
         🔑 **Register your RSN:** <#1280532494139002912> - Use this for name changes.
 
         Guests are always welcome to hang out and get a feel for our community before becoming a member. Just ask!""",
-        color=discord.Color.yellow()
+        color=discord.Color.from_rgb(255, 215, 0)
     )
     await interaction.channel.send(embed=systems_embed)
-    await asyncio.sleep(0.5)
-
-    await interaction.channel.send("https://i.postimg.cc/gJnMMHV4/border.png")
     await asyncio.sleep(0.5)
 
     # --- Key Channels & Roles Embed ---
@@ -198,12 +189,9 @@ async def info(interaction: discord.Interaction):
         🎉 **Events:** Check out all upcoming clan events in <#1272646577432825977>.
         ✨ **Achievements:** Share your drops and level-ups in <#1272629331524587624>.
         <:mentor:1406802212382052412> **Mentoring:** After two weeks and earning the <:corporal:1406217420187893771> rank, you can open a mentor ticket for PVM guidance. Experienced players can apply to become a mentor in <#1272648472184487937>.""",
-        color=discord.Color.yellow()
+        color=discord.Color.from_rgb(218, 165, 32)
     )
     await interaction.channel.send(embed=key_channels_embed)
-    await asyncio.sleep(0.5)
-
-    await interaction.channel.send("https://i.postimg.cc/gJnMMHV4/border.png")
     await asyncio.sleep(0.5)
 
     # --- Timezones Embed ---
@@ -211,12 +199,9 @@ async def info(interaction: discord.Interaction):
         title="Timezones & Active Hours",
         description="""Our clan has members from all over the world! We are most active during the EU and NA evenings.
         You can select your timezone role in 🌐 <#1398775387139342386> to get pings for events in your local time.""",
-        color=discord.Color.yellow()
+        color=discord.Color.from_rgb(184, 134, 11)
     )
     await interaction.channel.send(embed=timezones_embed)
-    await asyncio.sleep(0.5)
-
-    await interaction.channel.send("https://i.postimg.cc/gJnMMHV4/border.png")
     await asyncio.sleep(0.5)
     
     await interaction.channel.send("https://discord.gg/rancour-pvm")
