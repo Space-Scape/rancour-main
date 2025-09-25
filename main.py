@@ -117,7 +117,7 @@ async def info(interaction: discord.Interaction):
     await interaction.channel.send("https://i.postimg.cc/8G3CWSDP/info.png")
     await asyncio.sleep(0.5)
 
-      info_embed = discord.Embed(
+    info_embed = discord.Embed(
         title="How to apply for a role",
         description="""We are a social, international PvM clan where community, fairness, transparency, and fun are our top priorities.
         We encourage our members to be social; our clan chat is our main hub of communication.
