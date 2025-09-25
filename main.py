@@ -440,9 +440,9 @@ For large-scale events, such as bingo or team competitions, winners will be able
 
     # --- Pet Hunter Embed ---
     pet_hunter_embed = discord.Embed(
-        title="""Pet hunter - <:pethunter:1406225392989114378>",
-        description="✦ 20+ Pets
-✦ Meets Sergeant Requirements""",
+        title="Pet hunter - <:pethunter:1406225392989114378>",
+        description="""✦ 20+ Pets
+        ✦ Meets Sergeant Requirements""",
         color=discord.Color.from_rgb(180, 45, 45)
     )
     await interaction.channel.send(embed=pet_hunter_embed)
@@ -452,7 +452,7 @@ For large-scale events, such as bingo or team competitions, winners will be able
     clogger_embed = discord.Embed(
         title="Clogger - <:clogger:1406233084311113808>",
         description="""✦ 1000+ Collection Log Slots
-✦ Meets Sergeant Requirements""",
+        ✦ Meets Sergeant Requirements""",
         color=discord.Color.from_rgb(160, 40, 40)
     )
     await interaction.channel.send(embed=clogger_embed)
