@@ -292,105 +292,93 @@ async def rank(interaction: discord.Interaction):
 
     # --- Recruit Embed ---
     recruit_embed = discord.Embed(
-        title="1. Recruit <placeholder>",
-        description="""• 115+ Combat, 1700+ Total
-• Medium Combat Achievements
-• Barrows Gloves, Dragon Defender
-• Fire Cape, Ava’s Assembler, MA2 Cape
-• Full Void
-• Any: Torso / Bandos / Torva
-• Piety, Thralls
-• 1/3: BGS/DWH/Elder Maul""",
+        title="1. Recruit <:recruit:1406214952808873994>",
+        description="""✦ 115+ Combat, 1700+ Total
+✦ Medium Combat Achievements
+✦ Barrows Gloves, Dragon Defender
+✦ Fire Cape, Ava’s Assembler, MA2 Cape
+✦ Full Void
+✦ Any: Torso / Bandos / Torva
+✦ Piety, Thralls
+✦ 1/3: BGS/DWH/Elder Maul""",
         color=discord.Color.from_rgb(255, 215, 0)  # Gold
     )
     await interaction.channel.send(embed=recruit_embed)
     await asyncio.sleep(0.5)
-    await interaction.channel.send("https://i.postimg.cc/Zn7d5nwq/border.png")
-    await asyncio.sleep(0.5)
 
     # --- Corporal Embed ---
     corporal_embed = discord.Embed(
-        title="2. Corporal <placeholder>",
-        description="""• 2 Weeks in the Clan
-• Will be automatically applied""",
+        title="2. Corporal <:corporal:1406217420187893771>",
+        description="""✦ 2 Weeks in the Clan
+✦ Will be automatically applied""",
         color=discord.Color.from_rgb(255, 165, 0)  # Orange
     )
     await interaction.channel.send(embed=corporal_embed)
     await asyncio.sleep(0.5)
-    await interaction.channel.send("https://i.postimg.cc/Zn7d5nwq/border.png")
-    await asyncio.sleep(0.5)
 
     # --- Sergeant Embed ---
     sergeant_embed = discord.Embed(
-        title="3. Sergeant <placeholder>",
-        description="""• 4 Weeks in the Clan
-• 120+ Combat
-• Hard Combat Achievements
-• 150+ total raids KC
-• 85 Farming, 78 Herblore
-• Elite Void
-• Crystal Halberd""",
+        title="3. Sergeant <:sergeant:1406217456783200417>",
+        description="""✦ 4 Weeks in the Clan
+✦ 120+ Combat
+✦ Hard Combat Achievements
+✦ 150+ total raids KC
+✦ 85 Farming, 78 Herblore
+✦ Elite Void
+✦ Crystal Halberd""",
         color=discord.Color.from_rgb(255, 255, 0)  # Yellow
     )
     await interaction.channel.send(embed=sergeant_embed)
     await asyncio.sleep(0.5)
-    await interaction.channel.send("https://i.postimg.cc/Zn7d5nwq/border.png")
-    await asyncio.sleep(0.5)
 
     # --- TzTok Embed ---
     tztok_embed = discord.Embed(
-        title="4. TzTok <placeholder>",
-        description="""• 6 Weeks in the Clan
-• 25 minimum KC each: COX / TOB / TOA
-• 300+ total raids KC
-• Rigour, Augury, Avernic Defender
-• 1/3: BOWFA / ZCB / any Mega
-• 1/3: Fang Kit / Infernal Cape / Quiver
-• 91 Slayer""",
+        title="4. TzTok <:tztok:1406219778502168647>",
+        description="""✦ 6 Weeks in the Clan
+✦ 25 minimum KC each: COX / TOB / TOA
+✦ 300+ total raids KC
+✦ Rigour, Augury, Avernic Defender
+✦ 1/3: BOWFA / ZCB / any Mega
+✦ 1/3: Fang Kit / Infernal Cape / Quiver
+✦ 91 Slayer""",
         color=discord.Color.from_rgb(252, 128, 40)  # Bright Orange
     )
     await interaction.channel.send(embed=tztok_embed)
     await asyncio.sleep(0.5)
-    await interaction.channel.send("https://i.postimg.cc/Zn7d5nwq/border.png")
-    await asyncio.sleep(0.5)
 
     # --- Officer Embed ---
     officer_embed = discord.Embed(
-        title="5. Officer <placeholder>",
-        description="""• 8 Weeks in the Clan
-• Elite Combat Achievements
-• 25 minimum KC each: CM / HMT / expTOA
-• 2/3: Fang Kit / Infernal Cape / Quiver
-• 1/3: Tbow / Shadow / Scythe
-• 95 Slayer""",
-        color=discord.Color.from_rgb(173, 216, 230)  # Light Blue
+        title="5. Officer <:officer:1406225471003299942>",
+        description="""✦ 8 Weeks in the Clan
+✦ Elite Combat Achievements
+✦ 25 minimum KC each: CM / HMT / expTOA
+✦ 2/3: Fang Kit / Infernal Cape / Quiver
+✦ 1/3: Tbow / Shadow / Scythe
+✦ 95 Slayer""",
+        color=discord.Color.from_rgb(252, 111, 27)  # Orange-Red
     )
     await interaction.channel.send(embed=officer_embed)
-    await asyncio.sleep(0.5)
-    await interaction.channel.send("https://i.postimg.cc/Zn7d5nwq/border.png")
     await asyncio.sleep(0.5)
 
     # --- Commander Embed ---
     commander_embed = discord.Embed(
-        title="6. Commander <placeholder>",
-        description="""• 12 Weeks in the Clan
-• 125 Combat
-• Master Combat Achievements
-• 50 KC each: CM / HMT / expTOA
-• 3/3: Fang Kit / Infernal Cape / Quiver
-• 2/3: Tbow / Shadow / Scythe""",
-        color=discord.Color.from_rgb(100, 149, 237)  # Cornflower Blue
+        title="6. Commander <:commander:1406225531128647782>",
+        description="""✦ 12 Weeks in the Clan
+✦ 125 Combat
+✦ Master Combat Achievements
+✦ 50 KC each: CM / HMT / expTOA
+✦ 3/3: Fang Kit / Infernal Cape / Quiver
+✦ 2/3: Tbow / Shadow / Scythe""",
+        color=discord.Color.from_rgb(252, 94, 14)  # Red-Orange
     )
     await interaction.channel.send(embed=commander_embed)
-    await asyncio.sleep(0.5)
-    await interaction.channel.send("https://i.postimg.cc/Zn7d5nwq/border.png")
     await asyncio.sleep(0.5)
 
     # --- TzKal Embed ---
     tzkal_embed = discord.Embed(
-        title="7. TzKal <placeholder>",
-        description="""• Fulfills Commander Requirements
-• Grandmaster Combat Achievements""",
+        title="7. TzKal <:tzkal:1406218822033080400>",
+        description="""✦ Fulfills Commander Requirements
+✦ Grandmaster Combat Achievements""",
         color=discord.Color.from_rgb(252, 76, 2)  # Red-Orange
     )
     await interaction.channel.send(embed=tzkal_embed)
