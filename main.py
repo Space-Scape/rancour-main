@@ -292,7 +292,7 @@ async def rank(interaction: discord.Interaction):
     # --- Rank Up Instructions Embed ---
     rank_up_embed = discord.Embed(
         title="Rank Up",
-        description="""###Please upload screenshots to demonstrate that you meet the requirements for the selected rank.:hourglass: ###
+        description="""# Please upload screenshots to demonstrate that you meet the requirements for the selected rank.:hourglass: #
 ## **Important:** :loudspeaker: ##
 ### 1. No Bank Screenshots! :no_entry_sign: :bank: ###
 ### 2. Full client screenshots with chatbox open :camera: ###
