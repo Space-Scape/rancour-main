@@ -472,6 +472,64 @@ async def say(interaction: discord.Interaction, message: str):
     await interaction.response.send_message("✅ Message sent!", ephemeral=True, delete_after=5)
 
 # ---------------------------
+# 🔹 Help Command
+# ---------------------------
+
+@bot.tree.command(name="help", description="Shows a list of all available commands and what they do.")
+async def help(interaction: discord.Interaction):
+    """Displays a comprehensive help message with all bot commands."""
+    await interaction.response.defer(ephemeral=True, thinking=True)
+
+    embed = discord.Embed(
+        title="🤖 Rancour Bot Help",
+        description="Here is a list of all the commands you can use. Commands marked with 🔒 are for Staff only.",
+        color=discord.Color.blue()
+    )
+
+    embed.add_field(
+        name="👋 General Commands",
+        value="""
+        `/help` - Displays this help message.
+        `/rsn` - Checks your currently registered RuneScape Name.
+        `/submitdrop` - Opens a modal to submit a boss drop for events.
+        """,
+        inline=False
+    )
+
+    embed.add_field(
+        name="💰 Clan Coffer Commands",
+        value="""
+        `/bank` - Shows the current coffer total and who is holding or owed money.
+        `/deposit` - Opens a modal to deposit money into the clan coffer.
+        `/withdraw` - Opens a modal to withdraw money from the clan coffer.
+        `/holding [amount] [user]` - Sets or adds to the amount of money a user is holding.
+        `/owed [amount] [user]` - Sets the amount of money a user is owed.
+        `/clear_owed [user]` - Clears the owed amount for a specific user.
+        `/clear_holding [user]` - Clears the holding amount for a specific user.
+        """,
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🔒 Staff Commands",
+        value="""
+        `/info` - Posts the detailed clan information embeds in the current channel.
+        `/rules` - Posts the clan rules embeds in the current channel.
+        `/rank` - Posts the rank requirement embeds in the current channel.
+        `/say [message]` - Makes the bot send the specified message in the current channel.
+        `/welcome` - (Used in ticket threads) Welcomes a new member and assigns default roles.
+        `/rsn_panel` - Posts the interactive RSN registration panel.
+        `/time_panel` - Posts the interactive timezone selection panel.
+        `/sangsignup [channel]` - Manually posts the Sanguine Sunday signup message to the specified channel.
+        """,
+        inline=False
+    )
+
+    embed.set_footer(text="Use the commands in the appropriate channels. Contact staff for any issues.")
+
+    await interaction.followup.send(embed=embed, ephemeral=True)
+
+# ---------------------------
 # 🔹 Welcome
 # ---------------------------
 
