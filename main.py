@@ -226,7 +226,7 @@ async def rules(interaction: discord.Interaction):
         We use it for announcements, events, clan discussions, and a wide range of other purposes. We also suggest members **not** mute the <#1272646547020185704> channel.
 
         *We'll do our best to minimise the pings, but this is for important information you might need if you're going to be a member of the community.*""",
-        color=discord.Color.green()
+        color=discord.Color.from_rgb(217, 0, 0)
     )
     await interaction.channel.send(embed=embed_welcome)
     await asyncio.sleep(0.5)
@@ -245,7 +245,7 @@ async def rules(interaction: discord.Interaction):
         You can appeal a warning or ban by contacting a **Moderator**. Appeals are usually handled via a *voice call*, where you will explain your actions and discuss what is considered acceptable behaviour within the clan.
 
         Anyone who receives a warning or ban may appeal to have it removed if they feel it was unjust by contacting an admin.""",
-        color=discord.Color.orange()
+        color=discord.Color.from_rgb(211, 1, 1)
     )
     await interaction.channel.send(embed=embed_strikes)
     await asyncio.sleep(0.5)
@@ -264,13 +264,18 @@ async def rules(interaction: discord.Interaction):
         ("Rule 8️⃣ - You Must Have Your In-Game Name Set As Your Discord Name", "In order to keep track of clan members during events and reach out to you, you **MUST** have your Discord nickname include your in-game name.\n\n**Acceptable Formats:**\n✅ `- Discord Name / In-Game Name`\n✅ `- Discord Name (In-Game Name)`\n✅ `- In-Game Name Only`\n❌ `- Discord Name Only`\n\n**Enforcement:**\n*We will attempt to replace your name for you, but may reach out if we do not find an in-game match. If you do not reply, you may be mistakenly removed from the Discord.*")
     ]
 
+    rule_colors = [
+        (206, 2, 2), (201, 4, 4), (195, 5, 5), (190, 6, 6),
+        (185, 7, 7), (179, 9, 9), (174, 10, 10), (168, 12, 12)
+    ]
+
     rule_embeds = [
-        discord.Embed(title=title, description=description, color=discord.Color.red())
-        for title, description in rule_data
+        discord.Embed(title=title, description=description, color=discord.Color.from_rgb(*rule_colors[i]))
+        for i, (title, description) in enumerate(rule_data)
     ]
 
     await interaction.channel.send(embeds=rule_embeds)
-    await interaction.followup.send("✅ Rules message has been posted.", ephemeral=True)
+    await interaction.followup.send("✅ Rules message has been posted.", ephemeral=True
     
 # ---------------------------
 # 🔹 Welcome
