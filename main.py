@@ -115,7 +115,7 @@ async def info(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True, thinking=True)
 
     # Sending the initial banner image
-    await interaction.channel.send("https://i.postimg.cc/PdHgKmxC/info.png")
+    await interaction.channel.send("https://i.postimg.cc/BJm6PC8F/info.png")
     await asyncio.sleep(0.5)
 
     # --- Main Info Embed ---
@@ -129,7 +129,7 @@ async def info(interaction: discord.Interaction):
     await interaction.channel.send(embed=info_embed)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/bYgV900Q/border.png")
+    await interaction.channel.send("https://i.postimg.cc/HLNHNVC4/border.png")
     await asyncio.sleep(0.5)
     
     # --- What We Offer Embed ---
@@ -145,7 +145,7 @@ async def info(interaction: discord.Interaction):
     await interaction.channel.send(embed=offer_embed)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/bYgV900Q/border.png")
+    await interaction.channel.send("https://i.postimg.cc/HLNHNVC4/border.png")
     await asyncio.sleep(0.5)
 
     # --- Systems Embed ---
@@ -162,7 +162,7 @@ async def info(interaction: discord.Interaction):
     await interaction.channel.send(embed=systems_embed)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/bYgV900Q/border.png")
+    await interaction.channel.send("https://i.postimg.cc/HLNHNVC4/border.png")
     await asyncio.sleep(0.5)
 
     # --- Key Channels & Roles Embed ---
@@ -178,7 +178,7 @@ async def info(interaction: discord.Interaction):
     await interaction.channel.send(embed=key_channels_embed)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/bYgV900Q/border.png")
+    await interaction.channel.send("https://i.postimg.cc/HLNHNVC4/border.png")
     await asyncio.sleep(0.5)
 
     # --- Timezones Embed ---
@@ -205,7 +205,7 @@ async def rules(interaction: discord.Interaction):
     """Posts a series of embeds detailing the clan rules."""
     await interaction.response.defer(ephemeral=True, thinking=True)
 
-    await interaction.channel.send("https://i.postimg.cc/RC95Wfj5/rules.png")
+    await interaction.channel.send("https://i.postimg.cc/wgHTWrLJ/rules.png")
     await asyncio.sleep(0.5)
 
     embed_welcome = discord.Embed(
@@ -254,7 +254,7 @@ async def rules(interaction: discord.Interaction):
     ]
 
     rule_embeds = [
-        discord.Embed(title=title, description=description, color=discord.Color.blue())
+        discord.Embed(title=title, description=description, color=discord.Color.red())
         for title, description in rule_data
     ]
 
