@@ -150,11 +150,11 @@ async def info(interaction: discord.Interaction):
 
     # --- Systems Embed ---
     systems_embed = discord.Embed(
-        title="How to Join & Use Clan Systems",
-        description="""👋 **Become a member:** <#1272648453264248852>
-        🍌 **Request a rank up:** <#1272648472184487937>
-        🔔 **Get help (Support):** <#1272648498554077304>
-        🔑 **Register your RSN:** <#1280532494139002912>
+        title="Clan Ticket Systems and Name Changing",
+        description="""👋 **Become a member:** <#1272648453264248852> - Welcome!
+        🍌 **Request a rank up:** <#1272648472184487937> - Update your ranks here.
+        🔔 **Get help (Support):** <#1272648498554077304> - Report rule-breaking or bot failures, get private help, make suggestions, and more!
+        🔑 **Register your RSN:** <#1280532494139002912> - Use this for name changes.
 
         Guests are always welcome to hang out and get a feel for our community before becoming a member. Just ask!""",
         color=discord.Color.yellow()
@@ -188,11 +188,10 @@ async def info(interaction: discord.Interaction):
         You can select your timezone role in 🌐 <#1398775387139342386> to get pings for events in your local time.""",
         color=discord.Color.yellow()
     )
-    timezones_embed.set_footer(text=f"Last updated: {datetime.now().strftime('%B %d, %Y')}")
     await interaction.channel.send(embed=timezones_embed)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/HLNHNVC4/border.png")
+    await interaction.channel.send("https://i.postimg.cc/gJnMMHV4/border.png")
     await asyncio.sleep(0.5)
     
     await interaction.channel.send("https://discord.gg/rancour-pvm")
