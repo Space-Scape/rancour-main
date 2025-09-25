@@ -221,7 +221,7 @@ async def rules(interaction: discord.Interaction):
     await interaction.channel.send(embed=embed_welcome)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/PqsztqyT/rules-strikes.png")
+    await interaction.channel.send("https://i.postimg.cc/44jCRrqZ/rules-strikes.png")
     await asyncio.sleep(0.5)
 
     embed_strikes = discord.Embed(
@@ -240,7 +240,7 @@ async def rules(interaction: discord.Interaction):
     await interaction.channel.send(embed=embed_strikes)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/SKg0BHLL/rules-text.png")
+    await interaction.channel.send("https://i.postimg.cc/7YNpJfbP/rules-text.png")
     await asyncio.sleep(0.5)
 
     rule_data = [
@@ -251,8 +251,7 @@ async def rules(interaction: discord.Interaction):
         ("Rule 5️⃣ - No Sharing or Using Plug-ins from Unofficial Clients", "Cheat plug-ins or plug-ins aimed at scamming others through downloads are not allowed, both in-game and on a Discord. These plug-ins are often dangerous and can lead to being banned if undeniable proof is given to us."),
         ("Rule 6️⃣ - No Scamming, Luring, or Begging", "Social engineering, scamming, and luring will result in a RuneWatch case and a ban from the clan, whether it happens to people inside or outside of the clan.\nBegging is extremely irritating and will result in a warning."),
         ("Rule 7️⃣ - All Uniques Must Be Split", "Any unique obtained in group content **must be split** unless stated otherwise before the raid and **agreed upon by all members - This includes members joining your raid**.\nYou also need to split loot with your team members (who are in the clan) **even if** you are doing content on an FFA world, in an FFA clan chat, or if you are an Ironman."),
-        ("Rule 8️⃣ - You Must Have Your In-Game Name in Your Discord Name", "In order to keep track of clan members during events and reach out to you, you **MUST** have your Discord nickname include your in-game name.\n\n**Acceptable Formats:**\n✅ `- Discord Name | In-Game Name`\n✅ `- Discord Name (In-Game Name)`\n✅ `- In-Game Name Only`\n❌ `- Discord Name Only`\n\n**Enforcement:**\n*We will attempt to replace your name for you, but may reach out if we do not find an in-game match. If you do not reply, you may be mistakenly removed from the Discord.*"),
-        ("Rule 9️⃣ - Be excellent to each other.", "And party on, dudes! This is a community, and we want everyone to feel welcome and have a good time. Help each other out, be supportive, and keep the vibes positive.")
+        ("Rule 8️⃣ - You Must Have Your In-Game Name in Your Discord Name", "In order to keep track of clan members during events and reach out to you, you **MUST** have your Discord nickname include your in-game name.\n\n**Acceptable Formats:**\n✅ `- Discord Name | In-Game Name`\n✅ `- Discord Name (In-Game Name)`\n✅ `- In-Game Name Only`\n❌ `- Discord Name Only`\n\n**Enforcement:**\n*We will attempt to replace your name for you, but may reach out if we do not find an in-game match. If you do not reply, you may be mistakenly removed from the Discord.*")
     ]
 
     rule_embeds = [
