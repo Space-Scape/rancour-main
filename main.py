@@ -129,7 +129,7 @@ async def info(interaction: discord.Interaction):
     await interaction.channel.send(embed=info_embed)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/gJnMMHV4/border.png")
+    await interaction.channel.send("https://i.postimg.cc/Zn7d5nwq/border.png")
     await asyncio.sleep(0.5)
     
     # --- What We Offer Embed ---
