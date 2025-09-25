@@ -121,10 +121,10 @@ async def info(interaction: discord.Interaction):
     # --- Main Info Embed ---
     info_embed = discord.Embed(
         title="Rancour PvM - Clan Information",
-        description="""We are a social, international PvM and skilling clan where community is our number one priority.
+        description="""We are a social, international PvM clan where community, fairness, transparency, and fun are our top priorities.
         We encourage our members to be social; our clan chat is our main hub of communication.
-        This is an adult (18+) clan that we want to feel like a home away from home - a family.""",
-        color=discord.Color.blurple()
+        This is an adult (18+) clan that we want to feel like a home away from home. All we ask is that you show respect to your fellow clanmates.""",
+        color=discord.Color.yellow()
     )
     await interaction.channel.send(embed=info_embed)
     await asyncio.sleep(0.5)
@@ -136,11 +136,11 @@ async def info(interaction: discord.Interaction):
     offer_embed = discord.Embed(
         title="What We Offer",
         description="""🏹 PvM of all levels
-        🌲 Skilling
+        <:skill:1273597087736397897> Skilling
         ⚔️ Raids (Learner friendly)
-        🛡️ Minigames
+        🎡 Games/Bingos
         🎉 Social Events""",
-        color=discord.Color.blurple()
+        color=discord.Color.yellow()
     )
     await interaction.channel.send(embed=offer_embed)
     await asyncio.sleep(0.5)
@@ -156,8 +156,8 @@ async def info(interaction: discord.Interaction):
         🔔 **Get help (Support):** <#1272648498554077304>
         🔑 **Register your RSN:** <#1280532494139002912>
 
-        Guests are always welcome to hang out and get a feel for our community.""",
-        color=discord.Color.blurple()
+        Guests are always welcome to hang out and get a feel for our community before becoming a member. Just ask!""",
+        color=discord.Color.yellow()
     )
     await interaction.channel.send(embed=systems_embed)
     await asyncio.sleep(0.5)
@@ -173,7 +173,7 @@ async def info(interaction: discord.Interaction):
         🎉 **Events:** Check out all upcoming clan events in <#1272646577432825977>.
         ✨ **Achievements:** Share your drops and level-ups in <#1272629331524587624>.
         🎓 **Mentoring:** After two weeks and earning the <:corporal:1406217420187893771> rank, you can open a mentor ticket for PVM guidance. Experienced players can apply to become a <:mentor:1406802212382052412> in <#1272648472184487937>.""",
-        color=discord.Color.blurple()
+        color=discord.Color.yellow()
     )
     await interaction.channel.send(embed=key_channels_embed)
     await asyncio.sleep(0.5)
@@ -186,7 +186,7 @@ async def info(interaction: discord.Interaction):
         title="Timezones & Active Hours",
         description="""Our clan has members from all over the world! We are most active during the EU and NA evenings.
         You can select your timezone role in 🌐 <#1398775387139342386> to get pings for events in your local time.""",
-        color=discord.Color.blurple()
+        color=discord.Color.yellow()
     )
     timezones_embed.set_footer(text=f"Last updated: {datetime.now().strftime('%B %d, %Y')}")
     await interaction.channel.send(embed=timezones_embed)
@@ -212,7 +212,7 @@ async def rules(interaction: discord.Interaction):
     embed_welcome = discord.Embed(
         description="""`Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are very simple. Please note that Staff and Mods may issue warnings or ban at their discretion if they feel it is necessary to maintain a positive environment.`
 
-        # Discord is a clan requirement
+        # Discord is a clan requirement #
         We use it for announcements, events, clan discussions, and a wide range of other purposes. We also suggest members **not** mute the <#1272646547020185704> channel.
 
         *We'll do our best to minimise the pings, but this is for important information you might need if you're going to be a member of the community.*""",
@@ -221,7 +221,7 @@ async def rules(interaction: discord.Interaction):
     await interaction.channel.send(embed=embed_welcome)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/bYgV900Q/border.png")
+    await interaction.channel.send("https://i.postimg.cc/nzrZRnmf/rules-strikes.png")
     await asyncio.sleep(0.5)
 
     embed_strikes = discord.Embed(
@@ -240,10 +240,9 @@ async def rules(interaction: discord.Interaction):
     await interaction.channel.send(embed=embed_strikes)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/bYgV900Q/border.png")
+    await interaction.channel.send("https://i.postimg.cc/6Q2TqVHv/rules-text.png")
     await asyncio.sleep(0.5)
 
-    # --- Consolidated Rules Embeds ---
     rule_data = [
         ("Rule 1️⃣ - Respect Others", "Being respectful to others means treating people the way you’d like to be treated. Another way to look at it is: don’t say anything if you have nothing nice to say, and don’t put others down because they are less experienced than you."),
         ("Rule 2️⃣ - Follow All In-Game & Discord Rules", "This should go without saying, but if rule-breaking is inappropriate for Jagex, it is also inappropriate here.\n\nThe following will **NOT** be tolerated:\n\n⊘ Racism\n⊘ Macroing\n⊘ Solicitation\n⊘ Advertising websites for GP\n⊘ Scamming\n⊘ Ethnic slurs\n⊘ Hate speech"),
@@ -256,8 +255,6 @@ async def rules(interaction: discord.Interaction):
         ("Rule 9️⃣ - Be excellent to each other.", "And party on, dudes! This is a community, and we want everyone to feel welcome and have a good time. Help each other out, be supportive, and keep the vibes positive.")
     ]
 
-    # A Discord message can contain up to 10 embeds. We create all rule embeds
-    # and send them in a single message to be more efficient.
     rule_embeds = [
         discord.Embed(title=title, description=description, color=discord.Color.blue())
         for title, description in rule_data
