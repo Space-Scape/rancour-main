@@ -285,10 +285,6 @@ async def rank(interaction: discord.Interaction):
     """Posts a series of embeds detailing the clan rank requirements."""
     await interaction.response.defer(ephemeral=True, thinking=True)
 
-    # Sending the initial banner image (URL is a placeholder)
-    await interaction.channel.send("https://i.postimg.cc/mD4tChmN/ranks.png")
-    await asyncio.sleep(0.5)
-
     # --- Rank Up Instructions Embed ---
     rank_up_embed = discord.Embed(
         title="Rank Up",
