@@ -117,7 +117,16 @@ async def info(interaction: discord.Interaction):
     await interaction.channel.send("https://i.postimg.cc/8G3CWSDP/info.png")
     await asyncio.sleep(0.5)
 
-    # --- Main Info Embed ---
+      info_embed = discord.Embed(
+        title="How to apply for a role",
+        description="""We are a social, international PvM clan where community, fairness, transparency, and fun are our top priorities.
+        We encourage our members to be social; our clan chat is our main hub of communication.
+        This is an adult (18+) clan that we want to feel like a home away from home. All we ask is that you show respect to your fellow clanmates.""",
+        color=discord.Color.from_rgb(184, 249, 249)
+    )
+    await interaction.channel.send(embed=info_embed)
+    await asyncio.sleep(0.5)
+
     info_embed = discord.Embed(
         title="Rancour PvM - Clan Information",
         description="""We are a social, international PvM clan where community, fairness, transparency, and fun are our top priorities.
@@ -287,12 +296,36 @@ async def rank(interaction: discord.Interaction):
 
     await interaction.channel.send("https://i.postimg.cc/FmWGMS1G/roles.png")
     await asyncio.sleep(0.5)
+
+    info_embed = discord.Embed(
+        title="How to apply for a role",
+        description="""**__How to Rank Up__**
+Please scroll down and find the rank you wish to apply for. If you meet the requirements, go to the bottom of the page and select the rank from the drop-down menu.
+
+**Staff Ranks**
+Golden Key – CEO Account
+Silver Key – Leaders
+Gold Star – Senior Staff
+Silver Star – Staff
+Bronze Star – Trial Staff
+
+**Other Ranks**
+Guest of the Clan
+Templar – Contributor
+Colonel – Top Contributor
+Smite – Boss of the Week Winner
+Skilling Icons – Skill of the Week Winner
+
+**Special Events**
+For large-scale events, such as bingo or team competitions, winners will be able to choose their own temporary icon!""",
+        color=discord.Color.from_rgb(184, 249, 249)
+    )
+    await interaction.channel.send(embed=info_embed)
+    await asyncio.sleep(0.5)
     
-    # --- Rank Up Instructions Embed ---
     rank_up_embed = discord.Embed(
-        title="Rank Up",
-        description="""# Please upload screenshots to demonstrate that you meet the requirements for the selected rank.:hourglass: #
-## **Important:** :loudspeaker: ##
+        title="# Please upload screenshots to demonstrate that you meet the requirements for the selected rank.:hourglass: #",
+        description="""# **Important:** :loudspeaker: ##
 ### 1. No Bank Screenshots! :no_entry_sign: :bank: ###
 ### 2. Full client screenshots with chatbox open :camera: ###
 ### 3. Please make sure you meet the requirements :crossed_swords: ###
@@ -332,7 +365,8 @@ async def rank(interaction: discord.Interaction):
     # --- Sergeant Embed ---
     sergeant_embed = discord.Embed(
         title="Sergeant - <:sergeant:1406217456783200417>",
-        description="""✦ 4 Weeks in the Clan
+        description="""✦ Fulfills all previous rank requirements
+✦ 4 Weeks in the Clan
 ✦ 120+ Combat
 ✦ Hard Combat Achievements
 ✦ 150+ total raids KC
@@ -347,7 +381,8 @@ async def rank(interaction: discord.Interaction):
     # --- TzTok Embed ---
     tztok_embed = discord.Embed(
         title="TzTok - <:tztok:1406219778502168647>",
-        description="""✦ 6 Weeks in the Clan
+        description="""✦ Fulfills all previous rank requirements
+✦ 6 Weeks in the Clan
 ✦ 25 minimum KC each: COX / TOB / TOA
 ✦ 300+ total raids KC
 ✦ Rigour, Augury, Avernic Defender
@@ -362,7 +397,8 @@ async def rank(interaction: discord.Interaction):
     # --- Officer Embed ---
     officer_embed = discord.Embed(
         title="Officer - <:officer:1406225471003299942>",
-        description="""✦ 8 Weeks in the Clan
+        description="""✦ Fulfills all previous rank requirements
+✦ 8 Weeks in the Clan
 ✦ Elite Combat Achievements
 ✦ 25 minimum KC each: CM / HMT / expTOA
 ✦ 2/3: Fang Kit / Infernal Cape / Quiver
@@ -376,7 +412,8 @@ async def rank(interaction: discord.Interaction):
     # --- Commander Embed ---
     commander_embed = discord.Embed(
         title="Commander - <:commander:1406225531128647782>",
-        description="""✦ 12 Weeks in the Clan
+        description="""✦ Fulfills all previous rank requirements
+✦ 12 Weeks in the Clan
 ✦ 125 Combat
 ✦ Master Combat Achievements
 ✦ 50 KC each: CM / HMT / expTOA
@@ -390,15 +427,42 @@ async def rank(interaction: discord.Interaction):
     # --- TzKal Embed ---
     tzkal_embed = discord.Embed(
         title="TzKal - <:tzkal:1406218822033080400>",
-        description="""✦ Fulfills Commander Requirements
+        description="""✦ Fulfills all previous rank requirements
 ✦ Grandmaster Combat Achievements""",
         color=discord.Color.from_rgb(252, 76, 2)  # Red-Orange
     )
     await interaction.channel.send(embed=tzkal_embed)
     await asyncio.sleep(0.5)
 
+    # --- Alt Ranks Title Embed ---
+    alt_ranks_title_embed = discord.Embed(
+        title="Alt Ranks -",
+        description="✦ Meets Sergeant Requirements plus:",
+        color=discord.Color.from_rgb(200, 50, 50)  # Dark Red
+    )
+    await interaction.channel.send(embed=alt_ranks_title_embed)
+    await asyncio.sleep(0.5)
+
+    # --- Pet Hunter Embed ---
+    pet_hunter_embed = discord.Embed(
+        title="Pet hunter - <:pethunter:1406225392989114378>",
+        description="✦ 20+ Pets",
+        color=discord.Color.from_rgb(180, 45, 45)
+    )
+    await interaction.channel.send(embed=pet_hunter_embed)
+    await asyncio.sleep(0.5)
+
+    # --- Clogger Embed ---
+    clogger_embed = discord.Embed(
+        title="Clogger - <:clogger:1406233084311113808>",
+        description="✦ 1000+ Collection Log Slots",
+        color=discord.Color.from_rgb(160, 40, 40)
+    )
+    await interaction.channel.send(embed=clogger_embed)
+    await asyncio.sleep(0.5)
+
     await interaction.followup.send("✅ Rank message has been posted.", ephemeral=True)
-    
+
 # ---------------------------
 # 🔹 Welcome
 # ---------------------------
