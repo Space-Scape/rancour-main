@@ -316,8 +316,8 @@ Mentor - Raid Leaders <:mentor:1406802212382052412>
 Guest of the Clan - <:guest:1406225439172722752>
 Templar – Contributor <:serverbooster:1406225321778348042>
 Colonel – Top Contributor <:colonel:1420745479750422710>
-Smite – Boss of the Week Winner <:botw:1298362722856997058>
-Skilling Icons – Skill of the Week Winner <:sotw:1298363808707907685>
+Boss of the Week Winner <:botw:1298362722856997058>
+Skill of the Week Winner <:sotw:1298363808707907685>
 
 **Special Events**
 For large-scale events, such as bingo or team competitions, winners will be able to choose their own temporary icon!""",
