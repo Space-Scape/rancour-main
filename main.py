@@ -135,14 +135,39 @@ async def info(interaction: discord.Interaction):
     # --- What We Offer Embed ---
     offer_embed = discord.Embed(
         title="What We Offer",
-        description="""🏹 PvM of all levels
-        <:skill:1273597087736397897> Skilling
-        ⚔️ Raids (Learner friendly)
-        🎡 Games/Bingos
-        🎉 Social Events""",
+        description="""<:tob:1272864087105208364> PvM of all levels
+        <:sotw:1298363808707907685> <:botw:1298362722856997058> Skilling and Bossing Competitions
+        ⚔️ Raids - and learner friendly raids
+        🎡 Games/Bingos - win huge prizes
+        🎉 Social Events - come and hang out!
+        <:sanguine:1406225257588588586> ToB Learner Events - hosted by MacFlag
+        <:mentor:1406802212382052412> Mentoring - happy to assist""",
         color=discord.Color.yellow()
     )
     await interaction.channel.send(embed=offer_embed)
+    await asyncio.sleep(0.5)
+
+    await interaction.channel.send("https://i.postimg.cc/gJnMMHV4/border.png")
+    await asyncio.sleep(0.5)
+
+    # --- Requirements Embed ---
+    requirements_embed = discord.Embed(
+        title="Our Requirements",
+        description="""⚔️ 115+ Combat
+        <:skill:1273597087736397897> 1700+ Total Level
+        <:clogger:1406233084311113808> Medium Combat Achievements
+        🧤 Barrows Gloves
+        🗡 Dragon Defender
+        <:tztok:1406219778502168647> Fire Cape
+        <:vorkath:1273604742756569088> Ava’s Assembler
+        🔴🟢🔵 MA2 Cape
+        <:asgarnia:1299581365804863538> Full Void
+        <:graardor:1272841439386009661> Any: Torso/Bandos/Torva/Oathplate
+        ​𓆩𔓎𓆪 Piety, Thralls
+        ༒ 1/3: BGS/DWH/Elder Maul""",
+        color=discord.Color.yellow()
+    )
+    await interaction.channel.send(embed=requirements_embed)
     await asyncio.sleep(0.5)
 
     await interaction.channel.send("https://i.postimg.cc/gJnMMHV4/border.png")
@@ -172,7 +197,7 @@ async def info(interaction: discord.Interaction):
         🏹 **Team Finder:** Looking for a group? Head over to <#1272648555772776529>.
         🎉 **Events:** Check out all upcoming clan events in <#1272646577432825977>.
         ✨ **Achievements:** Share your drops and level-ups in <#1272629331524587624>.
-        🎓 **Mentoring:** After two weeks and earning the <:corporal:1406217420187893771> rank, you can open a mentor ticket for PVM guidance. Experienced players can apply to become a <:mentor:1406802212382052412> in <#1272648472184487937>.""",
+        <:mentor:1406802212382052412> **Mentoring:** After two weeks and earning the <:corporal:1406217420187893771> rank, you can open a mentor ticket for PVM guidance. Experienced players can apply to become a mentor in <#1272648472184487937>.""",
         color=discord.Color.yellow()
     )
     await interaction.channel.send(embed=key_channels_embed)
