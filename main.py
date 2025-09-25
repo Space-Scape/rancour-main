@@ -124,7 +124,7 @@ async def info(interaction: discord.Interaction):
         description="""We are a social, international PvM clan where community, fairness, transparency, and fun are our top priorities.
         We encourage our members to be social; our clan chat is our main hub of communication.
         This is an adult (18+) clan that we want to feel like a home away from home. All we ask is that you show respect to your fellow clanmates.""",
-        color=discord.Color.from_rgb(255, 235, 59)
+        color=discord.Color.from_rgb(0, 255, 227)
     )
     await interaction.channel.send(embed=info_embed)
     await asyncio.sleep(0.5)
@@ -142,7 +142,7 @@ async def info(interaction: discord.Interaction):
         Social Events - come and hang out!
         <:sanguine:1406225257588588586> ToB Learner Events - hosted by MacFlag
         <:mentor:1406802212382052412> Mentoring - happy to assist""",
-        color=discord.Color.from_rgb(255, 224, 130)
+        color=discord.Color.from_rgb(0, 227, 202)
     )
     await interaction.channel.send(embed=offer_embed)
     await asyncio.sleep(0.5)
@@ -162,7 +162,7 @@ async def info(interaction: discord.Interaction):
         ༒ Any: Torso/Bandos/Torva/Oathplate
         ༒ Piety, Thralls
         ༒ 1/3: BGS/DWH/Elder Maul""",
-        color=discord.Color.from_rgb(255, 215, 0)
+        color=discord.Color.from_rgb(0, 199, 177)
     )
     await interaction.channel.send(embed=requirements_embed)
     await asyncio.sleep(0.5)
@@ -176,7 +176,7 @@ async def info(interaction: discord.Interaction):
         🔑 **Register your RSN:** <#1280532494139002912> - Use this for name changes.
 
         Guests are always welcome to hang out and get a feel for our community before becoming a member. Just ask!""",
-        color=discord.Color.from_rgb(255, 204, 0)
+        color=discord.Color.from_rgb(0, 171, 152)
     )
     await interaction.channel.send(embed=systems_embed)
     await asyncio.sleep(0.5)
@@ -189,7 +189,7 @@ async def info(interaction: discord.Interaction):
         🎉 **Events:** Check out all upcoming clan events in <#1272646577432825977>.
         ✨ **Achievements:** Share your drops and level-ups in <#1272629331524587624>.
         <:mentor:1406802212382052412> **Mentoring:** After two weeks and earning the <:corporal:1406217420187893771> rank, you can open a mentor ticket for PVM guidance. Experienced players can apply to become a mentor in <#1272648472184487937>.""",
-        color=discord.Color.from_rgb(255, 193, 7)
+        color=discord.Color.from_rgb(0, 145, 129)
     )
     await interaction.channel.send(embed=key_channels_embed)
     await asyncio.sleep(0.5)
@@ -199,7 +199,7 @@ async def info(interaction: discord.Interaction):
         title="Timezones & Active Hours",
         description="""Our clan has members from all over the world! We are most active during the EU and NA evenings.
         You can select your timezone role in 🌐 <#1398775387139342386> to get pings for events in your local time.""",
-        color=discord.Color.from_rgb(255, 179, 0)
+        color=discord.Color.from_rgb(0, 128, 113)
     )
     await interaction.channel.send(embed=timezones_embed)
     await asyncio.sleep(0.5)
