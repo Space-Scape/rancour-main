@@ -461,6 +461,17 @@ For large-scale events, such as bingo or team competitions, winners will be able
     await interaction.followup.send("✅ Rank message has been posted.", ephemeral=True)
 
 # ---------------------------
+# 🔹 Say Command
+# ---------------------------
+@bot.tree.command(name="say", description="Makes the bot say something in the current channel.")
+@app_commands.describe(message="The message you want the bot to say.")
+@app_commands.checks.has_any_role("Clan Staff")
+async def say(interaction: discord.Interaction, message: str):
+    """Makes the bot say something."""
+    await interaction.channel.send(message)
+    await interaction.response.send_message("✅ Message sent!", ephemeral=True, delete_after=5)
+
+# ---------------------------
 # 🔹 Welcome
 # ---------------------------
 
