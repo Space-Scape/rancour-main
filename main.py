@@ -145,7 +145,7 @@ async def info(interaction: discord.Interaction):
     await interaction.channel.send(embed=offer_embed)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/HLNHNVC4/border.png")
+    await interaction.channel.send("https://i.postimg.cc/gJnMMHV4/border.png")
     await asyncio.sleep(0.5)
 
     # --- Systems Embed ---
@@ -162,7 +162,7 @@ async def info(interaction: discord.Interaction):
     await interaction.channel.send(embed=systems_embed)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/HLNHNVC4/border.png")
+    await interaction.channel.send("https://i.postimg.cc/gJnMMHV4/border.png")
     await asyncio.sleep(0.5)
 
     # --- Key Channels & Roles Embed ---
@@ -178,7 +178,7 @@ async def info(interaction: discord.Interaction):
     await interaction.channel.send(embed=key_channels_embed)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/HLNHNVC4/border.png")
+    await interaction.channel.send("https://i.postimg.cc/gJnMMHV4/border.png")
     await asyncio.sleep(0.5)
 
     # --- Timezones Embed ---
@@ -192,9 +192,11 @@ async def info(interaction: discord.Interaction):
     await interaction.channel.send(embed=timezones_embed)
     await asyncio.sleep(0.5)
 
+    await interaction.channel.send("https://i.postimg.cc/HLNHNVC4/border.png")
+    await asyncio.sleep(0.5)
+    
     await interaction.channel.send("https://discord.gg/rancour-pvm")
     await interaction.followup.send("✅ Info message has been posted.", ephemeral=True)
-
 
 # ---------------------------
 # 🔹 Rules Command (Refactored)
