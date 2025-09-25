@@ -299,6 +299,9 @@ async def rank(interaction: discord.Interaction):
     await interaction.channel.send(embed=rank_up_embed)
     await asyncio.sleep(0.5)
 
+    await interaction.channel.send("https://i.postimg.cc/FmWGMS1G/roles.png")
+    await asyncio.sleep(0.5)
+
     # --- Recruit Embed ---
     recruit_embed = discord.Embed(
         title="Recruit - <:recruit:1406214952808873994>",
