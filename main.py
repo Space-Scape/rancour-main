@@ -1,4 +1,3 @@
-# main.py
 import os
 import discord
 from discord.ext import commands
@@ -290,9 +289,23 @@ async def rank(interaction: discord.Interaction):
     await interaction.channel.send("https://i.postimg.cc/mD4tChmN/ranks.png")
     await asyncio.sleep(0.5)
 
+    # --- Rank Up Instructions Embed ---
+    rank_up_embed = discord.Embed(
+        title="Rank Up",
+        description="""###Please upload screenshots to demonstrate that you meet the requirements for the selected rank.:hourglass: ###
+## **Important:** :loudspeaker: ##
+### 1. No Bank Screenshots! :no_entry_sign: :bank: ###
+### 2. Full client screenshots with chatbox open :camera: ###
+### 3. Please make sure you meet the requirements :crossed_swords: ###
+### 4. Your server nickname should match/contain your RSN :bust_in_silhouette: ###""",
+        color=discord.Color.light_grey()
+    )
+    await interaction.channel.send(embed=rank_up_embed)
+    await asyncio.sleep(0.5)
+
     # --- Recruit Embed ---
     recruit_embed = discord.Embed(
-        title="1. Recruit <:recruit:1406214952808873994>",
+        title="Recruit - <:recruit:1406214952808873994>",
         description="""✦ 115+ Combat, 1700+ Total
 ✦ Medium Combat Achievements
 ✦ Barrows Gloves, Dragon Defender
@@ -308,7 +321,7 @@ async def rank(interaction: discord.Interaction):
 
     # --- Corporal Embed ---
     corporal_embed = discord.Embed(
-        title="2. Corporal <:corporal:1406217420187893771>",
+        title="Corporal - <:corporal:1406217420187893771>",
         description="""✦ 2 Weeks in the Clan
 ✦ Will be automatically applied""",
         color=discord.Color.from_rgb(255, 165, 0)  # Orange
@@ -318,7 +331,7 @@ async def rank(interaction: discord.Interaction):
 
     # --- Sergeant Embed ---
     sergeant_embed = discord.Embed(
-        title="3. Sergeant <:sergeant:1406217456783200417>",
+        title="Sergeant - <:sergeant:1406217456783200417>",
         description="""✦ 4 Weeks in the Clan
 ✦ 120+ Combat
 ✦ Hard Combat Achievements
@@ -333,7 +346,7 @@ async def rank(interaction: discord.Interaction):
 
     # --- TzTok Embed ---
     tztok_embed = discord.Embed(
-        title="4. TzTok <:tztok:1406219778502168647>",
+        title="TzTok - <:tztok:1406219778502168647>",
         description="""✦ 6 Weeks in the Clan
 ✦ 25 minimum KC each: COX / TOB / TOA
 ✦ 300+ total raids KC
@@ -348,7 +361,7 @@ async def rank(interaction: discord.Interaction):
 
     # --- Officer Embed ---
     officer_embed = discord.Embed(
-        title="5. Officer <:officer:1406225471003299942>",
+        title="Officer - <:officer:1406225471003299942>",
         description="""✦ 8 Weeks in the Clan
 ✦ Elite Combat Achievements
 ✦ 25 minimum KC each: CM / HMT / expTOA
@@ -362,7 +375,7 @@ async def rank(interaction: discord.Interaction):
 
     # --- Commander Embed ---
     commander_embed = discord.Embed(
-        title="6. Commander <:commander:1406225531128647782>",
+        title="Commander - <:commander:1406225531128647782>",
         description="""✦ 12 Weeks in the Clan
 ✦ 125 Combat
 ✦ Master Combat Achievements
@@ -376,7 +389,7 @@ async def rank(interaction: discord.Interaction):
 
     # --- TzKal Embed ---
     tzkal_embed = discord.Embed(
-        title="7. TzKal <:tzkal:1406218822033080400>",
+        title="TzKal - <:tzkal:1406218822033080400>",
         description="""✦ Fulfills Commander Requirements
 ✦ Grandmaster Combat Achievements""",
         color=discord.Color.from_rgb(252, 76, 2)  # Red-Orange
