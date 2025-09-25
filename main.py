@@ -135,13 +135,13 @@ async def info(interaction: discord.Interaction):
     # --- What We Offer Embed ---
     offer_embed = discord.Embed(
         title="What We Offer",
-        description="""PvM of all levels
-        <:sotw:1298363808707907685> <:botw:1298362722856997058> Skilling and Bossing Competitions
-        Raids - and learner friendly raids
-        Games/Bingos - win huge prizes
-        Social Events - come and hang out!
-        <:sanguine:1406225257588588586> ToB Learner Events - hosted by MacFlag
-        <:mentor:1406802212382052412> Mentoring - happy to assist""",
+        description="""➤ PvM of all levels
+        ➤ Skilling and Bossing Competitions
+        ➤ Raids - and learner friendly raids
+        ➤ Games/Bingos - win huge prizes
+        ➤ Social Events - hang out
+        ➤ ToB Learner Events - hosted by MacFlag
+        ➤ Mentoring - happy to assist""",
         color=discord.Color.from_rgb(0, 227, 202)
     )
     await interaction.channel.send(embed=offer_embed)
