@@ -115,7 +115,7 @@ async def info(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True, thinking=True)
 
     # Sending the initial banner image
-    await interaction.channel.send("https://i.postimg.cc/8G3CWSDP/info.png")
+    await interaction.channel.send("https://i.postimg.cc/BJm6PC8F/info.png")
     await asyncio.sleep(0.5)
 
     # --- Main Info Embed ---
@@ -124,25 +124,25 @@ async def info(interaction: discord.Interaction):
         description="""We are a social, international PvM clan where community, fairness, transparency, and fun are our top priorities.
         We encourage our members to be social; our clan chat is our main hub of communication.
         This is an adult (18+) clan that we want to feel like a home away from home. All we ask is that you show respect to your fellow clanmates.""",
-        color=discord.Color.from_rgb(0, 255, 227)
+        color=discord.Color.from_rgb(169, 253, 254)
     )
     await interaction.channel.send(embed=info_embed)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/Zn7d5nwq/border.png")
+    await interaction.channel.send("https://i.postimg.cc/gJnMMHV4/border.png")
     await asyncio.sleep(0.5)
     
     # --- What We Offer Embed ---
     offer_embed = discord.Embed(
         title="What We Offer",
-        description="""➤ PvM of all levels
-        ➤ Skilling and Bossing Competitions
-        ➤ Raids - and learner friendly raids
-        ➤ Games/Bingos - win huge prizes
-        ➤ Social Events - hang out
-        ➤ ToB Learner Events - hosted by MacFlag
-        ➤ Mentoring - happy to assist""",
-        color=discord.Color.from_rgb(0, 227, 202)
+        description="""PvM of all levels
+        <:sotw:1298363808707907685> <:botw:1298362722856997058> Skilling and Bossing Competitions
+        Raids - and learner friendly raids
+        Games/Bingos - win huge prizes
+        Social Events - come and hang out!
+        <:sanguine:1406225257588588586> ToB Learner Events - hosted by MacFlag
+        <:mentor:1406802212382052412> Mentoring - happy to assist""",
+        color=discord.Color.from_rgb(153, 238, 239)
     )
     await interaction.channel.send(embed=offer_embed)
     await asyncio.sleep(0.5)
@@ -162,7 +162,7 @@ async def info(interaction: discord.Interaction):
         ༒ Any: Torso/Bandos/Torva/Oathplate
         ༒ Piety, Thralls
         ༒ 1/3: BGS/DWH/Elder Maul""",
-        color=discord.Color.from_rgb(0, 199, 177)
+        color=discord.Color.from_rgb(138, 223, 224)
     )
     await interaction.channel.send(embed=requirements_embed)
     await asyncio.sleep(0.5)
@@ -176,7 +176,7 @@ async def info(interaction: discord.Interaction):
         🔑 **Register your RSN:** <#1280532494139002912> - Use this for name changes.
 
         Guests are always welcome to hang out and get a feel for our community before becoming a member. Just ask!""",
-        color=discord.Color.from_rgb(0, 171, 152)
+        color=discord.Color.from_rgb(122, 207, 209)
     )
     await interaction.channel.send(embed=systems_embed)
     await asyncio.sleep(0.5)
@@ -189,7 +189,7 @@ async def info(interaction: discord.Interaction):
         🎉 **Events:** Check out all upcoming clan events in <#1272646577432825977>.
         ✨ **Achievements:** Share your drops and level-ups in <#1272629331524587624>.
         <:mentor:1406802212382052412> **Mentoring:** After two weeks and earning the <:corporal:1406217420187893771> rank, you can open a mentor ticket for PVM guidance. Experienced players can apply to become a mentor in <#1272648472184487937>.""",
-        color=discord.Color.from_rgb(0, 145, 129)
+        color=discord.Color.from_rgb(107, 192, 194)
     )
     await interaction.channel.send(embed=key_channels_embed)
     await asyncio.sleep(0.5)
@@ -199,7 +199,7 @@ async def info(interaction: discord.Interaction):
         title="Timezones & Active Hours",
         description="""Our clan has members from all over the world! We are most active during the EU and NA evenings.
         You can select your timezone role in 🌐 <#1398775387139342386> to get pings for events in your local time.""",
-        color=discord.Color.from_rgb(0, 128, 113)
+        color=discord.Color.from_rgb(91, 177, 179)
     )
     await interaction.channel.send(embed=timezones_embed)
     await asyncio.sleep(0.5)
