@@ -117,188 +117,6 @@ async def info(interaction: discord.Interaction):
     await interaction.channel.send("https://i.postimg.cc/8G3CWSDP/info.png")
     await asyncio.sleep(0.5)
 
-    info_embed = discord.Embed(
-        title="How to apply for a role",
-        description="""We are a social, international PvM clan where community, fairness, transparency, and fun are our top priorities.
-        We encourage our members to be social; our clan chat is our main hub of communication.
-        This is an adult (18+) clan that we want to feel like a home away from home. All we ask is that you show respect to your fellow clanmates.""",
-        color=discord.Color.from_rgb(184, 249, 249)
-    )
-    await interaction.channel.send(embed=info_embed)
-    await asyncio.sleep(0.5)
-
-    info_embed = discord.Embed(
-        title="Rancour PvM - Clan Information",
-        description="""We are a social, international PvM clan where community, fairness, transparency, and fun are our top priorities.
-        We encourage our members to be social; our clan chat is our main hub of communication.
-        This is an adult (18+) clan that we want to feel like a home away from home. All we ask is that you show respect to your fellow clanmates.""",
-        color=discord.Color.from_rgb(184, 249, 249)
-    )
-    await interaction.channel.send(embed=info_embed)
-    await asyncio.sleep(0.5)
-
-    await interaction.channel.send("https://i.postimg.cc/Zn7d5nwq/border.png")
-    await asyncio.sleep(0.5)
-    
-    # --- What We Offer Embed ---
-    offer_embed = discord.Embed(
-        title="What We Offer",
-        description="""➤ PvM of all levels
-        ➤ Skilling and Bossing Competitions
-        ➤ Raids - and learner friendly raids
-        ➤ Games/Bingos - win huge prizes
-        ➤ Social Events - come and hang out!
-        ➤ ToB Learner Events - hosted by MacFlag
-        ➤ Mentoring - happy to assist""",
-        color=discord.Color.from_rgb(197, 236, 236)
-    )
-    await interaction.channel.send(embed=offer_embed)
-    await asyncio.sleep(0.5)
-
-    # --- Requirements Embed ---
-    requirements_embed = discord.Embed(
-        title="Our Requirements",
-        description="""༒ 115+ Combat
-        ༒ 1700+ Total Level
-        ༒ Medium Combat Achievements
-        ༒ Barrows Gloves
-        ༒ Dragon Defender
-        ༒ Fire Cape
-        ༒ Ava’s Assembler
-        ༒ MA2 Cape
-        ༒ Full Void
-        ༒ Any: Torso/Bandos/Torva/Oathplate
-        ༒ Piety, Thralls
-        ༒ 1/3: BGS/DWH/Elder Maul""",
-        color=discord.Color.from_rgb(210, 223, 223)
-    )
-    await interaction.channel.send(embed=requirements_embed)
-    await asyncio.sleep(0.5)
-
-    # --- Systems Embed ---
-    systems_embed = discord.Embed(
-        title="Clan Ticket Systems and Name Changing",
-        description="""👋 **Become a member:** <#1272648453264248852> - Welcome!
-        🍌 **Request a rank up:** <#1272648472184487937> - Update your ranks here.
-        🔔 **Get help (Support):** <#1272648498554077304> - Report rule-breaking or bot failures, get private help, make suggestions, and more!
-        🔑 **Register your RSN:** <#1280532494139002912> - Use this for name changes.
-
-        Guests are always welcome to hang out and get a feel for our community before becoming a member. Just ask!""",
-        color=discord.Color.from_rgb(223, 210, 210)
-    )
-    await interaction.channel.send(embed=systems_embed)
-    await asyncio.sleep(0.5)
-
-    # --- Key Channels & Roles Embed ---
-    key_channels_embed = discord.Embed(
-        title="Key Channels & Roles",
-        description="""🎯 **Self-Roles:** Grab your roles in <#1272648586198519818> to get pings for bosses, raids, and events.
-        🏹 **Team Finder:** Looking for a group? Head over to <#1272648555772776529>.
-        🎉 **Events:** Check out all upcoming clan events in <#1272646577432825977>.
-        ✨ **Achievements:** Share your drops and level-ups in <#1272629331524587624>.
-        <:mentor:1406802212382052412> **Mentoring:** After two weeks and earning the <:corporal:1406217420187893771> rank, you can open a mentor ticket for PVM guidance. Experienced players can apply to become a mentor in <#1272648472184487937>.""",
-        color=discord.Color.from_rgb(236, 197, 197)
-    )
-    await interaction.channel.send(embed=key_channels_embed)
-    await asyncio.sleep(0.5)
-
-    # --- Timezones Embed ---
-    timezones_embed = discord.Embed(
-        title="Timezones & Active Hours",
-        description="""Our clan has members from all over the world! We are most active during the EU and NA evenings.
-        You can select your timezone role in 🌐 <#1398775387139342386> to get pings for events in your local time.""",
-        color=discord.Color.from_rgb(249, 184, 184)
-    )
-    await interaction.channel.send(embed=timezones_embed)
-    await asyncio.sleep(0.5)
-    
-    await interaction.channel.send("https://discord.gg/rancour-pvm")
-    await interaction.followup.send("✅ Info message has been posted.", ephemeral=True)
-
-# ---------------------------
-# 🔹 Rules Command (Refactored)
-# ---------------------------
-@bot.tree.command(name="rules", description="Post the clan rules message.")
-@app_commands.checks.has_any_role("Moderators")
-async def rules(interaction: discord.Interaction):
-    """Posts a series of embeds detailing the clan rules."""
-    await interaction.response.defer(ephemeral=True, thinking=True)
-
-    await interaction.channel.send("https://i.postimg.cc/wgHTWrLJ/rules.png")
-    await asyncio.sleep(0.5)
-
-    embed_welcome = discord.Embed(
-        description="""`Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are very simple. Please note that Staff and Mods may issue warnings or ban at their discretion if they feel it is necessary to maintain a positive environment.`
-
-        **Discord is a clan requirement**
-        We use it for announcements, events, clan discussions, and a wide range of other purposes. We also suggest members **not** mute the <#1272646547020185704> channel.
-
-        *We'll do our best to minimise the pings, but this is for important information you might need if you're going to be a member of the community.*""",
-        color=discord.Color.from_rgb(217, 0, 0)
-    )
-    await interaction.channel.send(embed=embed_welcome)
-    await asyncio.sleep(0.5)
-
-    await interaction.channel.send("https://i.postimg.cc/3wcbhGNN/rules-strikes.png")
-    await asyncio.sleep(0.5)
-
-    embed_strikes = discord.Embed(
-        title="❗The 3-Strike System❗",
-        description="""Our community uses a 3-strike system to manage rule violations. The only exception is if someone’s conduct is severe enough to require immediate action.
-
-        ➤ **1st Offence:** Will result in a recorded warning.
-        ➤ **2nd Offence:** Second recorded warning and a temporary time-out.
-        ➤ **3rd Offence:** Immediate removal from the clan.
-
-        You can appeal a warning or ban by contacting a **Moderator**. Appeals are usually handled via a *voice call*, where you will explain your actions and discuss what is considered acceptable behaviour within the clan.
-
-        Anyone who receives a warning or ban may appeal to have it removed if they feel it was unjust by contacting an admin.""",
-        color=discord.Color.from_rgb(211, 1, 1)
-    )
-    await interaction.channel.send(embed=embed_strikes)
-    await asyncio.sleep(0.5)
-
-    await interaction.channel.send("http://i.postimg.cc/TPpCtP06/rules-text.png")
-    await asyncio.sleep(0.5)
-
-    rule_data = [
-        ("Rule 1️⃣ - Respect Others", "Being respectful to others means treating people the way you’d like to be treated. Another way to look at it is: don’t say anything if you have nothing nice to say, and don’t put others down because they are less experienced than you."),
-        ("Rule 2️⃣ - Follow All In-Game & Discord Rules", "This should go without saying, but if rule-breaking is inappropriate for Jagex and Discord's ToS, it is also inappropriate here. If you are found to be engaging in this sort of behaviour outside of the clan (**especially if you are staff and are representing the clan**) or are frequenting servers where clan members can secretly *break the rules* and trash talk, it will result in your removal from this server following a ban - no one needs this kind of behaviour in their lives (staff are held to a higher standard). We're all adults, and we will not allow it to spill over into the clan without taking action.\n\nThe following will **NOT** be tolerated:\n\n⊘ Racism\n⊘ Macroing\n⊘ Solicitation\n⊘ Advertising websites for GP\n⊘ Scamming\n⊘ Ethnic slurs\n⊘ Hate speech"),
-        ("Rule 3️⃣ - No Heated Religious or Political Arguments", "Political or religious topics can easily become hectic. Discussing them is fine, as they are part of everyday life, but if a conversation turns into a debate, we kindly ask you to take it to your DMs."),
-        ("Rule 4️⃣ - Don’t Share Others' Personal Information", "You are welcome to share your own personal information, but sharing other people’s personal information without consent will result in a warning if it's light enough or a possible ban. Trust is important, and breaking it with people in our community, or with friends, will make you unwelcome in the clan."),
-        ("Rule 5️⃣ - No Sharing or Using Plug-ins from Unofficial Clients", "Cheat plug-ins or plug-ins aimed at scamming others through downloads are not allowed, both in-game and on a Discord. These plug-ins are often dangerous and can lead to being banned if undeniable proof is given to us."),
-        ("Rule 6️⃣ - No Scamming, Luring, or Begging", "Social engineering, scamming, and luring will result in a RuneWatch case and a ban from the clan, whether it happens to people inside or outside of the clan.\nBegging is extremely irritating and will result in a warning."),
-        ("Rule 7️⃣ - All Uniques Must Be Split", "Any unique obtained in group content **must be split** unless stated otherwise before the raid and **agreed upon by all members - This includes members joining your raid**.\nYou also need to split loot with your team members (who are in the clan) **even if** you are doing content on an FFA world, in an FFA clan chat, or if you are an Ironman."),
-        ("Rule 8️⃣ - You Must Have Your In-Game Name Set As Your Discord Name", "In order to keep track of clan members during events and reach out to you, you **MUST** have your Discord nickname include your in-game name.\n\n**Acceptable Formats:**\n✅ `- Discord Name / In-Game Name`\n✅ `- Discord Name (In-Game Name)`\n✅ `- In-Game Name Only`\n❌ `- Discord Name Only`\n\n**Enforcement:**\n*We will attempt to replace your name for you, but may reach out if we do not find an in-game match. If you do not reply, you may be mistakenly removed from the Discord.*")
-    ]
-
-    rule_colors = [
-        (206, 2, 2), (201, 4, 4), (195, 5, 5), (190, 6, 6),
-        (185, 7, 7), (179, 9, 9), (174, 10, 10), (168, 12, 12)
-    ]
-
-    rule_embeds = [
-        discord.Embed(title=title, description=description, color=discord.Color.from_rgb(*rule_colors[i]))
-        for i, (title, description) in enumerate(rule_data)
-    ]
-
-    await interaction.channel.send(embeds=rule_embeds)
-    await interaction.followup.send("✅ Rules message has been posted.", ephemeral=True)
-
-# ---------------------------
-# 🔹 Info Command
-# ---------------------------
-@bot.tree.command(name="info", description="Post general information about the clan.")
-@app_commands.checks.has_any_role("Moderators")
-async def info(interaction: discord.Interaction):
-    """Posts a general information embed for the clan."""
-    # Defer the response to give the bot more than 3 seconds to process.
-    await interaction.response.defer(ephemeral=True, thinking=True)
-
-    # Sending the initial banner image
-    await interaction.channel.send("https://i.postimg.cc/8G3CWSDP/info.png")
-    await asyncio.sleep(0.5)
-
     # --- Main Info Embed ---
     info_embed = discord.Embed(
         title="Rancour PvM - Clan Information",
@@ -401,6 +219,251 @@ async def info(interaction: discord.Interaction):
     
     await interaction.channel.send("https://discord.gg/rancour-pvm")
     await interaction.followup.send("✅ Info message has been posted.", ephemeral=True)
+
+# ---------------------------
+# 🔹 Rules Command (Refactored)
+# ---------------------------
+@bot.tree.command(name="rules", description="Post the clan rules message.")
+@app_commands.checks.has_any_role("Moderators")
+async def rules(interaction: discord.Interaction):
+    """Posts a series of embeds detailing the clan rules."""
+    await interaction.response.defer(ephemeral=True, thinking=True)
+
+    await interaction.channel.send("https://i.postimg.cc/wgHTWrLJ/rules.png")
+    await asyncio.sleep(0.5)
+
+    embed_welcome = discord.Embed(
+        description="""`Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are very simple. Please note that Staff and Mods may issue warnings or ban at their discretion if they feel it is necessary to maintain a positive environment.`
+
+        **Discord is a clan requirement**
+        We use it for announcements, events, clan discussions, and a wide range of other purposes. We also suggest members **not** mute the <#1272646547020185704> channel.
+
+        *We'll do our best to minimise the pings, but this is for important information you might need if you're going to be a member of the community.*""",
+        color=discord.Color.from_rgb(217, 0, 0)
+    )
+    await interaction.channel.send(embed=embed_welcome)
+    await asyncio.sleep(0.5)
+
+    await interaction.channel.send("https://i.postimg.cc/3wcbhGNN/rules-strikes.png")
+    await asyncio.sleep(0.5)
+
+    embed_strikes = discord.Embed(
+        title="❗The 3-Strike System❗",
+        description="""Our community uses a 3-strike system to manage rule violations. The only exception is if someone’s conduct is severe enough to require immediate action.
+
+        ➤ **1st Offence:** Will result in a recorded warning.
+        ➤ **2nd Offence:** Second recorded warning and a temporary time-out.
+        ➤ **3rd Offence:** Immediate removal from the clan.
+
+        You can appeal a warning or ban by contacting a **Moderator**. Appeals are usually handled via a *voice call*, where you will explain your actions and discuss what is considered acceptable behaviour within the clan.
+
+        Anyone who receives a warning or ban may appeal to have it removed if they feel it was unjust by contacting an admin.""",
+        color=discord.Color.from_rgb(211, 1, 1)
+    )
+    await interaction.channel.send(embed=embed_strikes)
+    await asyncio.sleep(0.5)
+
+    await interaction.channel.send("http://i.postimg.cc/TPpCtP06/rules-text.png")
+    await asyncio.sleep(0.5)
+
+    rule_data = [
+        ("Rule 1️⃣ - Respect Others", "Being respectful to others means treating people the way you’d like to be treated. Another way to look at it is: don’t say anything if you have nothing nice to say, and don’t put others down because they are less experienced than you."),
+        ("Rule 2️⃣ - Follow All In-Game & Discord Rules", "This should go without saying, but if rule-breaking is inappropriate for Jagex and Discord's ToS, it is also inappropriate here. If you are found to be engaging in this sort of behaviour outside of the clan (**especially if you are staff and are representing the clan**) or are frequenting servers where clan members can secretly *break the rules* and trash talk, it will result in your removal from this server following a ban - no one needs this kind of behaviour in their lives (staff are held to a higher standard). We're all adults, and we will not allow it to spill over into the clan without taking action.\n\nThe following will **NOT** be tolerated:\n\n⊘ Racism\n⊘ Macroing\n⊘ Solicitation\n⊘ Advertising websites for GP\n⊘ Scamming\n⊘ Ethnic slurs\n⊘ Hate speech"),
+        ("Rule 3️⃣ - No Heated Religious or Political Arguments", "Political or religious topics can easily become hectic. Discussing them is fine, as they are part of everyday life, but if a conversation turns into a debate, we kindly ask you to take it to your DMs."),
+        ("Rule 4️⃣ - Don’t Share Others' Personal Information", "You are welcome to share your own personal information, but sharing other people’s personal information without consent will result in a warning if it's light enough or a possible ban. Trust is important, and breaking it with people in our community, or with friends, will make you unwelcome in the clan."),
+        ("Rule 5️⃣ - No Sharing or Using Plug-ins from Unofficial Clients", "Cheat plug-ins or plug-ins aimed at scamming others through downloads are not allowed, both in-game and on a Discord. These plug-ins are often dangerous and can lead to being banned if undeniable proof is given to us."),
+        ("Rule 6️⃣ - No Scamming, Luring, or Begging", "Social engineering, scamming, and luring will result in a RuneWatch case and a ban from the clan, whether it happens to people inside or outside of the clan.\nBegging is extremely irritating and will result in a warning."),
+        ("Rule 7️⃣ - All Uniques Must Be Split", "Any unique obtained in group content **must be split** unless stated otherwise before the raid and **agreed upon by all members - This includes members joining your raid**.\nYou also need to split loot with your team members (who are in the clan) **even if** you are doing content on an FFA world, in an FFA clan chat, or if you are an Ironman."),
+        ("Rule 8️⃣ - You Must Have Your In-Game Name Set As Your Discord Name", "In order to keep track of clan members during events and reach out to you, you **MUST** have your Discord nickname include your in-game name.\n\n**Acceptable Formats:**\n✅ `- Discord Name / In-Game Name`\n✅ `- Discord Name (In-Game Name)`\n✅ `- In-Game Name Only`\n❌ `- Discord Name Only`\n\n**Enforcement:**\n*We will attempt to replace your name for you, but may reach out if we do not find an in-game match. If you do not reply, you may be mistakenly removed from the Discord.*")
+    ]
+
+    rule_colors = [
+        (206, 2, 2), (201, 4, 4), (195, 5, 5), (190, 6, 6),
+        (185, 7, 7), (179, 9, 9), (174, 10, 10), (168, 12, 12)
+    ]
+
+    rule_embeds = [
+        discord.Embed(title=title, description=description, color=discord.Color.from_rgb(*rule_colors[i]))
+        for i, (title, description) in enumerate(rule_data)
+    ]
+
+    await interaction.channel.send(embeds=rule_embeds)
+    await interaction.followup.send("✅ Rules message has been posted.", ephemeral=True)
+
+# ---------------------------
+# 🔹 Rank Command
+# ---------------------------
+@bot.tree.command(name="rank", description="Post the clan rank requirements.")
+@app_commands.checks.has_any_role("Moderators")
+async def rank(interaction: discord.Interaction):
+    """Posts a series of embeds detailing the clan rank requirements."""
+    await interaction.response.defer(ephemeral=True, thinking=True)
+
+    await interaction.channel.send("https://i.postimg.cc/FmWGMS1G/roles.png")
+    await asyncio.sleep(0.5)
+
+    info_embed = discord.Embed(
+        title="How to apply for a role",
+        description="""**__How to Rank Up__**
+Please scroll down and find the rank you wish to apply for. If you meet the requirements, go to the bottom of the page and select the rank from the drop-down menu.
+
+**Staff Ranks**
+Golden Key – CEO Account <:CEO:1420745474058752032>
+Silver Key – Leaders <:admin:1406221348942123051>
+Gold Star – Senior Staff <:seniorstaff:1406217576404488192> 
+Silver Star – Staff <:staff:1406217522595762246> 
+Bronze Star – Trial Staff <:trialmod:1420745477279846430>
+
+**Special Ranks**
+Mentor - Raid Leaders <:mentor:1406802212382052412>
+
+**Other Ranks**
+Guest of the Clan - <:guest:1406225439172722752>
+Templar – Contributor <:serverbooster:1406225321778348042>
+Colonel – Top Contributor <:colonel:1420745479750422710>
+Boss of the Week Winner <:botw:1298362722856997058>
+Skill of the Week Winner <:sotw:1298363808707907685>
+
+**Special Events**
+For large-scale events, such as bingo or team competitions, winners will be able to choose their own temporary icon!""",
+        color=discord.Color.from_rgb(184, 249, 249)
+    )
+    await interaction.channel.send(embed=info_embed)
+    await asyncio.sleep(0.5)
+
+    rank_up_embed = discord.Embed(
+        title="# Please upload screenshots to demonstrate that you meet the requirements for the selected rank.:hourglass: #",
+        description="""# **Important:** :loudspeaker: ##
+### 1. No Bank Screenshots! :no_entry_sign: :bank: ###
+### 2. Full client screenshots with chatbox open :camera: ###
+### 3. Please make sure you meet the requirements :crossed_swords: ###
+### 4. Your server nickname should match/contain your RSN :bust_in_silhouette: ###
+### 5. When skipping ranks please also include all requirements for any ranks you are skipping over. ###""",
+        color=discord.Color.light_grey()
+    )
+
+    await interaction.channel.send(embed=rank_up_embed)
+    await asyncio.sleep(0.5)
+
+    # --- Recruit Embed ---
+    recruit_embed = discord.Embed(
+        title="Recruit - <:recruit:1406214952808873994>",
+        description="""✦ 115+ Combat, 1700+ Total
+✦ Medium Combat Achievements
+✦ Barrows Gloves, Dragon Defender
+✦ Fire Cape, Ava’s Assembler, MA2 Cape
+✦ Full Void
+✦ Any: Torso / Bandos / Torva
+✦ Piety, Thralls
+✦ 1/3: BGS/DWH/Elder Maul""",
+        color=discord.Color.from_rgb(255, 215, 0)  # Gold
+    )
+    await interaction.channel.send(embed=recruit_embed)
+    await asyncio.sleep(0.5)
+
+    # --- Corporal Embed ---
+    corporal_embed = discord.Embed(
+        title="Corporal - <:corporal:1406217420187893771>",
+        description="""✦ 2 Weeks in the Clan
+✦ Will be automatically applied""",
+        color=discord.Color.from_rgb(255, 165, 0)  # Orange
+    )
+    await interaction.channel.send(embed=corporal_embed)
+    await asyncio.sleep(0.5)
+
+    # --- Sergeant Embed ---
+    sergeant_embed = discord.Embed(
+        title="Sergeant - <:sergeant:1406217456783200417>",
+        description="""✦ Fulfills all previous rank requirements
+✦ 4 Weeks in the Clan
+✦ 120+ Combat
+✦ Hard Combat Achievements
+✦ 150+ total raids KC
+✦ 85 Farming, 78 Herblore
+✦ Elite Void
+✦ Crystal Halberd""",
+        color=discord.Color.from_rgb(255, 255, 0)  # Yellow
+    )
+    await interaction.channel.send(embed=sergeant_embed)
+    await asyncio.sleep(0.5)
+
+    # --- TzTok Embed ---
+    tztok_embed = discord.Embed(
+        title="TzTok - <:tztok:1406219778502168647>",
+        description="""✦ Fulfills all previous rank requirements
+✦ 6 Weeks in the Clan
+✦ 25 minimum KC each: COX / TOB / TOA
+✦ 300+ total raids KC
+✦ Rigour, Augury, Avernic Defender
+✦ 1/3: BOWFA / ZCB / any Mega
+✦ 1/3: Fang Kit / Infernal Cape / Quiver
+✦ 91 Slayer""",
+        color=discord.Color.from_rgb(252, 128, 40)  # Bright Orange
+    )
+    await interaction.channel.send(embed=tztok_embed)
+    await asyncio.sleep(0.5)
+
+    # --- Officer Embed ---
+    officer_embed = discord.Embed(
+        title="Officer - <:officer:1406225471003299942>",
+        description="""✦ Fulfills all previous rank requirements
+✦ 8 Weeks in the Clan
+✦ Elite Combat Achievements
+✦ 25 minimum KC each: CM / HMT / expTOA
+✦ 2/3: Fang Kit / Infernal Cape / Quiver
+✦ 1/3: Tbow / Shadow / Scythe
+✦ 95 Slayer""",
+        color=discord.Color.from_rgb(252, 111, 27)  # Orange-Red
+    )
+    await interaction.channel.send(embed=officer_embed)
+    await asyncio.sleep(0.5)
+
+    # --- Commander Embed ---
+    commander_embed = discord.Embed(
+        title="Commander - <:commander:1406225531128647782>",
+        description="""✦ Fulfills all previous rank requirements
+✦ 12 Weeks in the Clan
+✦ 125 Combat
+✦ Master Combat Achievements
+✦ 50 KC each: CM / HMT / expTOA
+✦ 3/3: Fang Kit / Infernal Cape / Quiver
+✦ 2/3: Tbow / Shadow / Scythe""",
+        color=discord.Color.from_rgb(252, 94, 14)  # Red-Orange
+    )
+    await interaction.channel.send(embed=commander_embed)
+    await asyncio.sleep(0.5)
+
+    # --- TzKal Embed ---
+    tzkal_embed = discord.Embed(
+        title="TzKal - <:tzkal:1406218822033080400>",
+        description="""✦ Fulfills all previous rank requirements
+✦ Grandmaster Combat Achievements""",
+        color=discord.Color.from_rgb(252, 76, 2)  # Red-Orange
+    )
+    await interaction.channel.send(embed=tzkal_embed)
+    await asyncio.sleep(0.5)
+
+    # --- Pet Hunter Embed ---
+    pet_hunter_embed = discord.Embed(
+        title="Pet hunter - <:pethunter:1406225392989114378>",
+        description="""✦ 20+ Pets
+        ✦ Meets Sergeant Requirements""",
+        color=discord.Color.from_rgb(180, 45, 45)
+    )
+    await interaction.channel.send(embed=pet_hunter_embed)
+    await asyncio.sleep(0.5)
+
+    # --- Clogger Embed ---
+    clogger_embed = discord.Embed(
+        title="Clogger - <:clogger:1406233084311113808>",
+        description="""✦ 1000+ Collection Log Slots
+        ✦ Meets Sergeant Requirements""",
+        color=discord.Color.from_rgb(160, 40, 40)
+    )
+    await interaction.channel.send(embed=clogger_embed)
+    await asyncio.sleep(0.5)
+
+    await interaction.followup.send("✅ Rank message has been posted.", ephemeral=True)
     
 # ---------------------------
 # 🔹 Say Command
