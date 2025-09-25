@@ -211,7 +211,7 @@ async def rules(interaction: discord.Interaction):
     embed_welcome = discord.Embed(
         description="""`Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are very simple. Please note that Staff and Mods may issue warnings or ban at their discretion if they feel it is necessary to maintain a positive environment.`
 
-        # Discord is a clan requirement #
+        **Discord is a clan requirement**
         We use it for announcements, events, clan discussions, and a wide range of other purposes. We also suggest members **not** mute the <#1272646547020185704> channel.
 
         *We'll do our best to minimise the pings, but this is for important information you might need if you're going to be a member of the community.*""",
@@ -220,7 +220,7 @@ async def rules(interaction: discord.Interaction):
     await interaction.channel.send(embed=embed_welcome)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/7hNJyg9T/rules-strikes.png")
+    await interaction.channel.send("https://i.postimg.cc/3wcbhGNN/rules-strikes.png")
     await asyncio.sleep(0.5)
 
     embed_strikes = discord.Embed(
@@ -239,7 +239,7 @@ async def rules(interaction: discord.Interaction):
     await interaction.channel.send(embed=embed_strikes)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/c4b4t9vL/rules-text.png")
+    await interaction.channel.send("http://i.postimg.cc/TPpCtP06/rules-text.png")
     await asyncio.sleep(0.5)
 
     rule_data = [
@@ -250,7 +250,7 @@ async def rules(interaction: discord.Interaction):
         ("Rule 5️⃣ - No Sharing or Using Plug-ins from Unofficial Clients", "Cheat plug-ins or plug-ins aimed at scamming others through downloads are not allowed, both in-game and on a Discord. These plug-ins are often dangerous and can lead to being banned if undeniable proof is given to us."),
         ("Rule 6️⃣ - No Scamming, Luring, or Begging", "Social engineering, scamming, and luring will result in a RuneWatch case and a ban from the clan, whether it happens to people inside or outside of the clan.\nBegging is extremely irritating and will result in a warning."),
         ("Rule 7️⃣ - All Uniques Must Be Split", "Any unique obtained in group content **must be split** unless stated otherwise before the raid and **agreed upon by all members - This includes members joining your raid**.\nYou also need to split loot with your team members (who are in the clan) **even if** you are doing content on an FFA world, in an FFA clan chat, or if you are an Ironman."),
-        ("Rule 8️⃣ - You Must Have Your In-Game Name in Your Discord Name", "In order to keep track of clan members during events and reach out to you, you **MUST** have your Discord nickname include your in-game name.\n\n**Acceptable Formats:**\n✅ `- Discord Name | In-Game Name`\n✅ `- Discord Name (In-Game Name)`\n✅ `- In-Game Name Only`\n❌ `- Discord Name Only`\n\n**Enforcement:**\n*We will attempt to replace your name for you, but may reach out if we do not find an in-game match. If you do not reply, you may be mistakenly removed from the Discord.*")
+        ("Rule 8️⃣ - You Must Have Your In-Game Name Set As Your Discord Name", "In order to keep track of clan members during events and reach out to you, you **MUST** have your Discord nickname include your in-game name.\n\n**Acceptable Formats:**\n✅ `- Discord Name / In-Game Name`\n✅ `- Discord Name (In-Game Name)`\n✅ `- In-Game Name Only`\n❌ `- Discord Name Only`\n\n**Enforcement:**\n*We will attempt to replace your name for you, but may reach out if we do not find an in-game match. If you do not reply, you may be mistakenly removed from the Discord.*")
     ]
 
     rule_embeds = [
