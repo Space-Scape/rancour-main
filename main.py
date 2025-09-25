@@ -303,18 +303,21 @@ async def rank(interaction: discord.Interaction):
 Please scroll down and find the rank you wish to apply for. If you meet the requirements, go to the bottom of the page and select the rank from the drop-down menu.
 
 **Staff Ranks**
-Golden Key – CEO Account
-Silver Key – Leaders
-Gold Star – Senior Staff
-Silver Star – Staff
-Bronze Star – Trial Staff
+Golden Key – CEO Account <:CEO:1420745474058752032>
+Silver Key – Leaders <:admin:1406221348942123051>
+Gold Star – Senior Staff <:seniorstaff:1406217576404488192> 
+Silver Star – Staff <:staff:1406217522595762246> 
+Bronze Star – Trial Staff <:trialmod:1420745477279846430>
+
+**Special Ranks**
+Mentor - Raid Leaders <:mentor:1406802212382052412>
 
 **Other Ranks**
-Guest of the Clan
-Templar – Contributor
-Colonel – Top Contributor
-Smite – Boss of the Week Winner
-Skilling Icons – Skill of the Week Winner
+Guest of the Clan - <:guest:1406225439172722752>
+Templar – Contributor <:serverbooster:1406225321778348042>
+Colonel – Top Contributor <:colonel:1420745479750422710>
+Smite – Boss of the Week Winner <:botw:1298362722856997058>
+Skilling Icons – Skill of the Week Winner <:sotw:1298363808707907685>
 
 **Special Events**
 For large-scale events, such as bingo or team competitions, winners will be able to choose their own temporary icon!""",
@@ -329,7 +332,8 @@ For large-scale events, such as bingo or team competitions, winners will be able
 ### 1. No Bank Screenshots! :no_entry_sign: :bank: ###
 ### 2. Full client screenshots with chatbox open :camera: ###
 ### 3. Please make sure you meet the requirements :crossed_swords: ###
-### 4. Your server nickname should match/contain your RSN :bust_in_silhouette: ###""",
+### 4. Your server nickname should match/contain your RSN :bust_in_silhouette: ###
+### 5. When skipping ranks please also include all requirements for any ranks you are skipping over. ###""",
         color=discord.Color.light_grey()
     )
 
@@ -434,19 +438,11 @@ For large-scale events, such as bingo or team competitions, winners will be able
     await interaction.channel.send(embed=tzkal_embed)
     await asyncio.sleep(0.5)
 
-    # --- Alt Ranks Title Embed ---
-    alt_ranks_title_embed = discord.Embed(
-        title="Alt Ranks -",
-        description="✦ Meets Sergeant Requirements plus:",
-        color=discord.Color.from_rgb(200, 50, 50)  # Dark Red
-    )
-    await interaction.channel.send(embed=alt_ranks_title_embed)
-    await asyncio.sleep(0.5)
-
     # --- Pet Hunter Embed ---
     pet_hunter_embed = discord.Embed(
-        title="Pet hunter - <:pethunter:1406225392989114378>",
-        description="✦ 20+ Pets",
+        title="""Pet hunter - <:pethunter:1406225392989114378>",
+        description="✦ 20+ Pets
+✦ Meets Sergeant Requirements""",
         color=discord.Color.from_rgb(180, 45, 45)
     )
     await interaction.channel.send(embed=pet_hunter_embed)
@@ -455,7 +451,8 @@ For large-scale events, such as bingo or team competitions, winners will be able
     # --- Clogger Embed ---
     clogger_embed = discord.Embed(
         title="Clogger - <:clogger:1406233084311113808>",
-        description="✦ 1000+ Collection Log Slots",
+        description="""✦ 1000+ Collection Log Slots
+✦ Meets Sergeant Requirements""",
         color=discord.Color.from_rgb(160, 40, 40)
     )
     await interaction.channel.send(embed=clogger_embed)
