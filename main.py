@@ -170,8 +170,11 @@ async def info(interaction: discord.Interaction):
     systems_embed = discord.Embed(
         title="3️⃣ Clan Ticket Systems and Name Changing",
         description="""👋 **Become a member:** <#1272648453264248852> - Welcome!
+        
         🍌 **Request a rank up:** <#1272648472184487937> - Update your ranks here.
+        
         🔔 **Get help (Support):** <#1272648498554077304> - Report rule-breaking or bot failures, get private help, make suggestions, and more!
+        
         🔑 **Register your RSN:** <#1280532494139002912> - Use this for name changes.
 
         Guests are always welcome to hang out and get a feel for our community before becoming a member. Just ask!""",
@@ -184,9 +187,13 @@ async def info(interaction: discord.Interaction):
     key_channels_embed = discord.Embed(
         title="4️⃣ Key Channels & Roles",
         description="""🎯 **Self-Roles:** Grab your roles in <#1272648586198519818> to get pings for bosses, raids, and events.
+        
         🏹 **Team Finder:** Looking for a group? Head over to <#1272648555772776529>.
+        
         🎉 **Events:** Check out all upcoming clan events in <#1272646577432825977>.
+        
         ✨ **Achievements:** Share your drops and level-ups in <#1272629331524587624>.
+        
         <:mentor:1406802212382052412> **Mentoring:** After two weeks and earning the <:corporal:1406217420187893771> rank, you can open a mentor ticket for PVM guidance. Experienced players can apply to become a mentor in <#1272648472184487937>.""",
         color=discord.Color.from_rgb(228, 205, 205)
     )
@@ -196,13 +203,18 @@ async def info(interaction: discord.Interaction):
     # --- More Channels & Bots Embed ---
     more_channels_embed = discord.Embed(
         title="5️⃣ More Channels & Bots",
-        description="""💰 **Collats:** <#1272648340940525648> - For item trades and collateral. Post a screenshot and @mention a user to bring up `Request Item` & `Item Returned` buttons. Requesting pings a user, and Returning locks the buttons.
-💬 **Live Clan Chat:** <#1272875477555482666> - A real-time feed of the in-game clan chat.
-🗯️ **PvM Chat:** <#1400112943475069029> - Discuss bosses, gear, raids, and strategy.
-🐕 **Pet Roulette:** <#1340349468712767538> - Hunt down the weekly bounty pet for a prize!
+        description="""<#1272648340940525648> - For item trades. Post a screenshot and @mention a user to bring up `Request Item` & `Item Returned` buttons. 
+Requesting pings a user, and Returning locks the buttons.
+
+<#1272875477555482666> - A real-time feed of the in-game clan chat.
+
+<#1400112943475069029> - Discuss bosses, gear, raids, and strategy.
+
+<#1340349468712767538> - Hunt down the weekly bounty pet for a prize!
+
 🎧 **Music Bots:** Use `/play` in <#1409931256967204945> to queue music with Euphony or MatchBox while in a voice channel.
-🔊 **TempVoice Bot:** Create a temporary voice channel in <#1272808271392014336>. 
-    Manage your channel's settings (name, limit, waiting room, block others, etc.) in the <#1272808273468325930>. Your settings are saved for next time!""",
+
+🔊 **TempVoice Bot:** Create a temporary voice channel in <#1272808271392014336>. Manage your channel's settings (name, limit, waiting room, block others, etc.) in the <#1272808273468325930>. Your settings are saved for next time!""",
         color=discord.Color.from_rgb(239, 194, 194)
     )
     await interaction.channel.send(embed=more_channels_embed)
@@ -212,7 +224,8 @@ async def info(interaction: discord.Interaction):
     timezones_embed = discord.Embed(
         title="6️⃣ Timezones & Active Hours",
         description="""Our clan has members from all over the world! We are most active during the EU and NA evenings.
-        You can select your timezone role in 🌐 <#1398775387139342386> to get pings for events in your local time.""",
+        
+        You can select your timezone role in <#1398775387139342386> to get pings for events in your local time.""",
         color=discord.Color.from_rgb(249, 184, 184)
     )
     await interaction.channel.send(embed=timezones_embed)
