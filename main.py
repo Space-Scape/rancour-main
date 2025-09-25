@@ -221,7 +221,7 @@ async def rules(interaction: discord.Interaction):
     await interaction.channel.send(embed=embed_welcome)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/nzrZRnmf/rules-strikes.png")
+    await interaction.channel.send("https://i.postimg.cc/PqsztqyT/rules-strikes.png")
     await asyncio.sleep(0.5)
 
     embed_strikes = discord.Embed(
@@ -240,7 +240,7 @@ async def rules(interaction: discord.Interaction):
     await interaction.channel.send(embed=embed_strikes)
     await asyncio.sleep(0.5)
 
-    await interaction.channel.send("https://i.postimg.cc/6Q2TqVHv/rules-text.png")
+    await interaction.channel.send("https://i.postimg.cc/SKg0BHLL/rules-text.png")
     await asyncio.sleep(0.5)
 
     rule_data = [
