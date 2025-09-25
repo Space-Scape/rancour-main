@@ -169,13 +169,13 @@ async def info(interaction: discord.Interaction):
     # --- Systems Embed ---
     systems_embed = discord.Embed(
         title="3️⃣ Clan Ticket Systems and Name Changing",
-        description="""👋 **Become a member:** <#1272648453264248852> - Welcome!
+        description="""<#1272648453264248852> - Welcome!
         
-        🍌 **Request a rank up:** <#1272648472184487937> - Update your ranks here.
+        <#1272648472184487937> - Update your ranks here.
         
-        🔔 **Get help (Support):** <#1272648498554077304> - Report rule-breaking or bot failures, get private help, make suggestions, and more!
+        <#1272648498554077304> - Report rule-breaking or bot failures, get private help, make suggestions, and more!
         
-        🔑 **Register your RSN:** <#1280532494139002912> - Use this for name changes.
+        <#1280532494139002912> - Use this for name changes.
 
         Guests are always welcome to hang out and get a feel for our community before becoming a member. Just ask!""",
         color=discord.Color.from_rgb(217, 216, 216)
@@ -186,13 +186,13 @@ async def info(interaction: discord.Interaction):
     # --- Key Channels & Roles Embed ---
     key_channels_embed = discord.Embed(
         title="4️⃣ Key Channels & Roles",
-        description="""🎯 **Self-Roles:** Grab your roles in <#1272648586198519818> to get pings for bosses, raids, and events.
+        description="""<#1272648586198519818> - assign roles to get pings for bosses, raids, and events.
         
-        🏹 **Team Finder:** Looking for a group? Head over to <#1272648555772776529>.
+        <#1272648555772776529> - Looking for a group?
         
-        🎉 **Events:** Check out all upcoming clan events in <#1272646577432825977>.
+        <#1272646577432825977> - Check out all upcoming clan events.
         
-        ✨ **Achievements:** Share your drops and level-ups in <#1272629331524587624>.
+        <#1272629331524587624> - Share your drops and level-ups.
         
         <:mentor:1406802212382052412> **Mentoring:** After two weeks and earning the <:corporal:1406217420187893771> rank, you can open a mentor ticket for PVM guidance. Experienced players can apply to become a mentor in <#1272648472184487937>.""",
         color=discord.Color.from_rgb(228, 205, 205)
