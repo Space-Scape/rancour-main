@@ -208,6 +208,8 @@ Requesting pings a user, and Returning locks the buttons.
 
 <#1272875477555482666> - A real-time feed of the in-game clan chat.
 
+<#1420951302841831587> - A drop leaderboard and clan-wide loot tracker (instructions here: https://discord.com/channels/1272629330115297330/1272646547020185704/1421015420160184381)
+
 <#1400112943475069029> - Discuss bosses, gear, raids, and strategy.
 
 <#1340349468712767538> - Hunt down the weekly bounty pet for a prize!
