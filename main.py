@@ -284,7 +284,7 @@ async def rules(interaction: discord.Interaction):
 
     rule_data = [
         ("Rule 1️⃣ - Respect Others", "Being respectful to others means treating people the way you’d like to be treated. Another way to look at it is: don’t say anything if you have nothing nice to say, and don’t put others down because they are less experienced than you."),
-        ("Rule 2️⃣ - Follow All In-Game & Discord Rules", "This should go without saying, but if rule-breaking is inappropriate for Jagex and Discord's ToS, it is also inappropriate here. If you are found to be engaging in this sort of behaviour outside of the clan (**especially if you are staff and are representing the clan**) or are frequenting servers where clan members can secretly *break the rules* and trash talk, it will result in your removal from this server following a ban - no one needs this kind of behaviour in their lives (staff are held to a higher standard). We're all adults, and we will not allow it to spill over into the clan without taking action.\n\nThe following will **NOT** be tolerated:\n\n⊘ Racism\n⊘ Macroing\n⊘ Solicitation\n⊘ Advertising websites for GP\n⊘ Scamming\n⊘ Ethnic slurs\n⊘ Hate speech"),
+        ("Rule 2️⃣ - Follow All In-Game & Discord Rules", "This should go without saying, but if rule-breaking is inappropriate for Jagex and Discord's ToS, it is also inappropriate here. If you are found to be engaging in this sort of behaviour outside of the clan (**especially if you are staff and are representing the clan**) or are frequenting servers that encourage rule-breaking, it will result in your immediate removal from this server following a ban - staff are also held to a higher standard. We're all adults, and we will take action.\n\nThe following will **NOT** be tolerated:\n\n⊘ Macroing and Cheating\n⊘ Solicitation\n⊘ Advertising RWT websites or RWT servers\n⊘ Buying Items and Services using Real World Trading\n⊘ Scamming or engaging in scams\n⊘ Ethnic slurs, Hate speech, and Racism\n\nBreaking any of these may result in an immediate ban at our discretion."),
         ("Rule 3️⃣ - No Heated Religious or Political Arguments", "Political or religious topics can easily become hectic. Discussing them is fine, as they are part of everyday life, but if a conversation turns into a debate, we kindly ask you to take it to your DMs."),
         ("Rule 4️⃣ - Don’t Share Others' Personal Information", "You are welcome to share your own personal information, but sharing other people’s personal information without consent will result in a warning if it's light enough or a possible ban. Trust is important, and breaking it with people in our community, or with friends, will make you unwelcome in the clan."),
         ("Rule 5️⃣ - No Sharing or Using Plug-ins from Unofficial Clients", "Cheat plug-ins or plug-ins aimed at scamming others through downloads are not allowed, both in-game and on a Discord. These plug-ins are often dangerous and can lead to being banned if undeniable proof is given to us."),
@@ -647,37 +647,6 @@ async def welcome(interaction: discord.Interaction):
     )
 
     await interaction.response.send_message(embed=embed)
-
-    # ---------------------------
-    # Update ticket scoreboard
-    # ---------------------------
-   
-    loop = asyncio.get_running_loop()
-
-    def update_score():
-        mod_name = interaction.user.display_name
-        try:
-            cell = ticket_scores_sheet.find(mod_name)
-            row = cell.row if cell else None
-        except Exception:
-            row = None
-
-        if not row:
-            ticket_scores_sheet.append_row([mod_name, "0", "0", "0"])
-            cell = ticket_scores_sheet.find(mod_name)
-            row = cell.row
-
-        values = ticket_scores_sheet.row_values(row)
-        while len(values) < 4:
-            values.append("0")
-
-        overall = int(values[1]) + 1
-        weekly = int(values[2]) + 1
-        monthly = int(values[3]) + 1
-
-        ticket_scores_sheet.update(f"B{row}:D{row}", [[overall, weekly, monthly]])
-
-    await loop.run_in_executor(None, update_score)
 
 # -----------------------------
 # Role Button
