@@ -1583,3 +1583,68 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
+from discord import app_commands
+
+@bot.tree.command(name="sangsignup", description="Post the Sanguine Sunday signup message or Saturday reminder")
+@app_commands.describe(
+    channel="Optional channel where the message should be posted",
+    variant="1 = Signup (Friday), 2 = Learner Reminder (Saturday)"
+)
+async def sangsignup(interaction: discord.Interaction, channel: discord.TextChannel | None = None, variant: int = 1):
+    if not any(r.id == STAFF_ROLE_ID for r in interaction.user.roles):
+        await interaction.response.send_message(
+            "❌ You don’t have permission to use this command.",
+            ephemeral=True
+        )
+        return
+
+    target_channel = channel or interaction.channel
+
+    if variant == 1:
+        msg = await target_channel.send(SANG_MESSAGE)
+        await msg.add_reaction("⚪")
+        await msg.add_reaction("🔵")
+        await msg.add_reaction("🔴")
+        await interaction.response.send_message(
+            f"✅ Sanguine Sunday signup posted in {target_channel.mention}",
+            ephemeral=True
+        )
+
+    elif variant == 2:
+        signup_msg = None
+        async for message in target_channel.history(limit=30):
+            if message.author == bot.user:
+                for reaction in message.reactions:
+                    if str(reaction.emoji) == "⚪":
+                        signup_msg = message
+                        break
+                if signup_msg:
+                    break
+
+        if not signup_msg:
+            await interaction.response.send_message("⚠️ Could not find the signup message in this channel.", ephemeral=True)
+            return
+
+        learners = []
+        for reaction in signup_msg.reactions:
+            if str(reaction.emoji) == "⚪":
+                users = await reaction.users().flatten()
+                learners = [u for u in users if not u.bot]
+                break
+
+        if not learners:
+            await interaction.response.send_message("ℹ️ No learners have signed up.", ephemeral=True)
+            return
+
+        async for msg in target_channel.history(limit=30):
+            if msg.author == bot.user and "Learners - Please review" in msg.content:
+                await msg.delete()
+
+        mention_list = " ".join(u.mention for u in learners)
+        await target_channel.send(f"{REMINDER_MESSAGE}\n\n{mention_list}")
+        await interaction.response.send_message("✅ Reminder sent manually.", ephemeral=True)
+
+    else:
+        await interaction.response.send_message("⚠️ Invalid variant. Use 1 for signup, 2 for reminder.", ephemeral=True)
