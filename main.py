@@ -1464,11 +1464,15 @@ MENTOR_ROLE = 1306021911830073414
 SANG_ROLE = 1387153629072592916
 TOB_ROLE = 1272694636921753701
 EVENTS_ROLE = 1298358942887317555
+MACFLAG_USER_ID = os.getenv("MACFLAG_USER_ID")
+MACFLAG_MENTION = f"<@{MACFLAG_USER_ID}>" if MACFLAG_USER_ID else "@MacFlag"
+
+latest_sang_message_id: int | None = None
 
 # ---------------------------
 # 🔹 Sanguine Sunday Message
 # ---------------------------
-SANG_MESSAGE = f"""Sanguine Sunday Sign Up - Hosted by Macflag 
+SANG_MESSAGE = f"""Sanguine Sunday Sign Up - Hosted by Macflag
 Looking for a fun Sunday activity? Look no farther than Sanguine Sunday! Spend an afternoon/evening sending TOBs with clan members. The focus on this event is on Learners and general KC.
 
 We plan to have mentors on hand to help out with the learners. Learner is someone who need the mechanics explained for each room. 
@@ -1489,6 +1493,75 @@ https://discord.com/events/1272629330115297330/1386302870646816788
 """
 
 # ---------------------------
+# 🔹 Sanguine Sunday Reminder Helpers
+# ---------------------------
+
+async def get_latest_sang_message(channel: discord.TextChannel) -> discord.Message | None:
+    global latest_sang_message_id
+
+    if latest_sang_message_id:
+        try:
+            message = await channel.fetch_message(latest_sang_message_id)
+            return message
+        except (discord.NotFound, discord.HTTPException):
+            latest_sang_message_id = None
+
+    async for message in channel.history(limit=50):
+        if message.author == bot.user and message.content.startswith("Sanguine Sunday Sign Up"):
+            latest_sang_message_id = message.id
+            return message
+
+    return None
+
+
+async def get_learner_mentions(signup_message: discord.Message) -> list[str]:
+    learner_mentions: list[str] = []
+
+    for reaction in signup_message.reactions:
+        if str(reaction.emoji) == "⚪":
+            try:
+                async for user in reaction.users(limit=None):
+                    if not user.bot and user.mention not in learner_mentions:
+                        learner_mentions.append(user.mention)
+            except discord.HTTPException as exc:
+                print(f"❌ Failed to fetch learner reactions: {exc}")
+            break
+
+    return learner_mentions
+
+
+async def send_sanguine_reminder():
+    channel = bot.get_channel(CHANNEL_ID)
+    if not isinstance(channel, discord.TextChannel):
+        print("⚠️ Unable to send Sanguine reminder: signup channel not found or incorrect type.")
+        return
+
+    signup_message = await get_latest_sang_message(channel)
+    if not signup_message:
+        print("⚠️ Unable to send Sanguine reminder: no signup message located.")
+        return
+
+    learner_mentions = await get_learner_mentions(signup_message)
+    if not learner_mentions:
+        print("⚠️ Sanguine reminder skipped: no learners have reacted yet.")
+        return
+
+    reminder_text = (
+        "Learners - Please review these threads, watch the Xzact guides, get your plugins setup, and "
+        "your inventories setup and saved before the event (you'll be either MDPS or RDPS). "
+        f"Feel free to DM or tag {MACFLAG_MENTION} in the post if you need any help - "
+        "https://discord.com/channels/1272629330115297330/1388887895837773895 + "
+        "https://discord.com/channels/1272629330115297330/1388884558191268070\n\n"
+        + " ".join(learner_mentions)
+    )
+
+    try:
+        await channel.send(reminder_text)
+        print("✅ Sent Sanguine learner reminder message.")
+    except discord.HTTPException as exc:
+        print(f"❌ Failed to send Sanguine learner reminder: {exc}")
+
+# ---------------------------
 # 🔹 Manual Slash Command
 # ---------------------------
 
@@ -1505,6 +1578,8 @@ async def sangsignup(interaction: discord.Interaction, channel: discord.TextChan
     target_channel = channel or interaction.channel
     if target_channel:
         msg = await target_channel.send(SANG_MESSAGE)
+        global latest_sang_message_id
+        latest_sang_message_id = msg.id
         await msg.add_reaction("⚪")
         await msg.add_reaction("🔵")
         await msg.add_reaction("🔴")
@@ -1527,9 +1602,15 @@ async def weekly_sangsignup():
         channel = bot.get_channel(CHANNEL_ID)
         if channel:
             msg = await channel.send(SANG_MESSAGE)
+            global latest_sang_message_id
+            latest_sang_message_id = msg.id
             await msg.add_reaction("⚪")
             await msg.add_reaction("🔵")
             await msg.add_reaction("🔴")
+
+    # Saturday 2:30 PM CST (24 hours before the event)
+    if now.weekday() == 5 and now.hour == 14 and now.minute == 30:
+        await send_sanguine_reminder()
 
 @weekly_sangsignup.before_loop
 async def before_weekly_sangsignup():
