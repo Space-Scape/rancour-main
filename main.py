@@ -1635,8 +1635,13 @@ class AddEventModal(Modal, title="Add a New Clan Event"):
 @bot.tree.command(name="addevent", description="Add a new event to the clan schedule.")
 @app_commands.checks.has_role(STAFF_ROLE_ID)
 async def addevent(interaction: discord.Interaction):
-    """Opens a modal for staff to add a new event."""
-    await interaction.response.send_modal(AddEventModal())
+    """Sends a view with a dropdown to select an event type."""
+    await interaction.response.send_message(
+        "Please select the type of event you want to create:",
+        view=EventTypeSelectView(),
+        ephemeral=True
+    )
+
 
 @addevent.error
 async def addevent_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
@@ -2093,6 +2098,12 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
+
+
+
+
 
 
 
