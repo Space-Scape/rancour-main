@@ -1474,49 +1474,41 @@ def get_all_event_records():
         print(f"Error fetching and parsing event sheet data: {e}")
         return []
 
-def normalize_date_str(date_str: str) -> str:
-    """Normalizes a date string like '9/9/2025' to '09/09/2025' for parsing."""
-    if not date_str:
-        return ""
-    parts = date_str.split('/')
-    if len(parts) != 3:
-        raise ValueError("Date must be in M/D/YYYY format")
-    month, day, year = parts
-    if not month.isdigit() or not day.isdigit() or not year.isdigit():
-        raise ValueError("Date components must be numeric")
-    # Pad month and day with leading zero if they are single digit
-    month = month.zfill(2)
-    day = day.zfill(2)
-    return f"{month}/{day}/{year}"
+# The normalize_date_str function has been removed as it's no longer needed.
 
 class AddEventModal(Modal):
     def __init__(self, event_type: str):
         # Set the title in the super constructor for cleanliness.
         super().__init__(title=f"Create New '{event_type}' Event")
 
-        # Create and add the items directly. We will access them by their index in on_submit.
+        # Add items with a unique custom_id to ensure we can retrieve them reliably.
         self.add_item(TextInput(
             label="Type of Event",
+            custom_id="event_type",
             required=True,
             default=event_type
         ))
         self.add_item(TextInput(
             label="Event Description",
+            custom_id="description",
             placeholder="e.g., Learner ToB or Barb Assault",
             required=True
         ))
         self.add_item(TextInput(
             label="Start Date (M/D/YYYY)",
+            custom_id="start_date",
             placeholder="e.g., 9/9/2025",
             required=True
         ))
         self.add_item(TextInput(
             label="End Date (Optional, defaults to Start Date)",
+            custom_id="end_date",
             placeholder="Leave blank for single-day events",
             required=False
         ))
         self.add_item(TextInput(
             label="Comments (Optional)",
+            custom_id="comments",
             style=discord.TextStyle.paragraph,
             placeholder="e.g., Hosted by X, design by Y",
             required=False
@@ -1526,74 +1518,23 @@ class AddEventModal(Modal):
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         
+        # Create a dictionary mapping the custom_id to the submitted value.
+        values = {item.custom_id: item.value for item in self.children}
+
         # --- Data Gathering and Defaults ---
-        # Read values from children by their index to guarantee the correct order.
-        event_type_value = self.children[0].value
-        description_value = self.children[1].value
-        start_date_val = self.children[2].value.strip()
-        end_date_val = self.children[3].value.strip()
-        comments_val = self.children[4].value
+        # Retrieve raw string values from the dictionary using their explicit IDs.
+        event_type_value = values.get("event_type")
+        description_value = values.get("description")
+        start_date_val = values.get("start_date", "").strip()
+        end_date_val = values.get("end_date", "").strip()
+        comments_val = values.get("comments")
 
         if not end_date_val:
             end_date_val = start_date_val # Default end date to start date if blank
 
-        # --- Validation ---
-        try:
-            normalized_start = normalize_date_str(start_date_val)
-            start_date_obj = datetime.strptime(normalized_start, "%m/%d/%Y").date()
-        except ValueError:
-            await interaction.followup.send("❌ **Invalid Start Date.** Please use a valid **M/D/YYYY** format (e.g., 9/9/2025).", ephemeral=True)
-            return
-
-        try:
-            normalized_end = normalize_date_str(end_date_val)
-            end_date_obj = datetime.strptime(normalized_end, "%m/%d/%Y").date()
-        except ValueError:
-            await interaction.followup.send("❌ **Invalid End Date.** Please use a valid **M/D/YYYY** format.", ephemeral=True)
-            return
-
-        if end_date_obj < start_date_obj:
-            await interaction.followup.send("❌ **Date Error.** The end date cannot be before the start date.", ephemeral=True)
-            return
-
-        # --- Check for Conflicting Events (with exclusions) ---
-        conflicting_events_details = []
-        ignore_conflict_for_types = ["botw", "sotw", "pet roulette", "bingo"]
-
-        if event_type_value.lower() not in ignore_conflict_for_types:
-            try:
-                all_events = get_all_event_records()
-                for event in all_events:
-                    # Also ignore existing events if they are a weekly type.
-                    existing_event_type = event.get("Type of Event", "").lower()
-                    if existing_event_type in ignore_conflict_for_types:
-                        continue
-
-                    existing_start_str = event.get("Start Date")
-                    existing_end_str = event.get("End Date")
-                    if not existing_start_str:
-                        continue
-                    
-                    # Handle optional end date in existing records
-                    if not existing_end_str:
-                        existing_end_str = existing_start_str
-
-                    try:
-                        norm_existing_start = normalize_date_str(existing_start_str)
-                        norm_existing_end = normalize_date_str(existing_end_str)
-                        existing_start_obj = datetime.strptime(norm_existing_start, "%m/%d/%Y").date()
-                        existing_end_obj = datetime.strptime(norm_existing_end, "%m/%d/%Y").date()
-
-                        # Check for date range overlap
-                        if max(start_date_obj, existing_start_obj) <= min(end_date_obj, existing_end_obj):
-                            detail = f"- **{event.get('Event Description', 'N/A')}**・Hosted by {event.get('Event Owner', 'N/A')}"
-                            conflicting_events_details.append(detail)
-                    except (ValueError, TypeError):
-                        continue # Skip malformed rows
-            except Exception as e:
-                print(f"Could not fetch event records for conflict check: {e}")
-                # Non-fatal error, we'll just skip the check
-                pass
+        # --- NO VALIDATION ---
+        # As requested, all date validation and conflict checking has been removed.
+        # The raw strings will be sent directly to the spreadsheet.
 
         # --- Data Preparation ---
         # Fetch RSN for event owner, fall back to a cleaned display name if not found.
@@ -1620,8 +1561,8 @@ class AddEventModal(Modal):
             event_type_value,
             description_value,
             event_owner,
-            normalized_start, # Use the normalized date string
-            normalized_end,   # Use the normalized date string
+            start_date_val, # Use the raw string from the modal
+            end_date_val,   # Use the raw string from the modal
             comments_val or ""
         ]
 
@@ -1675,15 +1616,7 @@ class AddEventModal(Modal):
                 
                 await interaction.followup.send(embed=confirm_embed, ephemeral=True)
 
-                # --- Send Conflict Warning if necessary (as a separate followup) ---
-                if conflicting_events_details:
-                    warning_message = (
-                        "⚠️ **Heads up!** You've scheduled an event on the same day as another:\n"
-                        + "\n".join(conflicting_events_details)
-                        + "\n\nThis is fine, but please make sure this is okay!"
-                    )
-                    await interaction.followup.send(warning_message, ephemeral=True)
-
+                # Conflict warning has been removed.
 
         except Exception as e:
             print(f"Error writing event to sheet: {e}")
@@ -2164,6 +2097,14 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
+
+
+
+
+
+
 
 
 
