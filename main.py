@@ -1518,17 +1518,31 @@ class AddEventModal(Modal):
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         
-        # Create a dictionary mapping the custom_id to the submitted value.
-        values = {item.custom_id: item.value for item in self.children}
+        # --- Data Gathering ---
+        # Manually iterate through the modal's children to retrieve values
+        # by their custom_id. This is the most robust method and prevents scrambling.
+        
+        # Initialize variables to hold the values
+        event_type_value = None
+        description_value = None
+        start_date_val = ""
+        end_date_val = ""
+        comments_val = None
 
-        # --- Data Gathering and Defaults ---
-        # Retrieve raw string values from the dictionary using their explicit IDs.
-        event_type_value = values.get("event_type")
-        description_value = values.get("description")
-        start_date_val = values.get("start_date", "").strip()
-        end_date_val = values.get("end_date", "").strip()
-        comments_val = values.get("comments")
+        # Loop through each component (TextInput) in the modal
+        for item in self.children:
+            if item.custom_id == "event_type":
+                event_type_value = item.value
+            elif item.custom_id == "description":
+                description_value = item.value
+            elif item.custom_id == "start_date":
+                start_date_val = item.value # No .strip()
+            elif item.custom_id == "end_date":
+                end_date_val = item.value # No .strip()
+            elif item.custom_id == "comments":
+                comments_val = item.value
 
+        # --- Set Defaults ---
         if not end_date_val:
             end_date_val = start_date_val # Default end date to start date if blank
 
@@ -1627,15 +1641,18 @@ class AddEventModal(Modal):
 @app_commands.checks.has_role(STAFF_ROLE_ID)
 @app_commands.describe(event_type="The type of event you want to create.")
 @app_commands.choices(event_type=[
+    app_commands.Choice(name="BOTW", value="BOTW"),
+    app_commands.Choice(name="SOTW", value="SOTW"),
     app_commands.Choice(name="Pet Roulette", value="Pet Roulette"),
     app_commands.Choice(name="Sanguine Sunday", value="Sanguine Sunday"),
     app_commands.Choice(name="Mass Event", value="Mass Event"),
+    app_commands.Choice(name="Bounty", value="Bounty"),
     app_commands.Choice(name="Large Event", value="Large Event"),
+    app_commands.Choice(name="Castle Wars", value="Castle Wars"),
+    app_commands.Choice(name="Wildy Altar", value="Wildy Altar"),
+    app_commands.Choice(name="Discord games", value="Discord games"),
+    app_commands.Choice(name="Hide and seek", value="Hide and seek"),
     app_commands.Choice(name="Other Event", value="Other Event"),
-    app_commands.Choice(name="Clan Event", value="Clan Event"),
-    app_commands.Choice(name="Bingo", value="Bingo"),
-    app_commands.Choice(name="BOTW", value="BOTW"),
-    app_commands.Choice(name="SOTW", value="SOTW"),
 ])
 async def addevent(interaction: discord.Interaction, event_type: str):
     """Opens a modal to add the details for the chosen event type."""
@@ -2097,6 +2114,21 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
