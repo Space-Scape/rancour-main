@@ -2085,3 +2085,15 @@ async def on_ready():
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
 
 
+
+
+
+
+
+
+
+
+
+
+
+
