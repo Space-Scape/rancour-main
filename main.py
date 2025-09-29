@@ -1558,12 +1558,18 @@ class AddEventModal(Modal):
         # Build the list of data to be sent to the spreadsheet, ensuring the correct order.
         # This explicitly maps each input to its corresponding spreadsheet column.
         event_data = [
-            event_type_value,    # Column 1: Type of Event (from input 1)
-            description_value,   # Column 2: Event Description (from input 2)
-            event_owner,         # Column 3: Event Owner
-            start_date_val,      # Column 4: Start Date (from input 3)
-            end_date_val,        # Column 5: End Date (from input 4)
-            comments_val or ""   # Column 6: Comments (from input 5)
+            event_type_value,      # Column A: Type of Event
+            description_value,     # Column B: Event Description
+            event_owner,           # Column C: Event Owner
+            "",                    # Column D: Owners (Hidden) - Placeholder
+            "",                    # Column E: Discord ID (Hidden) - Placeholder
+            "",                    # Column F: Owners Rank (Hidden) - Placeholder
+            start_date_val,        # Column G: Start Date
+            end_date_val,          # Column H: End Date
+            "",                    # Column I: Month (Hidden) - Placeholder
+            "",                    # Column J: Year (Hidden) - Placeholder
+            "",                    # Column K: Duration (Hidden) - Placeholder
+            comments_val or ""     # Column L: Comments
         ]
 
         # --- Write to Google Sheet ---
@@ -1703,9 +1709,14 @@ async def create_and_post_schedule(channel: discord.TextChannel):
     # Add regular, consolidated events to the schedule
     for event in regular_events.values():
         try:
-            start_date = datetime.strptime(event["Start Date"], "%m/%d/%Y").date()
-            end_date = datetime.strptime(event["End Date"], "%m/%d/%Y").date()
+            start_date_str = event.get("Start Date")
+            if not start_date_str: continue # Skip if no start date
             
+            start_date = datetime.strptime(start_date_str, "%m/%d/%Y").date()
+            
+            end_date_str = event.get("End Date")
+            end_date = datetime.strptime(end_date_str, "%m/%d/%Y").date() if end_date_str else start_date
+
             current_date = start_date
             while current_date <= end_date:
                 if start_of_week <= current_date <= end_of_week:
