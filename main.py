@@ -1474,6 +1474,21 @@ def get_all_event_records():
         print(f"Error fetching and parsing event sheet data: {e}")
         return []
 
+def normalize_date_str(date_str: str) -> str:
+    """Normalizes a date string like '9/9/2025' to '09/09/2025' for parsing."""
+    if not date_str:
+        return ""
+    parts = date_str.split('/')
+    if len(parts) != 3:
+        raise ValueError("Date must be in M/D/YYYY format")
+    month, day, year = parts
+    if not month.isdigit() or not day.isdigit() or not year.isdigit():
+        raise ValueError("Date components must be numeric")
+    # Pad month and day with leading zero if they are single digit
+    month = month.zfill(2)
+    day = day.zfill(2)
+    return f"{month}/{day}/{year}"
+
 class AddEventModal(Modal):
     def __init__(self, event_type: str):
         # Set the title in the super constructor for cleanliness.
@@ -1482,7 +1497,6 @@ class AddEventModal(Modal):
         # Define all UI components within __init__ for dynamic values.
         self.event_type_input = TextInput(
             label="Type of Event",
-            placeholder="e.g., Bingo, BOTW, Mass Event",
             required=True,
             default=event_type  # Pre-populate with the selected type.
         )
@@ -1496,16 +1510,16 @@ class AddEventModal(Modal):
         self.add_item(self.event_description)
 
         self.start_date = TextInput(
-            label="Start Date (MM/DD/YYYY)",
-            placeholder="Must be in MM/DD/YYYY format",
+            label="Start Date (M/D/YYYY)",
+            placeholder="e.g., 9/9/2025",
             required=True
         )
         self.add_item(self.start_date)
 
         self.end_date = TextInput(
-            label="End Date (MM/DD/YYYY)",
-            placeholder="For single-day events, use the same date as start.",
-            required=True
+            label="End Date (Optional, defaults to Start Date)",
+            placeholder="Leave blank for single-day events",
+            required=False
         )
         self.add_item(self.end_date)
         
@@ -1521,51 +1535,66 @@ class AddEventModal(Modal):
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         
-        # Get the type from the modal's input field for use in logic and messages.
+        # --- Data Gathering and Defaults ---
         event_type_value = self.event_type_input.value
+        start_date_val = self.start_date.value.strip()
+        end_date_val = self.end_date.value.strip()
+
+        if not end_date_val:
+            end_date_val = start_date_val # Default end date to start date if blank
 
         # --- Validation ---
-        # 1. Validate Dates
         try:
-            start_date_obj = datetime.strptime(self.start_date.value, "%m/%d/%Y").date()
+            normalized_start = normalize_date_str(start_date_val)
+            start_date_obj = datetime.strptime(normalized_start, "%m/%d/%Y").date()
         except ValueError:
-            await interaction.followup.send("❌ **Invalid Start Date.** Please use the **MM/DD/YYYY** format.", ephemeral=True)
+            await interaction.followup.send("❌ **Invalid Start Date.** Please use a valid **M/D/YYYY** format (e.g., 9/9/2025).", ephemeral=True)
             return
 
         try:
-            end_date_obj = datetime.strptime(self.end_date.value, "%m/%d/%Y").date()
+            normalized_end = normalize_date_str(end_date_val)
+            end_date_obj = datetime.strptime(normalized_end, "%m/%d/%Y").date()
         except ValueError:
-            await interaction.followup.send("❌ **Invalid End Date.** Please use the **MM/DD/YYYY** format.", ephemeral=True)
+            await interaction.followup.send("❌ **Invalid End Date.** Please use a valid **M/D/YYYY** format.", ephemeral=True)
             return
 
         if end_date_obj < start_date_obj:
             await interaction.followup.send("❌ **Date Error.** The end date cannot be before the start date.", ephemeral=True)
             return
 
-        # --- Check for Conflicting Events ---
+        # --- Check for Conflicting Events (with exclusions) ---
         conflicting_events_details = []
-        try:
-            all_events = get_all_event_records()
-            for event in all_events:
-                existing_start_str = event.get("Start Date")
-                existing_end_str = event.get("End Date")
-                if not existing_start_str or not existing_end_str:
-                    continue
+        ignore_conflict_for_types = ["botw", "sotw", "pet roulette", "bingo"]
 
-                try:
-                    existing_start_obj = datetime.strptime(existing_start_str, "%m/%d/%Y").date()
-                    existing_end_obj = datetime.strptime(existing_end_str, "%m/%d/%Y").date()
+        if event_type_value.lower() not in ignore_conflict_for_types:
+            try:
+                all_events = get_all_event_records()
+                for event in all_events:
+                    existing_start_str = event.get("Start Date")
+                    existing_end_str = event.get("End Date")
+                    if not existing_start_str:
+                        continue
+                    
+                    # Handle optional end date in existing records
+                    if not existing_end_str:
+                        existing_end_str = existing_start_str
 
-                    # Check for date range overlap
-                    if max(start_date_obj, existing_start_obj) <= min(end_date_obj, existing_end_obj):
-                        detail = f"- **{event.get('Event Description', 'N/A')}**・Hosted by {event.get('Event Owner', 'N/A')}"
-                        conflicting_events_details.append(detail)
-                except (ValueError, TypeError):
-                    continue # Skip malformed rows
-        except Exception as e:
-            print(f"Could not fetch event records for conflict check: {e}")
-            # Non-fatal error, we'll just skip the check
-            pass
+                    try:
+                        norm_existing_start = normalize_date_str(existing_start_str)
+                        norm_existing_end = normalize_date_str(existing_end_str)
+                        existing_start_obj = datetime.strptime(norm_existing_start, "%m/%d/%Y").date()
+                        existing_end_obj = datetime.strptime(norm_existing_end, "%m/%d/%Y").date()
+
+                        # Check for date range overlap
+                        if max(start_date_obj, existing_start_obj) <= min(end_date_obj, existing_end_obj):
+                            detail = f"- **{event.get('Event Description', 'N/A')}**・Hosted by {event.get('Event Owner', 'N/A')}"
+                            conflicting_events_details.append(detail)
+                    except (ValueError, TypeError):
+                        continue # Skip malformed rows
+            except Exception as e:
+                print(f"Could not fetch event records for conflict check: {e}")
+                # Non-fatal error, we'll just skip the check
+                pass
 
         # --- Data Preparation ---
         event_owner = interaction.user.display_name
@@ -1573,8 +1602,8 @@ class AddEventModal(Modal):
             event_type_value,
             self.event_description.value,
             event_owner,
-            self.start_date.value,
-            self.end_date.value,
+            start_date_val,
+            end_date_val,
             self.comments.value or ""
         ]
 
@@ -1594,10 +1623,10 @@ class AddEventModal(Modal):
                 announce_embed.add_field(name="Host", value=event_owner, inline=True)
                 
                 # Handle single vs multi-day events for cleaner display
-                if self.start_date.value == self.end_date.value:
-                    announce_embed.add_field(name="Date", value=self.start_date.value, inline=True)
+                if start_date_val == end_date_val:
+                    announce_embed.add_field(name="Date", value=start_date_val, inline=True)
                 else:
-                    announce_embed.add_field(name="Dates", value=f"{self.start_date.value} to {self.end_date.value}", inline=True)
+                    announce_embed.add_field(name="Dates", value=f"{start_date_val} to {end_date_val}", inline=True)
 
                 if self.comments.value:
                     announce_embed.add_field(name="Details", value=self.comments.value, inline=False)
@@ -2109,13 +2138,6 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
-
-
-
-
-
-
 
 
 
