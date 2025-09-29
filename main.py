@@ -1643,7 +1643,7 @@ async def addevent_error(interaction: discord.Interaction, error: app_commands.A
         await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
 
 async def create_and_post_schedule(channel: discord.TextChannel):
-    """Fetches events for the week and posts a comprehensive schedule embed."""
+    """Fetches, processes, and posts a clean, consolidated weekly event schedule."""
     try:
         all_events = get_all_event_records()
     except Exception as e:
@@ -1653,74 +1653,106 @@ async def create_and_post_schedule(channel: discord.TextChannel):
 
     now = datetime.now(CST)
     today = now.date()
-    
-    # Calculate the start of the week (Sunday) and end of the week (Saturday)
     start_of_week = today - timedelta(days=(today.weekday() + 1) % 7)
     end_of_week = start_of_week + timedelta(days=6)
-    
-    # Dictionary to hold events keyed by date for the current week
-    events_by_date = {}
-    for day_delta in range(7):
-        events_by_date[(start_of_week + timedelta(days=day_delta))] = []
 
-    # Populate the dictionary with events for the current week
+    # --- 1. Pre-process and Consolidate Events ---
+    grouped_events = {}
+    special_events = {
+        "Pet Roulette": {"hosts": set(), "type": "Pet Roulette"},
+        "Boss of the Week": {"hosts": set(), "type": "Boss of the Week"},
+        "Skill of the Week": {"hosts": set(), "type": "Skill of the Week"}
+    }
+
     for event in all_events:
-        # Ignore duplicate entries for helpers/co-hosts in the schedule display
+        desc = event.get("Event Description", "").strip()
+        owner = event.get("Event Owner", "N/A").strip()
+        
+        # Handle special recurring weekly events
+        if desc in special_events:
+            special_events[desc]["hosts"].add(owner)
+            continue
+        
+        # Ignore helper entries for consolidation
         if event.get("Comments", "").strip().lower() == "helper/co-host":
             continue
 
+        # Group regular events by description and start date to consolidate hosts
+        key = (event.get("Start Date"), desc)
+        if key not in grouped_events:
+            grouped_events[key] = event.copy()
+            grouped_events[key]["hosts"] = {owner}
+        else:
+            grouped_events[key]["hosts"].add(owner)
+
+    # --- 2. Populate the Weekly Schedule ---
+    events_by_date = {start_of_week + timedelta(days=i): [] for i in range(7)}
+
+    # Add regular, consolidated events to the schedule
+    for event in grouped_events.values():
         try:
-            start_str = event.get("Start Date")
-            end_str = event.get("End Date")
-            if not start_str or not end_str:
-                continue
-
-            event_start_date = datetime.strptime(start_str, "%m/%d/%Y").date()
-            event_end_date = datetime.strptime(end_str, "%m/%d/%Y").date()
-
-            # Iterate through each day the event is active
-            current_date = event_start_date
-            while current_date <= event_end_date:
-                # If the event's day is in our current week's dictionary, add it
-                if current_date in events_by_date:
+            start_date = datetime.strptime(event["Start Date"], "%m/%d/%Y").date()
+            end_date = datetime.strptime(event["End Date"], "%m/%d/%Y").date()
+            
+            current_date = start_date
+            while current_date <= end_date:
+                if start_of_week <= current_date <= end_of_week:
                     events_by_date[current_date].append(event)
                 current_date += timedelta(days=1)
-        except (ValueError, TypeError):
-            continue # Skip rows with malformed data
+        except (ValueError, TypeError, KeyError):
+            continue
 
-    # Build the main embed
+    # Add the special weekly events only on Sunday
+    sunday_date = start_of_week
+    for special in special_events.values():
+        if special["hosts"]:
+            events_by_date[sunday_date].append({
+                "Event Description": special["type"],
+                "Type of Event": special["type"],
+                "hosts": special["hosts"]
+            })
+
+    # --- 3. Build the Embed ---
     embed = discord.Embed(
         title=f"📅 Weekly Clan Schedule ({start_of_week.strftime('%b %d')} - {end_of_week.strftime('%b %d')})",
         color=discord.Color.gold()
     )
-    
-    # --- Build Weekly Schedule Description ---
-    weekly_lines = ["# Events Schedule #"]
-    for day_delta in range(7):
-        current_day_date = start_of_week + timedelta(days=day_delta)
-        day_name = current_day_date.strftime("%A")
-        
-        day_events = events_by_date[current_day_date]
 
+    # Build the main schedule description
+    weekly_lines = ["# Events Schedule"]
+    for day_index in range(7):
+        current_date = start_of_week + timedelta(days=day_index)
+        day_name = current_date.strftime("%A")
+        weekly_lines.append(f"\n**{day_name}**")
+
+        day_events = sorted(events_by_date[current_date], key=lambda x: x.get("Event Description", ""))
+        
         if not day_events:
-            weekly_lines.append(f"**{day_name}** - No Event Planned.")
+            weekly_lines.append("- No Event Planned.")
         else:
-            event_strings = [f"{e.get('Event Description', 'N/A')}・Hosted by {e.get('Event Owner', 'N/A')}" for e in day_events]
-            weekly_lines.append(f"**{day_name}** - {', '.join(event_strings)}.")
-    
+            for event in day_events:
+                host_list = sorted(list(event["hosts"]))
+                host_str = " & ".join(host_list)
+                line = f"- **{event.get('Type of Event', 'Event')}**: {event.get('Event Description')}・Hosted by {host_str}"
+                weekly_lines.append(line)
+
     embed.description = "\n".join(weekly_lines)
 
-    # --- Add "Events Today" Field ---
-    todays_events = events_by_date.get(today)
+    # Build the "Events Today" field
+    todays_events = sorted(events_by_date.get(today, []), key=lambda x: x.get("Event Description", ""))
     if todays_events:
-        today_name = today.strftime("%A")
-        event_strings = [f"{e.get('Event Description', 'N/A')}・Hosted by {e.get('Event Owner', 'N/A')}" for e in todays_events]
-        today_value = f"**{today_name}** - {', '.join(event_strings)}."
-        embed.add_field(name="# Events Today #", value=today_value, inline=False)
+        today_lines = []
+        for event in todays_events:
+            host_list = sorted(list(event["hosts"]))
+            host_str = " & ".join(host_list)
+            line = f"- **{event.get('Type of Event', 'Event')}**: {event.get('Event Description')}・Hosted by {host_str}"
+            today_lines.append(line)
         
-    embed.set_footer(text=f"Last Updated: {now.strftime('%m/%d/%Y %I:%M %p CST')}")
+        embed.add_field(name="# Events Today #", value="\n".join(today_lines), inline=False)
 
+    embed.set_footer(text=f"Last Updated: {now.strftime('%m/%d/%Y %I:%M %p CST')}")
     await channel.send(embed=embed)
+
 
 @bot.tree.command(name="schedule", description="Posts the daily event schedule.")
 @app_commands.checks.has_role(STAFF_ROLE_ID)
@@ -2039,4 +2071,3 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
