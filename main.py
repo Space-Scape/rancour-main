@@ -223,7 +223,7 @@ async def info(interaction: discord.Interaction):
     more_channels_embed = discord.Embed(
         title="5️⃣ More Channels & Bots",
         description="""<#1272648340940525648> - For item trades. Post a screenshot and @mention a user to bring up `Request Item` & `Item Returned` buttons.
- Requesting pings a user, and Returning locks the buttons.
+Requesting pings a user, and Returning locks the buttons.
 
  <#1272875477555482666> - A real-time feed of the in-game clan chat.
 
@@ -1474,8 +1474,6 @@ def get_all_event_records():
         print(f"Error fetching and parsing event sheet data: {e}")
         return []
 
-# The normalize_date_str function has been removed as it's no longer needed.
-
 class AddEventModal(Modal):
     # Using completely generic, numbered field names as a last resort to bypass
     # any potential hidden naming conflicts within the discord.py library.
@@ -1539,32 +1537,33 @@ class AddEventModal(Modal):
 
         # --- Data Preparation ---
         # Fetch RSN for event owner, fall back to a cleaned display name if not found.
+        event_owner = ""
         try:
-            member_id = str(interaction.user.id)
-            cell = rsn_sheet.find(member_id)
-            # Use RSN from sheet if found and not empty
-            rsn_value = rsn_sheet.cell(cell.row, 4).value
-            if rsn_value:
-                event_owner = rsn_value
-            else: # RSN is empty in the sheet, so treat as not found.
-                raise gspread.exceptions.CellNotFound 
-        except (gspread.exceptions.CellNotFound, Exception) as e:
-            # On any error or if not found, fall back to a cleaned display name.
-            if isinstance(e, gspread.exceptions.CellNotFound):
-                print(f"User {interaction.user.id} not found in RSN sheet (or RSN is blank). Defaulting to display name.")
-            else:
-                print(f"An error occurred while fetching RSN for event owner: {e}")
-            
+            cell = rsn_sheet.find(str(interaction.user.id))
+            if cell:
+                # Assuming RSN is in the 4th column (index 3)
+                event_owner = rsn_sheet.cell(cell.row, 4).value
+        except gspread.exceptions.CellNotFound:
+            # If RSN not found, this is not an error, we just proceed.
+            pass
+        except Exception as e:
+            # Log other potential errors but don't stop the process.
+            print(f"Error looking up RSN for {interaction.user.id}: {e}")
+
+        # If event_owner is still empty (not found in sheet), use display name.
+        if not event_owner:
             # Fallback: clean the display name by removing leading non-alphanumeric characters.
             event_owner = re.sub(r'^\W+', '', interaction.user.display_name)
 
+        # Build the list of data to be sent to the spreadsheet, ensuring the correct order.
+        # This explicitly maps each input to its corresponding spreadsheet column.
         event_data = [
-            event_type_value,
-            description_value,
-            event_owner,
-            start_date_val, # Use the raw string from the modal
-            end_date_val,   # Use the raw string from the modal
-            comments_val or ""
+            event_type_value,    # Column 1: Type of Event (from input 1)
+            description_value,   # Column 2: Event Description (from input 2)
+            event_owner,         # Column 3: Event Owner
+            start_date_val,      # Column 4: Start Date (from input 3)
+            end_date_val,        # Column 5: End Date (from input 4)
+            comments_val or ""   # Column 6: Comments (from input 5)
         ]
 
         # --- Write to Google Sheet ---
@@ -1606,18 +1605,16 @@ class AddEventModal(Modal):
                 confirm_embed.add_field(name="Type", value=event_type_value, inline=False)
                 confirm_embed.add_field(name="Description", value=description_value, inline=False)
                 
-                # Add date information to the confirmation embed
                 if start_date_val == end_date_val:
                     confirm_embed.add_field(name="Date", value=start_date_val, inline=False)
                 else:
                     confirm_embed.add_field(name="Dates", value=f"{start_date_val} to {end_date_val}", inline=False)
-
+                
                 if comments_val:
                     confirm_embed.add_field(name="Comments", value=comments_val, inline=False)
                 
                 await interaction.followup.send(embed=confirm_embed, ephemeral=True)
 
-                # Conflict warning has been removed.
 
         except Exception as e:
             print(f"Error writing event to sheet: {e}")
@@ -1715,6 +1712,8 @@ async def create_and_post_schedule(channel: discord.TextChannel):
                     events_by_date[current_date].append(event)
                 current_date += timedelta(days=1)
         except (ValueError, TypeError, KeyError):
+            # Safely skip any rows with missing or malformed dates.
+            print(f"Skipping event due to date error: {event.get('Event Description')}")
             continue
 
     # Add the special weekly events ONLY on Sunday
@@ -1798,7 +1797,7 @@ async def schedule(interaction: discord.Interaction):
 
 @schedule.error
 async def schedule_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-   if isinstance(error, app_commands.MissingRole):
+     if isinstance(error, app_commands.MissingRole):
         await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
 
 @tasks.loop(time=time(hour=9, minute=0, tzinfo=CST))
@@ -1996,7 +1995,7 @@ async def maintain_reactions():
              try:
                 await signup_message.add_reaction(emoji)
              except (discord.NotFound, discord.Forbidden):
-                 pass
+                pass
 
 
 @scheduled_post_signup.before_loop
@@ -2101,3 +2100,4 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
