@@ -1674,10 +1674,10 @@ async def create_and_post_schedule(channel: discord.TextChannel):
             weekly_events["Pet Roulette"]["hosts"].add(owner)
             continue
         # Use startswith for flexibility (e.g., "BOTW: Nex")
-        if description.startswith("BOTW"):
+        if event_type == "Boss of the Week" or description.startswith("BOTW"):
             weekly_events["Boss of the Week"]["hosts"].add(owner)
             continue
-        if description.startswith("SOTW"):
+        if event_type == "Skill of the Week" or description.startswith("SOTW"):
             weekly_events["Skill of the Week"]["hosts"].add(owner)
             continue
             
@@ -2082,6 +2082,10 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
+
+
 
 
 
