@@ -1516,7 +1516,7 @@ class AddEventModal(Modal, title="Add a New Clan Event"):
         # --- Check for Conflicting Events ---
         conflicting_events_details = []
         try:
-            all_events = events_sheet.get_all_records(expected_headers=EVENT_SHEET_HEADERS)
+            all_events = events_sheet.get_all_records(expected_headers=EVENT_SHEET_HEADERS, head_row=4)
             for event in all_events:
                 existing_start_str = event.get("Start Date")
                 existing_end_str = event.get("End Date")
@@ -1619,7 +1619,7 @@ async def addevent_error(interaction: discord.Interaction, error: app_commands.A
 async def create_and_post_schedule(channel: discord.TextChannel):
     """Fetches events for the week and posts a comprehensive schedule embed."""
     try:
-        all_events = events_sheet.get_all_records(expected_headers=EVENT_SHEET_HEADERS)
+        all_events = events_sheet.get_all_records(expected_headers=EVENT_SHEET_HEADERS, head_row=4)
     except Exception as e:
         print(f"Could not fetch event records: {e}")
         await channel.send("⚠️ Could not retrieve event data from the spreadsheet.")
