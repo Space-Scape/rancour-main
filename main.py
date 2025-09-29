@@ -1477,70 +1477,46 @@ def get_all_event_records():
 # The normalize_date_str function has been removed as it's no longer needed.
 
 class AddEventModal(Modal):
-    def __init__(self, event_type: str):
-        # Set the title in the super constructor for cleanliness.
-        super().__init__(title=f"Create New '{event_type}' Event")
+    # Declarative syntax for modal items. This is the most stable and recommended approach.
+    event_type = TextInput(
+        label="Type of Event"
+    )
+    description = TextInput(
+        label="Event Description",
+        placeholder="e.g., Learner ToB or Barb Assault"
+    )
+    start_date = TextInput(
+        label="Start Date (M/D/YYYY)",
+        placeholder="e.g., 9/9/2025"
+    )
+    end_date = TextInput(
+        label="End Date (Optional, defaults to Start Date)",
+        placeholder="Leave blank for single-day events",
+        required=False
+    )
+    comments = TextInput(
+        label="Comments (Optional)",
+        style=discord.TextStyle.paragraph,
+        placeholder="e.g., Hosted by X, design by Y",
+        required=False
+    )
 
-        # Add items with a unique custom_id to ensure we can retrieve them reliably.
-        self.add_item(TextInput(
-            label="Type of Event",
-            custom_id="event_type",
-            required=True,
-            default=event_type
-        ))
-        self.add_item(TextInput(
-            label="Event Description",
-            custom_id="description",
-            placeholder="e.g., Learner ToB or Barb Assault",
-            required=True
-        ))
-        self.add_item(TextInput(
-            label="Start Date (M/D/YYYY)",
-            custom_id="start_date",
-            placeholder="e.g., 9/9/2025",
-            required=True
-        ))
-        self.add_item(TextInput(
-            label="End Date (Optional, defaults to Start Date)",
-            custom_id="end_date",
-            placeholder="Leave blank for single-day events",
-            required=False
-        ))
-        self.add_item(TextInput(
-            label="Comments (Optional)",
-            custom_id="comments",
-            style=discord.TextStyle.paragraph,
-            placeholder="e.g., Hosted by X, design by Y",
-            required=False
-        ))
-
+    def __init__(self, event_type_str: str):
+        super().__init__(title=f"Create New '{event_type_str}' Event")
+        # Pre-fill the event type from the command
+        self.event_type.default = event_type_str
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         
         # --- Data Gathering ---
-        # Manually iterate through the modal's children to retrieve values
-        # by their custom_id. This is the most robust method and prevents scrambling.
-        
-        # Initialize variables to hold the values
-        event_type_value = None
-        description_value = None
-        start_date_val = ""
-        end_date_val = ""
-        comments_val = None
+        # Access values directly from the declarative attributes. This cannot fail.
+        event_type_value = self.event_type.value
+        description_value = self.description.value
+        start_date_val = self.start_date.value
+        end_date_val = self.end_date.value
+        comments_val = self.comments.value
 
-        # Loop through each component (TextInput) in the modal
-        for item in self.children:
-            if item.custom_id == "event_type":
-                event_type_value = item.value
-            elif item.custom_id == "description":
-                description_value = item.value
-            elif item.custom_id == "start_date":
-                start_date_val = item.value # No .strip()
-            elif item.custom_id == "end_date":
-                end_date_val = item.value # No .strip()
-            elif item.custom_id == "comments":
-                comments_val = item.value
 
         # --- Set Defaults ---
         if not end_date_val:
@@ -1656,7 +1632,7 @@ class AddEventModal(Modal):
 ])
 async def addevent(interaction: discord.Interaction, event_type: str):
     """Opens a modal to add the details for the chosen event type."""
-    await interaction.response.send_modal(AddEventModal(event_type=event_type))
+    await interaction.response.send_modal(AddEventModal(event_type_str=event_type))
 
 
 @addevent.error
@@ -2114,6 +2090,9 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
+
 
 
 
