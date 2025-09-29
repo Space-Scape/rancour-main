@@ -1536,9 +1536,12 @@ class AddEventModal(Modal):
         await interaction.response.defer(ephemeral=True)
         
         # --- Data Gathering and Defaults ---
+        # Read all values from the modal into local variables FIRST to ensure consistency.
         event_type_value = self.event_type_input.value
+        description_value = self.event_description.value
         start_date_val = self.start_date.value.strip()
         end_date_val = self.end_date.value.strip()
+        comments_val = self.comments.value
 
         if not end_date_val:
             end_date_val = start_date_val # Default end date to start date if blank
@@ -1570,6 +1573,11 @@ class AddEventModal(Modal):
             try:
                 all_events = get_all_event_records()
                 for event in all_events:
+                    # Also ignore existing events if they are a weekly type.
+                    existing_event_type = event.get("Type of Event", "").lower()
+                    if existing_event_type in ignore_conflict_for_types:
+                        continue
+
                     existing_start_str = event.get("Start Date")
                     existing_end_str = event.get("End Date")
                     if not existing_start_str:
@@ -1597,14 +1605,33 @@ class AddEventModal(Modal):
                 pass
 
         # --- Data Preparation ---
-        event_owner = interaction.user.display_name
+        # Fetch RSN for event owner, fall back to a cleaned display name if not found.
+        try:
+            member_id = str(interaction.user.id)
+            cell = rsn_sheet.find(member_id)
+            # Use RSN from sheet if found and not empty
+            rsn_value = rsn_sheet.cell(cell.row, 4).value
+            if rsn_value:
+                event_owner = rsn_value
+            else: # RSN is empty in the sheet, so treat as not found.
+                raise gspread.exceptions.CellNotFound 
+        except (gspread.exceptions.CellNotFound, Exception) as e:
+            # On any error or if not found, fall back to a cleaned display name.
+            if isinstance(e, gspread.exceptions.CellNotFound):
+                print(f"User {interaction.user.id} not found in RSN sheet (or RSN is blank). Defaulting to display name.")
+            else:
+                print(f"An error occurred while fetching RSN for event owner: {e}")
+            
+            # Fallback: clean the display name by removing leading non-alphanumeric characters.
+            event_owner = re.sub(r'^\W+', '', interaction.user.display_name)
+
         event_data = [
             event_type_value,
-            self.event_description.value,
+            description_value,
             event_owner,
             start_date_val,
             end_date_val,
-            self.comments.value or ""
+            comments_val or ""
         ]
 
         # --- Write to Google Sheet ---
@@ -1616,7 +1643,7 @@ class AddEventModal(Modal):
             event_channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
             if event_channel:
                 announce_embed = discord.Embed(
-                    title=f"🗓️ New Event Added: {self.event_description.value}",
+                    title=f"🗓️ New Event Added: {description_value}",
                     description=f"A new **{event_type_value}** has been added to the schedule!",
                     color=discord.Color.blue()
                 )
@@ -1628,8 +1655,8 @@ class AddEventModal(Modal):
                 else:
                     announce_embed.add_field(name="Dates", value=f"{start_date_val} to {end_date_val}", inline=True)
 
-                if self.comments.value:
-                    announce_embed.add_field(name="Details", value=self.comments.value, inline=False)
+                if comments_val:
+                    announce_embed.add_field(name="Details", value=comments_val, inline=False)
                 
                 announce_embed.set_footer(text=f"Event added by {interaction.user.name}")
                 announce_embed.timestamp = datetime.now()
@@ -1643,9 +1670,9 @@ class AddEventModal(Modal):
                 color=discord.Color.green()
             )
             confirm_embed.add_field(name="Type", value=event_type_value, inline=False)
-            confirm_embed.add_field(name="Description", value=self.event_description.value, inline=False)
-            if self.comments.value:
-                confirm_embed.add_field(name="Comments", value=self.comments.value, inline=False)
+            confirm_embed.add_field(name="Description", value=description_value, inline=False)
+            if comments_val:
+                confirm_embed.add_field(name="Comments", value=comments_val, inline=False)
             
             await interaction.followup.send(embed=confirm_embed, ephemeral=True)
 
@@ -2138,6 +2165,10 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
+
+
 
 
 
