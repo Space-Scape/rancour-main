@@ -73,6 +73,14 @@ COFFER_SHEET_TAB_NAME = "Coffer"
 coffer_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(COFFER_SHEET_TAB_NAME)
 
 # ---------------------------
+# 🔹 Events Sheet Setup
+# ---------------------------
+
+EVENTS_SHEET_ID = "1ycltDSLJeKTLAHzVeYZ6JKwIV5A7md8Lh7IetvVljEc"
+events_sheet = sheet_client_coffer.open_by_key(EVENTS_SHEET_ID).worksheet("Event Inputs")
+
+
+# ---------------------------
 # 🔹 Discord Bot Setup
 # ---------------------------
 
@@ -95,6 +103,7 @@ BANK_CHANNEL_ID = 1276197776849633404
 CURRENCY_SYMBOL = " 💰"
 LISTEN_CHANNEL_ID = 1272875477555482666
 COLLAT_CHANNEL_ID = 1272648340940525648
+EVENT_SCHEDULE_CHANNEL_ID = 1274957572977197138 # Channel to post the daily schedule
 
 WATCH_CHANNEL_IDS = [
     1272648453264248852,
@@ -542,6 +551,8 @@ async def help(interaction: discord.Interaction):
         `/rsn_panel` - Posts the interactive RSN registration panel.
         `/time_panel` - Posts the interactive timezone selection panel.
         `/sangsignup [variant] [channel]` - Manually posts the Sanguine Sunday signup or reminder message.
+        `/addevent` - Opens a modal to add a new event to the clan schedule.
+        `/schedule` - Manually posts the daily event schedule.
         """,
         inline=False
     )
@@ -1420,6 +1431,280 @@ class CollatButtons(discord.ui.View):
         await interaction.response.send_message("Item marked as returned. ✅", ephemeral=True)
         
 # --------------------------------------------------
+# 🔹 Event Management System
+# --------------------------------------------------
+
+class AddEventModal(Modal, title="Add a New Clan Event"):
+    type_of_event = TextInput(
+        label="Type of Event",
+        placeholder="e.g., Pet Roulette, Mass Event, Bingo",
+        required=True
+    )
+    event_description = TextInput(
+        label="Event Description",
+        placeholder="e.g., Learner ToB or Barb Assault",
+        required=True
+    )
+    start_date = TextInput(
+        label="Start Date (MM/DD/YYYY)",
+        placeholder="Must be in MM/DD/YYYY format",
+        required=True
+    )
+    end_date = TextInput(
+        label="End Date (MM/DD/YYYY)",
+        placeholder="For single-day events, use the same date as start.",
+        required=True
+    )
+    comments = TextInput(
+        label="Comments (Optional)",
+        style=discord.TextStyle.paragraph,
+        placeholder="e.g., Hosted by X, design by Y",
+        required=False
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
+        # --- Validation ---
+        # 1. Validate Event Type
+        event_type_input = self.type_of_event.value.strip()
+        allowed_event_types = [
+            "Pet Roulette", "Sanguine Sunday", "Mass Event", "Large Event",
+            "Other Event", "Clan Event", "Bingo"
+        ]
+        # Case-insensitive check
+        valid_type = next((t for t in allowed_event_types if t.lower() == event_type_input.lower()), None)
+        if not valid_type:
+            allowed_list = ", ".join(allowed_event_types)
+            await interaction.followup.send(
+                f"❌ **Invalid Event Type.** Please use one of the following (not case-sensitive):\n`{allowed_list}`",
+                ephemeral=True
+            )
+            return
+
+        # 2. Validate Dates
+        try:
+            start_date_obj = datetime.strptime(self.start_date.value, "%m/%d/%Y").date()
+        except ValueError:
+            await interaction.followup.send("❌ **Invalid Start Date.** Please use the **MM/DD/YYYY** format.", ephemeral=True)
+            return
+
+        try:
+            end_date_obj = datetime.strptime(self.end_date.value, "%m/%d/%Y").date()
+        except ValueError:
+            await interaction.followup.send("❌ **Invalid End Date.** Please use the **MM/DD/YYYY** format.", ephemeral=True)
+            return
+
+        if end_date_obj < start_date_obj:
+            await interaction.followup.send("❌ **Date Error.** The end date cannot be before the start date.", ephemeral=True)
+            return
+
+        # --- Check for Conflicting Events ---
+        conflicting_events_details = []
+        try:
+            all_events = events_sheet.get_all_records()
+            for event in all_events:
+                existing_start_str = event.get("Start Date")
+                existing_end_str = event.get("End Date")
+                if not existing_start_str or not existing_end_str:
+                    continue
+
+                try:
+                    existing_start_obj = datetime.strptime(existing_start_str, "%m/%d/%Y").date()
+                    existing_end_obj = datetime.strptime(existing_end_str, "%m/%d/%Y").date()
+
+                    # Check for date range overlap
+                    if max(start_date_obj, existing_start_obj) <= min(end_date_obj, existing_end_obj):
+                        detail = f"- **{event.get('Event Description', 'N/A')}**・Hosted by {event.get('Event Owner', 'N/A')}"
+                        conflicting_events_details.append(detail)
+                except (ValueError, TypeError):
+                    continue # Skip malformed rows
+        except Exception as e:
+            print(f"Could not fetch event records for conflict check: {e}")
+            # Non-fatal error, we'll just skip the check
+            pass
+
+        # --- Data Preparation ---
+        event_owner = interaction.user.display_name
+        event_data = [
+            valid_type,  # Use the properly capitalized version
+            self.event_description.value,
+            event_owner,
+            self.start_date.value,
+            self.end_date.value,
+            self.comments.value or ""
+        ]
+
+        # --- Write to Google Sheet ---
+        try:
+            events_sheet.append_row(event_data)
+
+            # --- Confirmation Embed (Private message to the command user) ---
+            confirm_embed = discord.Embed(
+                title="✅ Event Created Successfully!",
+                description="The following event has been added and a notification has been posted.",
+                color=discord.Color.green()
+            )
+            confirm_embed.add_field(name="Type", value=valid_type, inline=False)
+            confirm_embed.add_field(name="Description", value=self.event_description.value, inline=False)
+            if self.comments.value:
+                confirm_embed.add_field(name="Comments", value=self.comments.value, inline=False)
+            
+            await interaction.followup.send(embed=confirm_embed, ephemeral=True)
+
+            # --- Public Announcement ---
+            event_channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
+            if event_channel:
+                announce_embed = discord.Embed(
+                    title=f"🗓️ New Event Added: {self.event_description.value}",
+                    description=f"A new **{valid_type}** has been added to the schedule!",
+                    color=discord.Color.blue()
+                )
+                announce_embed.add_field(name="Host", value=event_owner, inline=True)
+                
+                # Handle single vs multi-day events for cleaner display
+                if self.start_date.value == self.end_date.value:
+                    announce_embed.add_field(name="Date", value=self.start_date.value, inline=True)
+                else:
+                    announce_embed.add_field(name="Dates", value=f"{self.start_date.value} to {self.end_date.value}", inline=True)
+
+                if self.comments.value:
+                    announce_embed.add_field(name="Details", value=self.comments.value, inline=False)
+                
+                announce_embed.set_footer(text=f"Event added by {interaction.user.name}")
+                announce_embed.timestamp = datetime.now()
+
+                await event_channel.send(embed=announce_embed)
+
+            # --- Send Conflict Warning if necessary ---
+            if conflicting_events_details:
+                warning_message = (
+                    "⚠️ **Heads up!** You've scheduled an event on the same day as another:\n"
+                    + "\n".join(conflicting_events_details)
+                    + "\n\nThis is fine, but please make sure this is okay!"
+                )
+                await interaction.followup.send(warning_message, ephemeral=True)
+
+
+        except Exception as e:
+            print(f"Error writing event to sheet: {e}")
+            await interaction.followup.send("❌ An error occurred while saving the event to the spreadsheet. Please check the bot's logs.", ephemeral=True)
+
+
+@bot.tree.command(name="addevent", description="Add a new event to the clan schedule.")
+@app_commands.checks.has_role(STAFF_ROLE_ID)
+async def addevent(interaction: discord.Interaction):
+    """Opens a modal for staff to add a new event."""
+    await interaction.response.send_modal(AddEventModal())
+
+@addevent.error
+async def addevent_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.MissingRole):
+        await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
+
+async def create_and_post_schedule(channel: discord.TextChannel):
+    """Fetches events for the week and posts a comprehensive schedule embed."""
+    try:
+        all_events = events_sheet.get_all_records()
+    except Exception as e:
+        print(f"Could not fetch event records: {e}")
+        await channel.send("⚠️ Could not retrieve event data from the spreadsheet.")
+        return
+
+    now = datetime.now(CST)
+    today = now.date()
+    
+    # Calculate the start of the week (Sunday) and end of the week (Saturday)
+    start_of_week = today - timedelta(days=(today.weekday() + 1) % 7)
+    end_of_week = start_of_week + timedelta(days=6)
+    
+    # Dictionary to hold events keyed by date for the current week
+    events_by_date = {}
+    for day_delta in range(7):
+        events_by_date[(start_of_week + timedelta(days=day_delta))] = []
+
+    # Populate the dictionary with events for the current week
+    for event in all_events:
+        try:
+            start_str = event.get("Start Date")
+            end_str = event.get("End Date")
+            if not start_str or not end_str:
+                continue
+
+            event_start_date = datetime.strptime(start_str, "%m/%d/%Y").date()
+            event_end_date = datetime.strptime(end_str, "%m/%d/%Y").date()
+
+            # Iterate through each day the event is active
+            current_date = event_start_date
+            while current_date <= event_end_date:
+                # If the event's day is in our current week's dictionary, add it
+                if current_date in events_by_date:
+                    events_by_date[current_date].append(event)
+                current_date += timedelta(days=1)
+        except (ValueError, TypeError):
+            continue # Skip rows with malformed data
+
+    # Build the main embed
+    embed = discord.Embed(
+        title=f"📅 Weekly Clan Schedule ({start_of_week.strftime('%b %d')} - {end_of_week.strftime('%b %d')})",
+        color=discord.Color.gold()
+    )
+    
+    # --- Build Weekly Schedule Description ---
+    weekly_lines = ["# Events Schedule #"]
+    for day_delta in range(7):
+        current_day_date = start_of_week + timedelta(days=day_delta)
+        day_name = current_day_date.strftime("%A")
+        
+        day_events = events_by_date[current_day_date]
+
+        if not day_events:
+            weekly_lines.append(f"**{day_name}** - No Event Planned.")
+        else:
+            event_strings = [f"{e.get('Event Description', 'N/A')}・Hosted by {e.get('Event Owner', 'N/A')}" for e in day_events]
+            weekly_lines.append(f"**{day_name}** - {', '.join(event_strings)}.")
+    
+    embed.description = "\n".join(weekly_lines)
+
+    # --- Add "Events Today" Field ---
+    todays_events = events_by_date.get(today)
+    if todays_events:
+        today_name = today.strftime("%A")
+        event_strings = [f"{e.get('Event Description', 'N/A')}・Hosted by {e.get('Event Owner', 'N/A')}" for e in todays_events]
+        today_value = f"**{today_name}** - {', '.join(event_strings)}."
+        embed.add_field(name="# Events Today #", value=today_value, inline=False)
+        
+    embed.set_footer(text=f"Last Updated: {now.strftime('%m/%d/%Y %I:%M %p CST')}")
+
+    await channel.send(embed=embed)
+
+@bot.tree.command(name="schedule", description="Posts the daily event schedule.")
+@app_commands.checks.has_role(STAFF_ROLE_ID)
+async def schedule(interaction: discord.Interaction):
+    """Manually triggers the posting of the daily event schedule."""
+    await interaction.response.defer(ephemeral=True)
+    channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
+    if channel:
+        await create_and_post_schedule(channel)
+        await interaction.followup.send(f"✅ Daily schedule posted in {channel.mention}!", ephemeral=True)
+    else:
+        await interaction.followup.send("⚠️ Could not find the event schedule channel.", ephemeral=True)
+
+@schedule.error
+async def schedule_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+     if isinstance(error, app_commands.MissingRole):
+        await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
+
+@tasks.loop(time=time(hour=9, minute=0, tzinfo=CST))
+async def post_daily_schedule():
+    """Scheduled task to post the event schedule every day at 9 AM CST."""
+    channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
+    if channel:
+        await channel.purge(limit=5) # Clean up old schedules
+        await create_and_post_schedule(channel)
+        print("✅ Automatically posted the daily event schedule.")
+        
+# --------------------------------------------------
 # 🔹 Sanguine Sunday Signup System
 # --------------------------------------------------
 
@@ -1435,36 +1720,39 @@ EVENTS_ROLE_ID = 1298358942887317555
 
 # --- Message Content ---
 SANG_MESSAGE_IDENTIFIER = "Sanguine Sunday Sign Up"
-SANG_MESSAGE = f"""{SANG_MESSAGE_IDENTIFIER} - Hosted by Macflag
-Looking for a fun Sunday activity? Look no farther than Sanguine Sunday! Spend an afternoon/evening sending TOBs with clan members. The focus on this event is on Learners and general KC.
+SANG_MESSAGE = "\n".join([
+    f"{SANG_MESSAGE_IDENTIFIER} - Hosted by Macflag",
+    "Looking for a fun Sunday activity? Look no farther than Sanguine Sunday! Spend an afternoon/evening sending TOBs with clan members. The focus on this event is on Learners and general KC.",
+    "",
+    "We plan to have mentors on hand to help out with the learners. Learner is someone who need the mechanics explained for each room.",
+    "",
+    "LEARNERS - please review this thread, watch the xzact guides, and get your plugins setup before Sunday - <#1388887895837773895>",
+    "",
+    "No matter if you're a learner or an experienced raider, we STRONGLY ENCOURAGE you use one of the setups in this thread. We have setups for both learners and experienced (rancour meta setup) - <#1388884558191268070>",
+    "",
+    "If you want to participate, leave a reaction to the post depending on your skill level.",
+    "",
+    "⚪ - Learner",
+    "🔵 - Proficient",
+    "🔴 - Mentor",
+    "",
+    "https://discord.com/events/1272629330115297330/1386302870646816788",
+    "",
+    f"||<@&{MENTOR_ROLE_ID}> <@&{SANG_ROLE_ID}> <@&{TOB_ROLE_ID}> <@&{EVENTS_ROLE_ID}>||"
+])
 
-We plan to have mentors on hand to help out with the learners. Learner is someone who need the mechanics explained for each room.
-
-LEARNERS - please review this thread, watch the xzact guides, and get your plugins setup before Sunday - <#1388887895837773895>
-
-No matter if you're a learner or an experienced raider, we STRONGLY ENCOURAGE you use one of the setups in this thread. We have setups for both learners and experienced (rancour meta setup) - <#1388884558191268070>
-
-If you want to participate, leave a reaction to the post depending on your skill level.
-
-⚪ - Learner
-🔵 - Proficient
-🔴 - Mentor
-
-https://discord.com/events/1272629330115297330/1386302870646816788
-
-||<@&{MENTOR_ROLE_ID}> <@&{SANG_ROLE_ID}> <@&{TOB_ROLE_ID}> <@&{EVENTS_ROLE_ID}>||
-"""
 
 LEARNER_REMINDER_IDENTIFIER = "Sanguine Sunday Learner Reminder"
-LEARNER_REMINDER_MESSAGE = f"""### {LEARNER_REMINDER_IDENTIFIER} ⏰
-This is a reminder for all learners who signed up for Sanguine Sunday!
-
-Please make sure you have reviewed the following guides and have your gear and plugins ready to go:
-- **Setups:** <#1388884558191268070>
-- **Guides & Plugins:** <#1388887895837773895>
-
-Feel free to DM or tag MacFlag in a post if you need any help. We look forward to seeing you there!
-"""
+LEARNER_REMINDER_MESSAGE = "\n".join([
+    f"### {LEARNER_REMINDER_IDENTIFIER} ⏰",
+    "This is a reminder for all learners who signed up for Sanguine Sunday!",
+    "",
+    "Please make sure you have reviewed the following guides and have your gear and plugins ready to go:",
+    "- **Setups:** <#1388884558191268070>",
+    "- **Guides & Plugins:** <#1388887895837773895>",
+    "",
+    "We look forward to seeing you there!"
+])
 
 SIGNUP_REACTIONS = ["⚪", "🔵", "🔴"]
 
@@ -1489,13 +1777,15 @@ async def post_reminder(channel: discord.TextChannel):
     signup_message = await find_latest_signup_message(channel)
     if not signup_message:
         print("⚠️ Could not find a signup message to post a reminder for.")
-        return None
+        return None  # Return None to indicate failure
 
+    # Delete previous reminders from the bot
     async for message in channel.history(limit=50):
         if message.author == bot.user and LEARNER_REMINDER_IDENTIFIER in message.content:
             await message.delete()
 
     learners = []
+    # Ensure we get the latest reaction data
     fresh_message = await channel.fetch_message(signup_message.id)
     for reaction in fresh_message.reactions:
         if str(reaction.emoji) == "⚪":
@@ -1512,7 +1802,7 @@ async def post_reminder(channel: discord.TextChannel):
 
     await channel.send(reminder_content, allowed_mentions=discord.AllowedMentions(users=True))
     print(f"✅ Posted Sanguine Sunday learner reminder in #{channel.name}")
-    return True 
+    return True  # Return True for success
 
 
 # --- Slash Command ---
@@ -1585,22 +1875,28 @@ async def maintain_reactions():
 
     for emoji in SIGNUP_REACTIONS:
         reaction = current_reactions.get(emoji)
+
+        # If the reaction is missing entirely, the bot should add it.
         if not reaction:
             try:
                 await signup_message.add_reaction(emoji)
             except (discord.NotFound, discord.Forbidden):
-                pass
+                pass  # Message was deleted or permissions changed
             continue
 
+        # If the reaction exists, check who has reacted.
         users = [user async for user in reaction.users()]
         bot_has_reacted = bot.user in users
 
+        # Goal: Bot should react if and only if no other user has.
         if bot_has_reacted and len(users) > 1:
+            # Bot has reacted, but so has someone else. Remove bot's reaction.
             try:
                 await signup_message.remove_reaction(emoji, bot.user)
             except (discord.NotFound, discord.Forbidden):
                 pass
         elif not bot_has_reacted and len(users) == 0:
+            # No one has reacted, and the bot hasn't either. Add the bot's reaction.
              try:
                 await signup_message.add_reaction(emoji)
              except (discord.NotFound, discord.Forbidden):
@@ -1610,6 +1906,7 @@ async def maintain_reactions():
 @scheduled_post_signup.before_loop
 @scheduled_post_reminder.before_loop
 @maintain_reactions.before_loop
+@post_daily_schedule.before_loop
 async def before_scheduled_tasks():
     await bot.wait_until_ready()
 
@@ -1622,6 +1919,9 @@ async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
+    # This is required to process other non-slash commands if you have any.
+    # Since this bot seems to be slash-command only, this line might not be strictly
+    # necessary unless you have other on_message logic.
     await bot.process_commands(message)
 
     parent_channel_id = None
@@ -1662,25 +1962,30 @@ async def on_ready():
         maintain_reactions.start()
         print("✅ Started reaction maintenance task.")
 
+    # Start the event schedule task
+    if not post_daily_schedule.is_running():
+        post_daily_schedule.start()
+        print("✅ Started daily event schedule task.")
+
     # Panel initializations
     rsn_channel = bot.get_channel(1280532494139002912)
     if rsn_channel:
         await send_rsn_panel(rsn_channel)
-        pass
 
     time_channel = bot.get_channel(1398775387139342386)
     if time_channel:
         await send_time_panel(time_channel)
-        pass
 
     role_channel = bot.get_channel(1272648586198519818)
     if role_channel:
         guild = role_channel.guild
+        
         async for msg in role_channel.history(limit=100):
             if msg.author == bot.user:
                 await msg.delete()
         
         await role_channel.send("Select your roles below:")
+        
         raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="", color=0x00ff00)
         await role_channel.send(embed=raid_embed, view=RaidsView(guild))
         
@@ -1689,7 +1994,6 @@ async def on_ready():
         
         events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢𝔫𝔱𝔰 ⚔︎", description="", color=0xffff00)
         await role_channel.send(embed=events_embed, view=EventsView(guild))
-        pass
         
     try:
         synced = await bot.tree.sync()
@@ -1701,3 +2005,5 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
