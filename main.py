@@ -1636,8 +1636,9 @@ class AddEventModal(Modal):
 
         # --- Write to Google Sheet ---
         try:
-            # Add value_input_option='RAW' to prevent Google Sheets from misinterpreting data
-            events_sheet.append_row(event_data, value_input_option='RAW')
+            # Change value_input_option to 'USER_ENTERED' to allow Google Sheets
+            # to parse the date string correctly, respecting the column's format.
+            events_sheet.append_row(event_data, value_input_option='USER_ENTERED')
 
             # --- Public Announcement ---
             event_channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
