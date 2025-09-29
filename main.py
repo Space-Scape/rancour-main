@@ -1443,30 +1443,20 @@ class CollatButtons(discord.ui.View):
 # --------------------------------------------------
 # 🔹 Event Management System
 # --------------------------------------------------
-EVENT_SHEET_HEADERS = [
-    "Type of Event", "Event Description", "Event Owner",
-    "Start Date", "End Date", "Comments"
-]
 
 def get_all_event_records():
-    """
-    Custom function to get all event records, accounting for header row at row 4.
-    Replicates gspread.get_all_records functionality for older library versions.
-    """
+    """Custom function to get all event records, accounting for header row at row 4."""
     try:
         all_values = events_sheet.get_all_values()
-        if len(all_values) < 5:  # Need at least headers (row 4) and one data row (row 5)
+        if len(all_values) < 5:
             return []
         
-        headers = all_values[3]  # Headers are on row 4 (index 3)
-        data_rows = all_values[4:] # Data starts on row 5 (index 4)
+        headers = all_values[3]
+        data_rows = all_values[4:]
         
         records = []
         for row in data_rows:
-            # Create a dictionary for the current row
-            # Pad row in case it has fewer columns than headers
             record = {headers[i]: (row[i] if i < len(row) else "") for i in range(len(headers))}
-            # Only add non-empty rows
             if any(val.strip() for val in record.values()):
                 records.append(record)
         return records
@@ -1474,26 +1464,36 @@ def get_all_event_records():
         print(f"Error fetching and parsing event sheet data: {e}")
         return []
 
-class AddEventModal(Modal, title="Add a New Clan Event"):
-    type_of_event = TextInput(
-        label="Type of Event",
-        placeholder="e.g., Pet Roulette, Mass Event, Bingo",
-        required=True
-    )
+def parse_flexible_date(date_string: str) -> Optional[datetime.date]:
+    """Tries to parse a date from a few common formats."""
+    formats_to_try = ["%m/%d/%Y", "%m/%d/%y", "%-m/%-d/%Y", "%-m/%-d/%y"]
+    for fmt in formats_to_try:
+        try:
+            return datetime.strptime(date_string.strip(), fmt).date()
+        except ValueError:
+            continue
+    return None
+
+class AddEventModal(Modal):
+    def __init__(self, event_type: str):
+        super().__init__()
+        self.event_type = event_type
+        self.title = f"Create New '{event_type}' Event"
+
     event_description = TextInput(
         label="Event Description",
         placeholder="e.g., Learner ToB or Barb Assault",
         required=True
     )
     start_date = TextInput(
-        label="Start Date (MM/DD/YYYY)",
-        placeholder="Must be in MM/DD/YYYY format",
+        label="Start Date (e.g., 9/29/2025)",
+        placeholder="Use MM/DD/YYYY format.",
         required=True
     )
     end_date = TextInput(
-        label="End Date (MM/DD/YYYY)",
-        placeholder="For single-day events, use the same date as start.",
-        required=True
+        label="End Date (Optional)",
+        placeholder="Leave blank for single-day events.",
+        required=False
     )
     comments = TextInput(
         label="Comments (Optional)",
@@ -1501,147 +1501,131 @@ class AddEventModal(Modal, title="Add a New Clan Event"):
         placeholder="e.g., Hosted by X, design by Y",
         required=False
     )
+    helpers_co_hosts = TextInput(
+        label="Helpers/Co-Hosts (Optional)",
+        style=discord.TextStyle.short,
+        placeholder="Comma-separated names, e.g., Riolu, Macflag",
+        required=False
+    )
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        # --- Validation ---
-        # 1. Validate Event Type
-        event_type_input = self.type_of_event.value.strip()
-        allowed_event_types = [
-            "Pet Roulette", "Sanguine Sunday", "Mass Event", "Large Event",
-            "Other Event", "Clan Event", "Bingo"
-        ]
-        # Case-insensitive check
-        valid_type = next((t for t in allowed_event_types if t.lower() == event_type_input.lower()), None)
-        if not valid_type:
-            allowed_list = ", ".join(allowed_event_types)
-            await interaction.followup.send(
-                f"❌ **Invalid Event Type.** Please use one of the following (not case-sensitive):\n`{allowed_list}`",
-                ephemeral=True
-            )
+        # 1. Date Validation and Parsing
+        start_date_obj = parse_flexible_date(self.start_date.value)
+        if not start_date_obj:
+            await interaction.followup.send("❌ **Invalid Start Date.** Please use a valid format like **9/29/2025**.", ephemeral=True)
             return
 
-        # 2. Validate Dates
-        try:
-            start_date_obj = datetime.strptime(self.start_date.value, "%m/%d/%Y").date()
-        except ValueError:
-            await interaction.followup.send("❌ **Invalid Start Date.** Please use the **MM/DD/YYYY** format.", ephemeral=True)
-            return
-
-        try:
-            end_date_obj = datetime.strptime(self.end_date.value, "%m/%d/%Y").date()
-        except ValueError:
-            await interaction.followup.send("❌ **Invalid End Date.** Please use the **MM/DD/YYYY** format.", ephemeral=True)
-            return
+        end_date_obj = start_date_obj
+        if self.end_date.value:
+            end_date_obj = parse_flexible_date(self.end_date.value)
+            if not end_date_obj:
+                await interaction.followup.send("❌ **Invalid End Date.** Please use a valid format like **9/29/2025**.", ephemeral=True)
+                return
 
         if end_date_obj < start_date_obj:
             await interaction.followup.send("❌ **Date Error.** The end date cannot be before the start date.", ephemeral=True)
             return
 
-        # --- Check for Conflicting Events ---
+        start_date_str = start_date_obj.strftime("%m/%d/%Y")
+        end_date_str = end_date_obj.strftime("%m/%d/%Y")
+        
+        # 2. Check for Conflicting Events
         conflicting_events_details = []
+        weekly_event_types_to_ignore = ["pet roulette", "sanguine sunday", "botw", "sotw", "boss of the week", "skill of the week"]
         try:
             all_events = get_all_event_records()
             for event in all_events:
-                existing_start_str = event.get("Start Date")
-                existing_end_str = event.get("End Date")
-                if not existing_start_str or not existing_end_str:
+                if event.get("Type of Event", "").strip().lower() in weekly_event_types_to_ignore:
                     continue
 
-                try:
-                    existing_start_obj = datetime.strptime(existing_start_str, "%m/%d/%Y").date()
-                    existing_end_obj = datetime.strptime(existing_end_str, "%m/%d/%Y").date()
+                existing_start_str = event.get("Start Date")
+                existing_end_str = event.get("End Date")
+                if not existing_start_str or not existing_end_str: continue
 
-                    # Check for date range overlap
-                    if max(start_date_obj, existing_start_obj) <= min(end_date_obj, existing_end_obj):
-                        detail = f"- **{event.get('Event Description', 'N/A')}**・Hosted by {event.get('Event Owner', 'N/A')}"
-                        conflicting_events_details.append(detail)
-                except (ValueError, TypeError):
-                    continue # Skip malformed rows
+                existing_start_obj = parse_flexible_date(existing_start_str)
+                existing_end_obj = parse_flexible_date(existing_end_str)
+                if not existing_start_obj or not existing_end_obj: continue
+
+                if max(start_date_obj, existing_start_obj) <= min(end_date_obj, existing_end_obj):
+                    detail = f"- **{event.get('Event Description', 'N/A')}**・Hosted by {event.get('Event Owner', 'N/A')}"
+                    conflicting_events_details.append(detail)
         except Exception as e:
             print(f"Could not fetch event records for conflict check: {e}")
-            # Non-fatal error, we'll just skip the check
-            pass
 
-        # --- Data Preparation ---
+        # 3. Data Preparation and Writing to Sheet
         event_owner = interaction.user.display_name
         event_data = [
-            valid_type,  # Use the properly capitalized version
+            self.event_type,
             self.event_description.value,
             event_owner,
-            self.start_date.value,
-            self.end_date.value,
+            f"'{start_date_str}", # Prepend ' to force literal string
+            f"'{end_date_str}",
             self.comments.value or ""
         ]
 
-        # --- Write to Google Sheet ---
         try:
-            # Add value_input_option='RAW' to prevent Google Sheets from misinterpreting data
-            events_sheet.append_row(event_data, value_input_option='RAW')
+            events_sheet.append_row(event_data, value_input_option='USER_ENTERED')
+            
+            # Handle Helpers/Co-Hosts
+            if self.helpers_co_hosts.value:
+                helper_names = [name.strip() for name in self.helpers_co_hosts.value.split(',') if name.strip()]
+                for name in helper_names:
+                    helper_data = event_data.copy()
+                    helper_data[2] = name
+                    helper_data[5] = "Helper/Co-Host"
+                    events_sheet.append_row(helper_data, value_input_option='USER_ENTERED')
 
-            # --- Public Announcement ---
+            # 4. Public Announcement and Private Confirmation
             event_channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
             if event_channel:
                 announce_embed = discord.Embed(
                     title=f"🗓️ New Event Added: {self.event_description.value}",
-                    description=f"A new **{valid_type}** has been added to the schedule!",
+                    description=f"A new **{self.event_type}** has been added to the schedule!",
                     color=discord.Color.blue()
                 )
                 announce_embed.add_field(name="Host", value=event_owner, inline=True)
-                
-                # Handle single vs multi-day events for cleaner display
-                if self.start_date.value == self.end_date.value:
-                    announce_embed.add_field(name="Date", value=self.start_date.value, inline=True)
-                else:
-                    announce_embed.add_field(name="Dates", value=f"{self.start_date.value} to {self.end_date.value}", inline=True)
-
+                date_display = start_date_str if start_date_str == end_date_str else f"{start_date_str} to {end_date_str}"
+                announce_embed.add_field(name="Date(s)", value=date_display, inline=True)
                 if self.comments.value:
                     announce_embed.add_field(name="Details", value=self.comments.value, inline=False)
                 
-                announce_embed.set_footer(text=f"Event added by {interaction.user.name}")
-                announce_embed.timestamp = datetime.now()
-
                 await event_channel.send(embed=announce_embed)
 
-            # --- Confirmation Embed (Private message to the command user) ---
             confirm_embed = discord.Embed(
                 title="✅ Event Created Successfully!",
-                description="The following event has been added and a notification has been posted.",
+                description="The event has been added and a notification has been posted.",
                 color=discord.Color.green()
             )
-            confirm_embed.add_field(name="Type", value=valid_type, inline=False)
-            confirm_embed.add_field(name="Description", value=self.event_description.value, inline=False)
-            if self.comments.value:
-                confirm_embed.add_field(name="Comments", value=self.comments.value, inline=False)
-            
             await interaction.followup.send(embed=confirm_embed, ephemeral=True)
 
-            # --- Send Conflict Warning if necessary (as a separate followup) ---
             if conflicting_events_details:
-                warning_message = (
-                    "⚠️ **Heads up!** You've scheduled an event on the same day as another:\n"
-                    + "\n".join(conflicting_events_details)
-                    + "\n\nThis is fine, but please make sure this is okay!"
+                await interaction.followup.send(
+                    f"⚠️ **Heads up!** You've scheduled on the same day as another event:\n" + "\n".join(conflicting_events_details),
+                    ephemeral=True
                 )
-                await interaction.followup.send(warning_message, ephemeral=True)
-
-
         except Exception as e:
             print(f"Error writing event to sheet: {e}")
-            await interaction.followup.send("❌ An error occurred while saving the event to the spreadsheet. Please check the bot's logs.", ephemeral=True)
-
+            await interaction.followup.send("❌ An error occurred while saving the event. Please check the logs.", ephemeral=True)
 
 @bot.tree.command(name="addevent", description="Add a new event to the clan schedule.")
 @app_commands.checks.has_role(STAFF_ROLE_ID)
-async def addevent(interaction: discord.Interaction):
-    """Sends a view with a dropdown to select an event type."""
-    await interaction.response.send_message(
-        "Please select the type of event you want to create:",
-        view=EventTypeSelectView(),
-        ephemeral=True
-    )
-
+@app_commands.describe(event_type="The type of event you want to create.")
+@app_commands.choices(event_type=[
+    app_commands.Choice(name="Pet Roulette", value="Pet Roulette"),
+    app_commands.Choice(name="Sanguine Sunday", value="Sanguine Sunday"),
+    app_commands.Choice(name="Mass Event", value="Mass Event"),
+    app_commands.Choice(name="Large Event", value="Large Event"),
+    app_commands.Choice(name="Other Event", value="Other Event"),
+    app_commands.Choice(name="Clan Event", value="Clan Event"),
+    app_commands.Choice(name="Bingo", value="Bingo"),
+    app_commands.Choice(name="BOTW", value="BOTW"),
+    app_commands.Choice(name="SOTW", value="SOTW"),
+])
+async def addevent(interaction: discord.Interaction, event_type: str):
+    """Opens a modal to add the details for the chosen event type."""
+    await interaction.response.send_modal(AddEventModal(event_type=event_type))
 
 @addevent.error
 async def addevent_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
@@ -2098,6 +2082,13 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
+
+
+
+
+
 
 
 
