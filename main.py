@@ -1623,75 +1623,75 @@ class AddEventModal(Modal):
                 print(f"An error occurred while fetching RSN for event owner: {e}")
             
             # Fallback: clean the display name by removing leading non-alphanumeric characters.
-        event_owner = re.sub(r'^\W+', '', interaction.user.display_name)
+            event_owner = re.sub(r'^\W+', '', interaction.user.display_name)
 
-    event_data = [
-        event_type_value,
-        description_value,
-        event_owner,
-        normalized_start, # Use the normalized date string
-        normalized_end,   # Use the normalized date string
-        comments_val or ""
-    ]
+        event_data = [
+            event_type_value,
+            description_value,
+            event_owner,
+            normalized_start, # Use the normalized date string
+            normalized_end,   # Use the normalized date string
+            comments_val or ""
+        ]
 
-    # --- Write to Google Sheet ---
-    try:
-            # Change value_input_option to 'USER_ENTERED' to allow Google Sheets
-            # to parse the date string correctly, respecting the column's format.
-            events_sheet.append_row(event_data, value_input_option='USER_ENTERED')
+        # --- Write to Google Sheet ---
+        try:
+                # Change value_input_option to 'USER_ENTERED' to allow Google Sheets
+                # to parse the date string correctly, respecting the column's format.
+                events_sheet.append_row(event_data, value_input_option='USER_ENTERED')
 
-            # --- Public Announcement ---
-            event_channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
-            if event_channel:
-                announce_embed = discord.Embed(
-                    title=f"🗓️ New Event Added: {description_value}",
-                    description=f"A new **{event_type_value}** has been added to the schedule!",
-                    color=discord.Color.blue()
+                # --- Public Announcement ---
+                event_channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
+                if event_channel:
+                    announce_embed = discord.Embed(
+                        title=f"🗓️ New Event Added: {description_value}",
+                        description=f"A new **{event_type_value}** has been added to the schedule!",
+                        color=discord.Color.blue()
+                    )
+                    announce_embed.add_field(name="Host", value=event_owner, inline=True)
+                    
+                    # Handle single vs multi-day events for cleaner display
+                    if start_date_val == end_date_val:
+                        announce_embed.add_field(name="Date", value=start_date_val, inline=True)
+                    else:
+                        announce_embed.add_field(name="Dates", value=f"{start_date_val} to {end_date_val}", inline=True)
+
+                    if comments_val:
+                        announce_embed.add_field(name="Details", value=comments_val, inline=False)
+                    
+                    announce_embed.set_footer(text=f"Event added by {interaction.user.name}")
+                    announce_embed.timestamp = datetime.now()
+
+                    await event_channel.send(embed=announce_embed)
+
+                # --- Confirmation Embed (Private message to the command user) ---
+                confirm_embed = discord.Embed(
+                    title="✅ Event Created Successfully!",
+                    description="The following event has been added and a notification has been posted.",
+                    color=discord.Color.green()
                 )
-                announce_embed.add_field(name="Host", value=event_owner, inline=True)
+                confirm_embed.add_field(name="Type", value=event_type_value, inline=False)
+                confirm_embed.add_field(name="Description", value=description_value, inline=False)
                 
-                # Handle single vs multi-day events for cleaner display
+                # Add date information to the confirmation embed
                 if start_date_val == end_date_val:
-                    announce_embed.add_field(name="Date", value=start_date_val, inline=True)
+                    confirm_embed.add_field(name="Date", value=start_date_val, inline=False)
                 else:
-                    announce_embed.add_field(name="Dates", value=f"{start_date_val} to {end_date_val}", inline=True)
+                    confirm_embed.add_field(name="Dates", value=f"{start_date_val} to {end_date_val}", inline=False)
 
                 if comments_val:
-                    announce_embed.add_field(name="Details", value=comments_val, inline=False)
+                    confirm_embed.add_field(name="Comments", value=comments_val, inline=False)
                 
-                announce_embed.set_footer(text=f"Event added by {interaction.user.name}")
-                announce_embed.timestamp = datetime.now()
+                await interaction.followup.send(embed=confirm_embed, ephemeral=True)
 
-                await event_channel.send(embed=announce_embed)
-
-            # --- Confirmation Embed (Private message to the command user) ---
-            confirm_embed = discord.Embed(
-                title="✅ Event Created Successfully!",
-                description="The following event has been added and a notification has been posted.",
-                color=discord.Color.green()
-            )
-            confirm_embed.add_field(name="Type", value=event_type_value, inline=False)
-            confirm_embed.add_field(name="Description", value=description_value, inline=False)
-            
-            # Add date information to the confirmation embed
-            if start_date_val == end_date_val:
-                confirm_embed.add_field(name="Date", value=start_date_val, inline=False)
-            else:
-                confirm_embed.add_field(name="Dates", value=f"{start_date_val} to {end_date_val}", inline=False)
-
-            if comments_val:
-                confirm_embed.add_field(name="Comments", value=comments_val, inline=False)
-            
-            await interaction.followup.send(embed=confirm_embed, ephemeral=True)
-
-            # --- Send Conflict Warning if necessary (as a separate followup) ---
-            if conflicting_events_details:
-                warning_message = (
-                    "⚠️ **Heads up!** You've scheduled an event on the same day as another:\n"
-                    + "\n".join(conflicting_events_details)
-                    + "\n\nThis is fine, but please make sure this is okay!"
-                )
-                await interaction.followup.send(warning_message, ephemeral=True)
+                # --- Send Conflict Warning if necessary (as a separate followup) ---
+                if conflicting_events_details:
+                    warning_message = (
+                        "⚠️ **Heads up!** You've scheduled an event on the same day as another:\n"
+                        + "\n".join(conflicting_events_details)
+                        + "\n\nThis is fine, but please make sure this is okay!"
+                    )
+                    await interaction.followup.send(warning_message, ephemeral=True)
 
 
         except Exception as e:
@@ -2173,6 +2173,17 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
+
+
+
+
+
+
+
+
+
 
 
 
