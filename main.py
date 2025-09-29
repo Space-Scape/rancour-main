@@ -1708,7 +1708,7 @@ class AddEventModal(Modal):
     app_commands.Choice(name="Mass Event", value="Mass Event"),
     app_commands.Choice(name="Large Event", value="Large Event"),
     app_commands.Choice(name="Other Event", value="Other Event"),
-    app_commands.Choice(name="Clan Event", value="Clan Event"),
+    app_commands.Choice(name="Other Event", value="Castle Wars"),
     app_commands.Choice(name="Bingo", value="Bingo"),
     app_commands.Choice(name="BOTW", value="BOTW"),
     app_commands.Choice(name="SOTW", value="SOTW"),
