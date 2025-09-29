@@ -1577,7 +1577,8 @@ class AddEventModal(Modal, title="Add a New Clan Event"):
 
         # --- Write to Google Sheet ---
         try:
-            events_sheet.append_row(event_data)
+            # Add value_input_option='RAW' to prevent Google Sheets from misinterpreting data
+            events_sheet.append_row(event_data, value_input_option='RAW')
 
             # --- Public Announcement ---
             event_channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
