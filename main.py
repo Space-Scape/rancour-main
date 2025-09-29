@@ -1741,9 +1741,15 @@ async def create_and_post_schedule(channel: discord.TextChannel):
             for event in day_events:
                 host_list = sorted(list(event.get("hosts", {"N/A"})))
                 host_str = " & ".join(host_list)
-                # Fallback for blank event types
-                event_type_str = event.get('Type of Event') or 'Other Event'
-                line = f"- **{event_type_str}**: {event.get('Event Description')}・Hosted by {host_str}"
+                
+                event_type_str = event.get('Type of Event', '').strip() or 'Other Event'
+                event_desc_str = event.get('Event Description', '').strip()
+
+                # Avoid redundancy like "Bingo: Bingo"
+                if event_type_str.lower() == event_desc_str.lower():
+                    line = f"- **{event_type_str}**・Hosted by {host_str}"
+                else:
+                    line = f"- **{event_type_str}**: {event_desc_str}・Hosted by {host_str}"
                 weekly_lines.append(line)
 
     embed.description = "\n".join(weekly_lines)
@@ -1755,9 +1761,15 @@ async def create_and_post_schedule(channel: discord.TextChannel):
         for event in todays_events:
             host_list = sorted(list(event.get("hosts", {"N/A"})))
             host_str = " & ".join(host_list)
-            # Fallback for blank event types
-            event_type_str = event.get('Type of Event') or 'Other Event'
-            line = f"- **{event_type_str}**: {event.get('Event Description')}・Hosted by {host_str}"
+
+            event_type_str = event.get('Type of Event', '').strip() or 'Other Event'
+            event_desc_str = event.get('Event Description', '').strip()
+
+            # Avoid redundancy like "Bingo: Bingo"
+            if event_type_str.lower() == event_desc_str.lower():
+                line = f"- **{event_type_str}**・Hosted by {host_str}"
+            else:
+                line = f"- **{event_type_str}**: {event_desc_str}・Hosted by {host_str}"
             today_lines.append(line)
         
         embed.add_field(name="# Events Today #", value="\n".join(today_lines), inline=False)
@@ -2082,9 +2094,6 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
-
-
 
 
 
