@@ -1669,15 +1669,16 @@ async def create_and_post_schedule(channel: discord.TextChannel):
         event_type = event.get("Type of Event", "").strip()
         description = event.get("Event Description", "").strip()
 
-        # Consolidate special "of the week" events
-        if event_type == "Pet Roulette":
+        # Consolidate special "of the week" events (with case-insensitive checks)
+        if event_type.lower() == "pet roulette":
             weekly_events["Pet Roulette"]["hosts"].add(owner)
             continue
-        # Use startswith for flexibility (e.g., "BOTW: Nex")
-        if event_type == "Boss of the Week" or description.startswith("BOTW"):
+        
+        if event_type.lower() == "boss of the week" or description.lower().startswith("botw"):
             weekly_events["Boss of the Week"]["hosts"].add(owner)
             continue
-        if event_type == "Skill of the Week" or description.startswith("SOTW"):
+
+        if event_type.lower() == "skill of the week" or description.lower().startswith("sotw"):
             weekly_events["Skill of the Week"]["hosts"].add(owner)
             continue
             
@@ -2094,3 +2095,4 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
