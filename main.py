@@ -1769,4 +1769,21 @@ async def on_ready():
     except Exception as e:
         print(f"❌ Command sync failed: {{e}}")
 
+@bot.tree.command(name="syncguild", description="Force sync commands to this guild only")
+@app_commands.describe(guild_id="ID of the guild to sync commands to")
+async def syncguild(interaction: discord.Interaction, guild_id: str):
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("Nope.", ephemeral=True)
+        return
+    try:
+        guild = discord.Object(id=int(guild_id))
+        synced = await bot.tree.sync(guild=guild)
+        await interaction.response.send_message(
+            f"✅ Synced {len(synced)} commands to guild `{guild_id}`", ephemeral=True
+        )
+    except Exception as e:
+        await interaction.response.send_message(
+            f"❌ Failed to sync to guild `{guild_id}`: {e}", ephemeral=True
+        )
+
 bot.run(os.getenv("DISCORD_BOT_TOKEN"))
