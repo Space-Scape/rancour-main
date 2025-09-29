@@ -92,25 +92,35 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
 # ---------------------------
-# 🔹 Channel IDs + Role
+# 🔹 Main Configuration
 # ---------------------------
 
+# Channel and Role IDs
 SUBMISSION_CHANNEL_ID = 1391921214909579336
 REVIEW_CHANNEL_ID = 1391921254034047066
 LOG_CHANNEL_ID = 1391921275332722749
-REQUIRED_ROLE_NAME = "Event Staff"
 BANK_CHANNEL_ID = 1276197776849633404
-CURRENCY_SYMBOL = " 💰"
 LISTEN_CHANNEL_ID = 1272875477555482666
 COLLAT_CHANNEL_ID = 1272648340940525648
-EVENT_SCHEDULE_CHANNEL_ID = 1274957572977197138 # Channel to post the daily schedule
+EVENT_SCHEDULE_CHANNEL_ID = 1274957572977197138
+SANG_CHANNEL_ID = 1338295765759688767
+STAFF_ROLE_ID = 1272635396991221824
+MENTOR_ROLE_ID = 1306021911830073414
+SANG_ROLE_ID = 1387153629072592916
+TOB_ROLE_ID = 1272694636921753701
+EVENTS_ROLE_ID = 1298358942887317555
 
+# Other constants
+REQUIRED_ROLE_NAME = "Event Staff"
+CURRENCY_SYMBOL = " 💰"
 WATCH_CHANNEL_IDS = [
     1272648453264248852,
     1272648472184487937
 ]
 
-STAFF_ROLE_ID = 1272635396991221824
+# Timezone Definition
+CST = ZoneInfo("America/Chicago")
+
 
 # ---------------------------
 # 🔹 Info Command
@@ -1539,19 +1549,6 @@ class AddEventModal(Modal, title="Add a New Clan Event"):
         try:
             events_sheet.append_row(event_data)
 
-            # --- Confirmation Embed (Private message to the command user) ---
-            confirm_embed = discord.Embed(
-                title="✅ Event Created Successfully!",
-                description="The following event has been added and a notification has been posted.",
-                color=discord.Color.green()
-            )
-            confirm_embed.add_field(name="Type", value=valid_type, inline=False)
-            confirm_embed.add_field(name="Description", value=self.event_description.value, inline=False)
-            if self.comments.value:
-                confirm_embed.add_field(name="Comments", value=self.comments.value, inline=False)
-            
-            await interaction.followup.send(embed=confirm_embed, ephemeral=True)
-
             # --- Public Announcement ---
             event_channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
             if event_channel:
@@ -1576,7 +1573,20 @@ class AddEventModal(Modal, title="Add a New Clan Event"):
 
                 await event_channel.send(embed=announce_embed)
 
-            # --- Send Conflict Warning if necessary ---
+            # --- Confirmation Embed (Private message to the command user) ---
+            confirm_embed = discord.Embed(
+                title="✅ Event Created Successfully!",
+                description="The following event has been added and a notification has been posted.",
+                color=discord.Color.green()
+            )
+            confirm_embed.add_field(name="Type", value=valid_type, inline=False)
+            confirm_embed.add_field(name="Description", value=self.event_description.value, inline=False)
+            if self.comments.value:
+                confirm_embed.add_field(name="Comments", value=self.comments.value, inline=False)
+            
+            await interaction.followup.send(embed=confirm_embed, ephemeral=True)
+
+            # --- Send Conflict Warning if necessary (as a separate followup) ---
             if conflicting_events_details:
                 warning_message = (
                     "⚠️ **Heads up!** You've scheduled an event on the same day as another:\n"
@@ -1707,16 +1717,6 @@ async def post_daily_schedule():
 # --------------------------------------------------
 # 🔹 Sanguine Sunday Signup System
 # --------------------------------------------------
-
-# --- Configuration ---
-SANG_CHANNEL_ID = 1338295765759688767  # Channel where messages are posted
-CST = ZoneInfo("America/Chicago")
-
-# Role IDs for pings
-MENTOR_ROLE_ID = 1306021911830073414
-SANG_ROLE_ID = 1387153629072592916
-TOB_ROLE_ID = 1272694636921753701
-EVENTS_ROLE_ID = 1298358942887317555
 
 # --- Message Content ---
 SANG_MESSAGE_IDENTIFIER = "Sanguine Sunday Sign Up"
@@ -2005,5 +2005,3 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
-
