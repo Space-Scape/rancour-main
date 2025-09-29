@@ -102,7 +102,7 @@ LOG_CHANNEL_ID = 1391921275332722749
 BANK_CHANNEL_ID = 1276197776849633404
 LISTEN_CHANNEL_ID = 1272875477555482666
 COLLAT_CHANNEL_ID = 1272648340940525648
-EVENT_SCHEDULE_CHANNEL_ID = 1274957572977197138
+EVENT_SCHEDULE_CHANNEL_ID = 1273094409432469605 # Temporarily changed for testing
 SANG_CHANNEL_ID = 1338295765759688767
 STAFF_ROLE_ID = 1272635396991221824
 MENTOR_ROLE_ID = 1306021911830073414
@@ -1474,12 +1474,12 @@ def get_all_event_records():
         print(f"Error fetching and parsing event sheet data: {e}")
         return []
 
-class AddEventModal(Modal, title="Add a New Clan Event"):
-    type_of_event = TextInput(
-        label="Type of Event",
-        placeholder="e.g., Pet Roulette, Mass Event, Bingo",
-        required=True
-    )
+class AddEventModal(Modal):
+    def __init__(self, event_type: str):
+        super().__init__()
+        self.event_type = event_type
+        self.title = f"Create New '{event_type}' Event"
+
     event_description = TextInput(
         label="Event Description",
         placeholder="e.g., Learner ToB or Barb Assault",
@@ -1506,21 +1506,7 @@ class AddEventModal(Modal, title="Add a New Clan Event"):
         await interaction.response.defer(ephemeral=True)
 
         # --- Validation ---
-        # 1. Validate Event Type
-        event_type_input = self.type_of_event.value.strip()
-        allowed_event_types = [
-            "Pet Roulette", "Sanguine Sunday", "Mass Event", "Large Event",
-            "Other Event", "Clan Event", "Bingo"
-        ]
-        # Case-insensitive check
-        valid_type = next((t for t in allowed_event_types if t.lower() == event_type_input.lower()), None)
-        if not valid_type:
-            allowed_list = ", ".join(allowed_event_types)
-            await interaction.followup.send(
-                f"❌ **Invalid Event Type.** Please use one of the following (not case-sensitive):\n`{allowed_list}`",
-                ephemeral=True
-            )
-            return
+        # Event Type is already validated by the command choices.
 
         # 2. Validate Dates
         try:
@@ -1567,7 +1553,7 @@ class AddEventModal(Modal, title="Add a New Clan Event"):
         # --- Data Preparation ---
         event_owner = interaction.user.display_name
         event_data = [
-            valid_type,  # Use the properly capitalized version
+            self.event_type,  # Use the type passed from the command
             self.event_description.value,
             event_owner,
             self.start_date.value,
@@ -1634,9 +1620,22 @@ class AddEventModal(Modal, title="Add a New Clan Event"):
 
 @bot.tree.command(name="addevent", description="Add a new event to the clan schedule.")
 @app_commands.checks.has_role(STAFF_ROLE_ID)
-async def addevent(interaction: discord.Interaction):
-    """Opens a modal for staff to add a new event."""
-    await interaction.response.send_modal(AddEventModal())
+@app_commands.describe(event_type="The type of event you want to create.")
+@app_commands.choices(event_type=[
+    app_commands.Choice(name="Pet Roulette", value="Pet Roulette"),
+    app_commands.Choice(name="Sanguine Sunday", value="Sanguine Sunday"),
+    app_commands.Choice(name="Mass Event", value="Mass Event"),
+    app_commands.Choice(name="Large Event", value="Large Event"),
+    app_commands.Choice(name="Other Event", value="Other Event"),
+    app_commands.Choice(name="Clan Event", value="Clan Event"),
+    app_commands.Choice(name="Bingo", value="Bingo"),
+    app_commands.Choice(name="BOTW", value="BOTW"),
+    app_commands.Choice(name="SOTW", value="SOTW"),
+])
+async def addevent(interaction: discord.Interaction, event_type: str):
+    """Opens a modal to add the details for the chosen event type."""
+    await interaction.response.send_modal(AddEventModal(event_type=event_type))
+
 
 @addevent.error
 async def addevent_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
@@ -2093,14 +2092,6 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
-
-
-
-
-
-
-
 
 
 
