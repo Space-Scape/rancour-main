@@ -1671,6 +1671,13 @@ class AddEventModal(Modal):
             )
             confirm_embed.add_field(name="Type", value=event_type_value, inline=False)
             confirm_embed.add_field(name="Description", value=description_value, inline=False)
+            
+            # Add date information to the confirmation embed
+            if start_date_val == end_date_val:
+                confirm_embed.add_field(name="Date", value=start_date_val, inline=False)
+            else:
+                confirm_embed.add_field(name="Dates", value=f"{start_date_val} to {end_date_val}", inline=False)
+
             if comments_val:
                 confirm_embed.add_field(name="Comments", value=comments_val, inline=False)
             
@@ -2165,6 +2172,13 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
+
+
+
+
+
 
 
 
