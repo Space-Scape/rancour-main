@@ -1494,54 +1494,45 @@ class AddEventModal(Modal):
         # Set the title in the super constructor for cleanliness.
         super().__init__(title=f"Create New '{event_type}' Event")
 
-        # Define all UI components within __init__ for dynamic values.
-        self.event_type_input = TextInput(
+        # Create and add the items directly. We will access them by their index in on_submit.
+        self.add_item(TextInput(
             label="Type of Event",
             required=True,
-            default=event_type  # Pre-populate with the selected type.
-        )
-        self.add_item(self.event_type_input)
-
-        self.event_description = TextInput(
+            default=event_type
+        ))
+        self.add_item(TextInput(
             label="Event Description",
             placeholder="e.g., Learner ToB or Barb Assault",
             required=True
-        )
-        self.add_item(self.event_description)
-
-        self.start_date = TextInput(
+        ))
+        self.add_item(TextInput(
             label="Start Date (M/D/YYYY)",
             placeholder="e.g., 9/9/2025",
             required=True
-        )
-        self.add_item(self.start_date)
-
-        self.end_date = TextInput(
+        ))
+        self.add_item(TextInput(
             label="End Date (Optional, defaults to Start Date)",
             placeholder="Leave blank for single-day events",
             required=False
-        )
-        self.add_item(self.end_date)
-        
-        self.comments = TextInput(
+        ))
+        self.add_item(TextInput(
             label="Comments (Optional)",
             style=discord.TextStyle.paragraph,
             placeholder="e.g., Hosted by X, design by Y",
             required=False
-        )
-        self.add_item(self.comments)
+        ))
 
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         
         # --- Data Gathering and Defaults ---
-        # Read all values from the modal into local variables FIRST to ensure consistency.
-        event_type_value = self.event_type_input.value
-        description_value = self.event_description.value
-        start_date_val = self.start_date.value.strip()
-        end_date_val = self.end_date.value.strip()
-        comments_val = self.comments.value
+        # Read values from children by their index to guarantee the correct order.
+        event_type_value = self.children[0].value
+        description_value = self.children[1].value
+        start_date_val = self.children[2].value.strip()
+        end_date_val = self.children[3].value.strip()
+        comments_val = self.children[4].value
 
         if not end_date_val:
             end_date_val = start_date_val # Default end date to start date if blank
@@ -1708,7 +1699,7 @@ class AddEventModal(Modal):
     app_commands.Choice(name="Mass Event", value="Mass Event"),
     app_commands.Choice(name="Large Event", value="Large Event"),
     app_commands.Choice(name="Other Event", value="Other Event"),
-    app_commands.Choice(name="Castle Wars", value="Castle Wars"),
+    app_commands.Choice(name="Clan Event", value="Clan Event"),
     app_commands.Choice(name="Bingo", value="Bingo"),
     app_commands.Choice(name="BOTW", value="BOTW"),
     app_commands.Choice(name="SOTW", value="SOTW"),
@@ -2173,12 +2164,6 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
-
-
-
-
-
 
 
 
