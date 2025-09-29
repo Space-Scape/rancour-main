@@ -1531,10 +1531,6 @@ class AddEventModal(Modal):
         if not end_date_val:
             end_date_val = start_date_val # Default end date to start date if blank
 
-        # --- NO VALIDATION ---
-        # As requested, all date validation and conflict checking has been removed.
-        # The raw strings will be sent directly to the spreadsheet.
-
         # --- Data Preparation ---
         # Fetch RSN for event owner, fall back to a cleaned display name if not found.
         event_owner = ""
@@ -1556,70 +1552,82 @@ class AddEventModal(Modal):
             event_owner = re.sub(r'^\W+', '', interaction.user.display_name)
 
         # Build the list of data to be sent to the spreadsheet, ensuring the correct order.
-        # This explicitly maps each input to its corresponding spreadsheet column.
+        # This list EXACTLY matches the spreadsheet structure from column B to L.
         event_data = [
-            event_type_value,      # Column A: Type of Event
-            description_value,     # Column B: Event Description
-            event_owner,           # Column C: Event Owner
-            "",                    # Column D: Owners (Hidden) - Placeholder
-            "",                    # Column E: Discord ID (Hidden) - Placeholder
-            "",                    # Column F: Owners Rank (Hidden) - Placeholder
+            event_type_value,      # Column B: Type of Event
+            description_value,     # Column C: Event Description
+            event_owner,           # Column D: Event Owner
+            "",                    # Column E: Owners Discord ID - Placeholder
+            "",                    # Column F: Owners Rank - Placeholder
             start_date_val,        # Column G: Start Date
             end_date_val,          # Column H: End Date
-            "",                    # Column I: Month (Hidden) - Placeholder
-            "",                    # Column J: Year (Hidden) - Placeholder
-            "",                    # Column K: Duration (Hidden) - Placeholder
+            "",                    # Column I: Month - Placeholder
+            "",                    # Column J: Year - Placeholder
+            "",                    # Column K: Duration - Placeholder
             comments_val or ""     # Column L: Comments
         ]
 
         # --- Write to Google Sheet ---
         try:
-                # Change value_input_option to 'USER_ENTERED' to allow Google Sheets
-                # to parse the date string correctly, respecting the column's format.
-                events_sheet.append_row(event_data, value_input_option='USER_ENTERED')
+            # Find the next empty row to write to. We check column B (index 2) 
+            # as it's the first column of our data range.
+            next_row = len(events_sheet.col_values(2)) + 1
+            
+            # Define the exact cell range to update, from B to L.
+            cell_range = f"B{next_row}:L{next_row}"
+            
+            print(f"--- WRITING TO SPREADSHEET ---")
+            print(f"Target Range: {cell_range}")
+            print(f"Data: {event_data}")
+            print("----------------------------")
 
-                # --- Public Announcement ---
-                event_channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
-                if event_channel:
-                    announce_embed = discord.Embed(
-                        title=f"🗓️ New Event Added: {description_value}",
-                        description=f"A new **{event_type_value}** has been added to the schedule!",
-                        color=discord.Color.blue()
-                    )
-                    announce_embed.add_field(name="Host", value=event_owner, inline=True)
-                    
-                    # Handle single vs multi-day events for cleaner display
-                    if start_date_val == end_date_val:
-                        announce_embed.add_field(name="Date", value=start_date_val, inline=True)
-                    else:
-                        announce_embed.add_field(name="Dates", value=f"{start_date_val} to {end_date_val}", inline=True)
+            # Update the specific range in the newly found empty row.
+            # Use 'update' for reliability with complex sheets.
+            events_sheet.update(cell_range, [event_data], value_input_option='USER_ENTERED')
 
-                    if comments_val:
-                        announce_embed.add_field(name="Details", value=comments_val, inline=False)
-                    
-                    announce_embed.set_footer(text=f"Event added by {interaction.user.name}")
-                    announce_embed.timestamp = datetime.now()
 
-                    await event_channel.send(embed=announce_embed)
-
-                # --- Confirmation Embed (Private message to the command user) ---
-                confirm_embed = discord.Embed(
-                    title="✅ Event Created Successfully!",
-                    description="The following event has been added and a notification has been posted.",
-                    color=discord.Color.green()
+            # --- Public Announcement ---
+            event_channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
+            if event_channel:
+                announce_embed = discord.Embed(
+                    title=f"🗓️ New Event Added: {description_value}",
+                    description=f"A new **{event_type_value}** has been added to the schedule!",
+                    color=discord.Color.blue()
                 )
-                confirm_embed.add_field(name="Type", value=event_type_value, inline=False)
-                confirm_embed.add_field(name="Description", value=description_value, inline=False)
+                announce_embed.add_field(name="Host", value=event_owner, inline=True)
                 
+                # Handle single vs multi-day events for cleaner display
                 if start_date_val == end_date_val:
-                    confirm_embed.add_field(name="Date", value=start_date_val, inline=False)
+                    announce_embed.add_field(name="Date", value=start_date_val, inline=True)
                 else:
-                    confirm_embed.add_field(name="Dates", value=f"{start_date_val} to {end_date_val}", inline=False)
-                
+                    announce_embed.add_field(name="Dates", value=f"{start_date_val} to {end_date_val}", inline=True)
+
                 if comments_val:
-                    confirm_embed.add_field(name="Comments", value=comments_val, inline=False)
+                    announce_embed.add_field(name="Details", value=comments_val, inline=False)
                 
-                await interaction.followup.send(embed=confirm_embed, ephemeral=True)
+                announce_embed.set_footer(text=f"Event added by {interaction.user.name}")
+                announce_embed.timestamp = datetime.now()
+
+                await event_channel.send(embed=announce_embed)
+
+            # --- Confirmation Embed (Private message to the command user) ---
+            confirm_embed = discord.Embed(
+                title="✅ Event Created Successfully!",
+                description="The following event has been added and a notification has been posted.",
+                color=discord.Color.green()
+            )
+            confirm_embed.add_field(name="Type", value=event_type_value, inline=False)
+            confirm_embed.add_field(name="Description", value=description_value, inline=False)
+            
+            if start_date_val == end_date_val:
+                confirm_embed.add_field(name="Date", value=start_date_val, inline=False)
+            else:
+                confirm_embed.add_field(name="Dates", value=f"{start_date_val} to {end_date_val}", inline=False)
+            
+            if comments_val:
+                confirm_embed.add_field(name="Comments", value=comments_val, inline=False)
+            
+            await interaction.followup.send(embed=confirm_embed, ephemeral=True)
 
 
         except Exception as e:
