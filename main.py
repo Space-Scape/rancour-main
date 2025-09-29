@@ -1658,9 +1658,10 @@ async def create_and_post_schedule(channel: discord.TextChannel):
 
     # --- 1. Pre-process and Consolidate Events ---
     regular_events = {}
+    # Use the preferred shorter names for the keys and types
     weekly_events = {
-        "Boss of the Week": {"hosts": set(), "type": "Boss of the Week"},
-        "Skill of the Week": {"hosts": set(), "type": "Skill of the Week"},
+        "BOTW": {"hosts": set(), "type": "BOTW"},
+        "SOTW": {"hosts": set(), "type": "SOTW"},
         "Pet Roulette": {"hosts": set(), "type": "Pet Roulette"}
     }
 
@@ -1669,15 +1670,15 @@ async def create_and_post_schedule(channel: discord.TextChannel):
         event_type = event.get("Type of Event", "").strip()
         description = event.get("Event Description", "").strip()
 
-        # Use a rigid if/elif/else structure to guarantee each event is categorized only once.
+        # Use a rigid if/elif/else structure with comprehensive, case-insensitive checks.
         if event_type.lower() == "pet roulette":
             weekly_events["Pet Roulette"]["hosts"].add(owner)
         
-        elif event_type.lower() == "boss of the week" or description.lower().startswith("botw"):
-            weekly_events["Boss of the Week"]["hosts"].add(owner)
+        elif event_type.lower() in ["boss of the week", "botw"] or description.lower().startswith("botw"):
+            weekly_events["BOTW"]["hosts"].add(owner)
 
-        elif event_type.lower() == "skill of the week" or description.lower().startswith("sotw"):
-            weekly_events["Skill of the Week"]["hosts"].add(owner)
+        elif event_type.lower() in ["skill of the week", "sotw"] or description.lower().startswith("sotw"):
+            weekly_events["SOTW"]["hosts"].add(owner)
             
         elif event.get("Comments", "").strip().lower() == "helper/co-host":
             continue # This is just for skipping, it's fine.
@@ -2091,12 +2092,3 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
-
-
-
-
-
-
-
-
