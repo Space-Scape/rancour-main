@@ -1665,6 +1665,10 @@ async def create_and_post_schedule(channel: discord.TextChannel):
 
     # Populate the dictionary with events for the current week
     for event in all_events:
+        # Ignore duplicate entries for helpers/co-hosts in the schedule display
+        if event.get("Comments", "").strip().lower() == "helper/co-host":
+            continue
+
         try:
             start_str = event.get("Start Date")
             end_str = event.get("End Date")
