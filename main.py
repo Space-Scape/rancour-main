@@ -1585,7 +1585,114 @@ async def on_ready():
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
 
 
+
+from discord.ext import tasks
 from discord import app_commands
+from datetime import datetime
+import pytz
+import os
+
+# Constants
+CST = pytz.timezone("America/Chicago")
+CHANNEL_ID = 1338295765759688767
+MACFLAG_ID = 1189871841011189800
+STAFF_ROLE_ID = 1190079770150715474
+SIGNUP_EMOJIS = {"⚪", "🔵", "🔴"}
+
+SANG_MESSAGE = (
+    "React to sign up for this week’s **Sanguine Sunday** event (Sunday 2:00 PM CST).\n"
+    "⚪ = Learner\n🔵 = Mentor\n🔴 = Standard\n\n"
+    "**Do not react** unless you plan to attend. Learners should come prepared!"
+)
+
+REMINDER_MESSAGE = (
+    "Learners - Please review these threads, watch the Xzact guides, get your plugins setup, "
+    "and inventories setup and saved before the event (you'll be either MDPS or RDPS).\n\n"
+    f"Feel free to DM or tag <@{MACFLAG_ID}> if you need any help:\n"
+    "https://discord.com/channels/1272629330115297330/1388887895837773895\n"
+    "https://discord.com/channels/1272629330115297330/1388884558191268070"
+)
+
+
+@tasks.loop(minutes=5)
+async def saturday_learner_reminder():
+    now = datetime.now(CST)
+    if now.weekday() == 5 and now.hour == 14 and now.minute < 5:
+        channel = bot.get_channel(CHANNEL_ID)
+        if not channel:
+            return
+
+        signup_msg = None
+        async for message in channel.history(limit=30):
+            if message.author == bot.user:
+                for reaction in message.reactions:
+                    if str(reaction.emoji) == "⚪":
+                        signup_msg = message
+                        break
+                if signup_msg:
+                    break
+
+        if not signup_msg:
+            return
+
+        learners = []
+        for reaction in signup_msg.reactions:
+            if str(reaction.emoji) == "⚪":
+                users = await reaction.users().flatten()
+                learners = [u for u in users if not u.bot]
+                break
+
+        if not learners:
+            return
+
+        async for msg in channel.history(limit=30):
+            if msg.author == bot.user and "Learners - Please review" in msg.content:
+                await msg.delete()
+
+        mention_list = " ".join(u.mention for u in learners)
+        await channel.send(f"{REMINDER_MESSAGE}\n\n{mention_list}")
+
+@tasks.loop(minutes=2)
+async def maintain_signup_reactions():
+    channel = bot.get_channel(CHANNEL_ID)
+    if not channel:
+        return
+
+    signup_msg = None
+    async for msg in channel.history(limit=30):
+        if msg.author == bot.user:
+            for reaction in msg.reactions:
+                if str(reaction.emoji) == "⚪":
+                    signup_msg = msg
+                    break
+            if signup_msg:
+                break
+
+    if not signup_msg:
+        return
+
+    for emoji in SIGNUP_EMOJIS:
+        reaction = next((r for r in signup_msg.reactions if str(r.emoji) == emoji), None)
+        if reaction:
+            users = await reaction.users().flatten()
+            has_user_reacted = any(not u.bot for u in users)
+            if has_user_reacted:
+                if bot.user in users:
+                    try:
+                        await signup_msg.remove_reaction(emoji, bot.user)
+                    except Exception:
+                        pass
+            else:
+                if bot.user not in users:
+                    try:
+                        await signup_msg.add_reaction(emoji)
+                    except Exception:
+                        pass
+        else:
+            try:
+                await signup_msg.add_reaction(emoji)
+            except Exception:
+                pass
 
 @bot.tree.command(name="sangsignup", description="Post the Sanguine Sunday signup message or Saturday reminder")
 @app_commands.describe(
@@ -1594,23 +1701,16 @@ from discord import app_commands
 )
 async def sangsignup(interaction: discord.Interaction, channel: discord.TextChannel | None = None, variant: int = 1):
     if not any(r.id == STAFF_ROLE_ID for r in interaction.user.roles):
-        await interaction.response.send_message(
-            "❌ You don’t have permission to use this command.",
-            ephemeral=True
-        )
+        await interaction.response.send_message("❌ You don’t have permission to use this command.", ephemeral=True)
         return
 
     target_channel = channel or interaction.channel
 
     if variant == 1:
         msg = await target_channel.send(SANG_MESSAGE)
-        await msg.add_reaction("⚪")
-        await msg.add_reaction("🔵")
-        await msg.add_reaction("🔴")
-        await interaction.response.send_message(
-            f"✅ Sanguine Sunday signup posted in {target_channel.mention}",
-            ephemeral=True
-        )
+        for emoji in SIGNUP_EMOJIS:
+            await msg.add_reaction(emoji)
+        await interaction.response.send_message(f"✅ Signup message posted in {target_channel.mention}", ephemeral=True)
 
     elif variant == 2:
         signup_msg = None
@@ -1624,7 +1724,7 @@ async def sangsignup(interaction: discord.Interaction, channel: discord.TextChan
                     break
 
         if not signup_msg:
-            await interaction.response.send_message("⚠️ Could not find the signup message in this channel.", ephemeral=True)
+            await interaction.response.send_message("⚠️ Could not find the signup message.", ephemeral=True)
             return
 
         learners = []
@@ -1635,7 +1735,7 @@ async def sangsignup(interaction: discord.Interaction, channel: discord.TextChan
                 break
 
         if not learners:
-            await interaction.response.send_message("ℹ️ No learners have signed up.", ephemeral=True)
+            await interaction.response.send_message("ℹ️ No learners found.", ephemeral=True)
             return
 
         async for msg in target_channel.history(limit=30):
@@ -1644,7 +1744,29 @@ async def sangsignup(interaction: discord.Interaction, channel: discord.TextChan
 
         mention_list = " ".join(u.mention for u in learners)
         await target_channel.send(f"{REMINDER_MESSAGE}\n\n{mention_list}")
-        await interaction.response.send_message("✅ Reminder sent manually.", ephemeral=True)
+        await interaction.response.send_message("✅ Reminder sent.", ephemeral=True)
 
     else:
-        await interaction.response.send_message("⚠️ Invalid variant. Use 1 for signup, 2 for reminder.", ephemeral=True)
+        await interaction.response.send_message("⚠️ Invalid variant (1 = Signup, 2 = Reminder).", ephemeral=True)
+
+@bot.tree.command(name="sync", description="Sync slash commands")
+async def sync(interaction: discord.Interaction):
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("Nope.", ephemeral=True)
+        return
+    await bot.tree.sync()
+    await interaction.response.send_message("✅ Synced commands.", ephemeral=True)
+
+@bot.event
+async def on_ready():
+    if not saturday_learner_reminder.is_running():
+        saturday_learner_reminder.start()
+    if not maintain_signup_reactions.is_running():
+        maintain_signup_reactions.start()
+    try:
+        synced = await bot.tree.sync()
+        print(f"✅ Synced {{len(synced)}} command(s).")
+    except Exception as e:
+        print(f"❌ Command sync failed: {{e}}")
+
+bot.run(os.getenv("DISCORD_BOT_TOKEN"))
