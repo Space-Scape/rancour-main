@@ -1669,30 +1669,26 @@ async def create_and_post_schedule(channel: discord.TextChannel):
         event_type = event.get("Type of Event", "").strip()
         description = event.get("Event Description", "").strip()
 
-        # Consolidate special "of the week" events (with case-insensitive checks)
+        # Use a rigid if/elif/else structure to guarantee each event is categorized only once.
         if event_type.lower() == "pet roulette":
             weekly_events["Pet Roulette"]["hosts"].add(owner)
-            continue
         
-        if event_type.lower() == "boss of the week" or description.lower().startswith("botw"):
+        elif event_type.lower() == "boss of the week" or description.lower().startswith("botw"):
             weekly_events["Boss of the Week"]["hosts"].add(owner)
-            continue
 
-        if event_type.lower() == "skill of the week" or description.lower().startswith("sotw"):
+        elif event_type.lower() == "skill of the week" or description.lower().startswith("sotw"):
             weekly_events["Skill of the Week"]["hosts"].add(owner)
-            continue
             
-        # Ignore helper entries for consolidation in the main schedule
-        if event.get("Comments", "").strip().lower() == "helper/co-host":
-            continue
+        elif event.get("Comments", "").strip().lower() == "helper/co-host":
+            continue # This is just for skipping, it's fine.
 
-        # Group regular events by description and start date to consolidate hosts
-        key = (event.get("Start Date"), description)
-        if key not in regular_events:
-            regular_events[key] = event.copy()
-            regular_events[key]["hosts"] = {owner}
-        else:
-            regular_events[key]["hosts"].add(owner)
+        else: # This event is a regular event
+            key = (event.get("Start Date"), description)
+            if key not in regular_events:
+                regular_events[key] = event.copy()
+                regular_events[key]["hosts"] = {owner}
+            else:
+                regular_events[key]["hosts"].add(owner)
 
     # --- 2. Populate the Weekly Schedule ---
     events_by_date = {start_of_week + timedelta(days=i): [] for i in range(7)}
@@ -2095,4 +2091,3 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
