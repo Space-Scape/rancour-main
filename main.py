@@ -102,7 +102,7 @@ LOG_CHANNEL_ID = 1391921275332722749
 BANK_CHANNEL_ID = 1276197776849633404
 LISTEN_CHANNEL_ID = 1272875477555482666
 COLLAT_CHANNEL_ID = 1272648340940525648
-EVENT_SCHEDULE_CHANNEL_ID = 1274957572977197138
+EVENT_SCHEDULE_CHANNEL_ID = 1273094409432469605
 SANG_CHANNEL_ID = 1338295765759688767
 STAFF_ROLE_ID = 1272635396991221824
 MENTOR_ROLE_ID = 1306021911830073414
@@ -915,6 +915,12 @@ TIMEZONE_DATA = {
     "AEST": ("Australia/Sydney", "🇦🇺"),
 }
 
+# Define which timezones use the D/M/YYYY format
+INTERNATIONAL_TIMEZONES = {
+    "GMT", "CET", "EET", "BRT", "ART", "AWST", "ACST", "AEST"
+}
+
+
 TIME_OF_DAY_DATA = {
     "Morning": ("🌄", "6 AM - 12 PM"),
     "Day": ("🌇", "12 PM - 6 PM"),
@@ -1443,10 +1449,21 @@ class CollatButtons(discord.ui.View):
 # --------------------------------------------------
 # 🔹 Event Management System
 # --------------------------------------------------
-EVENT_SHEET_HEADERS = [
-    "Type of Event", "Event Description", "Event Owner",
-    "Start Date", "End Date", "Comments"
-]
+
+async def update_schedule_message(channel: discord.TextChannel):
+    """Finds the latest weekly schedule message, deletes it, and posts a new one."""
+    try:
+        async for message in channel.history(limit=50):
+            if message.author == bot.user and message.embeds:
+                if message.embeds[0].title and "Weekly Clan Schedule" in message.embeds[0].title:
+                    await message.delete()
+                    break # Stop after finding and deleting the first one
+        
+        await create_and_post_schedule(channel)
+        print("✅ Updated the weekly schedule message.")
+    except Exception as e:
+        print(f"❌ Could not update schedule message: {e}")
+
 
 def get_all_event_records():
     """
@@ -1477,90 +1494,84 @@ def get_all_event_records():
 class AddEventModal(Modal):
     # Using completely generic, numbered field names as a last resort to bypass
     # any potential hidden naming conflicts within the discord.py library.
-    field1 = TextInput(
-        label="Type of Event"
-    )
-    field2 = TextInput(
-        label="Event Description",
-        placeholder="e.g., Learner ToB or Barb Assault"
-    )
-    field3 = TextInput(
-        label="Start Date (M/D/YYYY)",
-        placeholder="e.g., 9/9/2025"
-    )
-    field4 = TextInput(
-        label="End Date (Optional, defaults to Start Date)",
-        placeholder="Leave blank for single-day events",
-        required=False
-    )
-    field5 = TextInput(
-        label="Comments (Optional)",
-        style=discord.TextStyle.paragraph,
-        placeholder="e.g., Hosted by X, design by Y",
-        required=False
-    )
+    field1 = TextInput(label="Type of Event")
+    field2 = TextInput(label="Event Description", placeholder="e.g., Learner ToB or Barb Assault")
+    field3 = TextInput(label="Start Date", placeholder="e.g., 9/29/2025")
+    field4 = TextInput(label="End Date (Optional)", placeholder="Leave blank for single-day events", required=False)
+    field5 = TextInput(label="Comments (Optional)", style=discord.TextStyle.paragraph, placeholder="e.g., Hosted by X, design by Y", required=False)
 
-    def __init__(self, event_type_str: str):
+    def __init__(self, event_type_str: str, is_international: bool = False, cover_image: Optional[bytes] = None):
         super().__init__(title=f"Create New '{event_type_str}' Event")
+        self.is_international = is_international
+        self.cover_image = cover_image
+        
         # Pre-fill the event type from the command
         self.field1.default = event_type_str
+
+        # Conditionally set the date labels and placeholders
+        if is_international:
+            self.field3.label = "Start Date (D/M/YYYY)"
+            self.field3.placeholder = "e.g., 29/9/2025"
+            self.field4.label = "End Date (Optional, D/M/YYYY)"
+        else:
+            self.field3.label = "Start Date (M/D/YYYY)"
+            self.field3.placeholder = "e.g., 9/29/2025"
+            self.field4.label = "End Date (Optional, M/D/YYYY)"
+
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         
         # --- Data Gathering ---
-        # Access values directly from the generic attributes.
         event_type_value = self.field1.value
         description_value = self.field2.value
-        start_date_val = self.field3.value
-        end_date_val = self.field4.value
+        start_date_str = self.field3.value
+        end_date_str = self.field4.value
         comments_val = self.field5.value
 
-        # --- DIAGNOSTIC PRINT ---
-        # This will log the raw values to your console to confirm what the bot is receiving.
-        print("--- RAW MODAL VALUES RECEIVED ---")
-        print(f"Type of Event (field1): '{event_type_value}'")
-        print(f"Description (field2):   '{description_value}'")
-        print(f"Start Date (field3):    '{start_date_val}'")
-        print(f"End Date (field4):      '{end_date_val}'")
-        print(f"Comments (field5):      '{comments_val}'")
-        print("---------------------------------")
+        # --- Date Parsing and Validation ---
+        # Determine the correct date format based on the user's role
+        expected_format_str = "%d/%m/%Y" if self.is_international else "%m/%d/%Y"
+        
+        try:
+            start_date_obj = datetime.strptime(start_date_str, expected_format_str)
+            
+            if end_date_str:
+                end_date_obj = datetime.strptime(end_date_str, expected_format_str)
+            else:
+                end_date_obj = start_date_obj # Default to start date if empty
 
-
-        # --- Set Defaults ---
-        if not end_date_val:
-            end_date_val = start_date_val # Default end date to start date if blank
+        except ValueError:
+            error_format = "D/M/YYYY" if self.is_international else "M/D/YYYY"
+            await interaction.followup.send(f"❌ **Invalid Date.** Please use the **{error_format}** format.", ephemeral=True)
+            return
 
         # --- Data Preparation ---
-        # Fetch RSN for event owner, fall back to a cleaned display name if not found.
+        # ALWAYS format the date as M/D/YYYY for the spreadsheet to ensure consistency
+        start_date_for_sheet = start_date_obj.strftime("%m/%d/%Y")
+        end_date_for_sheet = end_date_obj.strftime("%m/%d/%Y")
+
         event_owner = ""
         try:
             cell = rsn_sheet.find(str(interaction.user.id))
             if cell:
-                # Assuming RSN is in the 4th column (index 3)
                 event_owner = rsn_sheet.cell(cell.row, 4).value
         except gspread.exceptions.CellNotFound:
-            # If RSN not found, this is not an error, we just proceed.
             pass
         except Exception as e:
-            # Log other potential errors but don't stop the process.
             print(f"Error looking up RSN for {interaction.user.id}: {e}")
 
-        # If event_owner is still empty (not found in sheet), use display name.
         if not event_owner:
-            # Fallback: clean the display name by removing leading non-alphanumeric characters.
             event_owner = re.sub(r'^\W+', '', interaction.user.display_name)
-
-        # Build the list of data to be sent to the spreadsheet, ensuring the correct order.
-        # This list EXACTLY matches the spreadsheet structure from column B to L.
+        
         event_data = [
             event_type_value,      # Column B: Type of Event
             description_value,     # Column C: Event Description
             event_owner,           # Column D: Event Owner
             "",                    # Column E: Owners Discord ID - Placeholder
             "",                    # Column F: Owners Rank - Placeholder
-            start_date_val,        # Column G: Start Date
-            end_date_val,          # Column H: End Date
+            start_date_for_sheet,  # Column G: Start Date
+            end_date_for_sheet,    # Column H: End Date
             "",                    # Column I: Month - Placeholder
             "",                    # Column J: Year - Placeholder
             "",                    # Column K: Duration - Placeholder
@@ -1569,22 +1580,25 @@ class AddEventModal(Modal):
 
         # --- Write to Google Sheet ---
         try:
-            # Find the next empty row to write to. We check column B (index 2) 
-            # as it's the first column of our data range.
             next_row = len(events_sheet.col_values(2)) + 1
-            
-            # Define the exact cell range to update, from B to L.
             cell_range = f"B{next_row}:L{next_row}"
-            
-            print(f"--- WRITING TO SPREADSHEET ---")
-            print(f"Target Range: {cell_range}")
-            print(f"Data: {event_data}")
-            print("----------------------------")
-
-            # Update the specific range in the newly found empty row.
-            # Use 'update' for reliability with complex sheets.
             events_sheet.update(cell_range, [event_data], value_input_option='USER_ENTERED')
 
+            # --- Create Discord Scheduled Event ---
+            guild = interaction.guild
+            # Set a default start time (e.g., 12:00 PM CST) and combine with date
+            event_start_time = datetime.combine(start_date_obj, time(12, 0), tzinfo=CST)
+            event_end_time = datetime.combine(end_date_obj, time(13, 0), tzinfo=CST) # Default 1 hour duration
+
+            await guild.create_scheduled_event(
+                name=description_value,
+                description=comments_val or "Check the events channel for more details!",
+                start_time=event_start_time,
+                end_time=event_end_time,
+                entity_type=discord.EntityType.external,
+                location="In Rancour PVM",
+                image=self.cover_image
+            )
 
             # --- Public Announcement ---
             event_channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
@@ -1596,21 +1610,23 @@ class AddEventModal(Modal):
                 )
                 announce_embed.add_field(name="Host", value=event_owner, inline=True)
                 
-                # Handle single vs multi-day events for cleaner display
-                if start_date_val == end_date_val:
-                    announce_embed.add_field(name="Date", value=start_date_val, inline=True)
+                if start_date_for_sheet == end_date_for_sheet:
+                    announce_embed.add_field(name="Date", value=start_date_for_sheet, inline=True)
                 else:
-                    announce_embed.add_field(name="Dates", value=f"{start_date_val} to {end_date_val}", inline=True)
+                    announce_embed.add_field(name="Dates", value=f"{start_date_for_sheet} to {end_date_for_sheet}", inline=True)
 
                 if comments_val:
                     announce_embed.add_field(name="Details", value=comments_val, inline=False)
                 
                 announce_embed.set_footer(text=f"Event added by {interaction.user.name}")
                 announce_embed.timestamp = datetime.now()
-
                 await event_channel.send(embed=announce_embed)
 
-            # --- Confirmation Embed (Private message to the command user) ---
+                # --- Update the Main Schedule Message ---
+                await update_schedule_message(event_channel)
+
+
+            # --- Confirmation Embed ---
             confirm_embed = discord.Embed(
                 title="✅ Event Created Successfully!",
                 description="The following event has been added and a notification has been posted.",
@@ -1619,25 +1635,27 @@ class AddEventModal(Modal):
             confirm_embed.add_field(name="Type", value=event_type_value, inline=False)
             confirm_embed.add_field(name="Description", value=description_value, inline=False)
             
-            if start_date_val == end_date_val:
-                confirm_embed.add_field(name="Date", value=start_date_val, inline=False)
+            if start_date_for_sheet == end_date_for_sheet:
+                confirm_embed.add_field(name="Date", value=start_date_for_sheet, inline=False)
             else:
-                confirm_embed.add_field(name="Dates", value=f"{start_date_val} to {end_date_val}", inline=False)
+                confirm_embed.add_field(name="Dates", value=f"{start_date_for_sheet} to {end_date_for_sheet}", inline=False)
             
             if comments_val:
                 confirm_embed.add_field(name="Comments", value=comments_val, inline=False)
             
             await interaction.followup.send(embed=confirm_embed, ephemeral=True)
 
-
         except Exception as e:
-            print(f"Error writing event to sheet: {e}")
-            await interaction.followup.send("❌ An error occurred while saving the event to the spreadsheet. Please check the bot's logs.", ephemeral=True)
+            print(f"Error writing event to sheet or creating Discord event: {e}")
+            await interaction.followup.send("❌ An error occurred while saving the event. Please check logs.", ephemeral=True)
 
 
 @bot.tree.command(name="addevent", description="Add a new event to the clan schedule.")
 @app_commands.checks.has_role(STAFF_ROLE_ID)
-@app_commands.describe(event_type="The type of event you want to create.")
+@app_commands.describe(
+    event_type="The type of event you want to create.",
+    image="Optional cover image for the Discord event."
+)
 @app_commands.choices(event_type=[
     app_commands.Choice(name="BOTW", value="BOTW"),
     app_commands.Choice(name="SOTW", value="SOTW"),
@@ -1652,9 +1670,15 @@ class AddEventModal(Modal):
     app_commands.Choice(name="Hide and seek", value="Hide and seek"),
     app_commands.Choice(name="Other Event", value="Other Event"),
 ])
-async def addevent(interaction: discord.Interaction, event_type: str):
+async def addevent(interaction: discord.Interaction, event_type: str, image: Optional[discord.Attachment] = None):
     """Opens a modal to add the details for the chosen event type."""
-    await interaction.response.send_modal(AddEventModal(event_type_str=event_type))
+    # Check the user's roles to determine if they use the international date format.
+    user_roles = {role.name for role in interaction.user.roles}
+    is_international = bool(user_roles.intersection(INTERNATIONAL_TIMEZONES))
+
+    image_bytes = await image.read() if image else None
+    
+    await interaction.response.send_modal(AddEventModal(event_type_str=event_type, is_international=is_international, cover_image=image_bytes))
 
 
 @addevent.error
@@ -2119,6 +2143,3 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
-
-
