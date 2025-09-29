@@ -1443,6 +1443,10 @@ class CollatButtons(discord.ui.View):
 # --------------------------------------------------
 # 🔹 Event Management System
 # --------------------------------------------------
+EVENT_SHEET_HEADERS = [
+    "Type of Event", "Event Description", "Event Owner",
+    "Start Date", "End Date", "Comments"
+]
 
 class AddEventModal(Modal, title="Add a New Clan Event"):
     type_of_event = TextInput(
@@ -1512,7 +1516,7 @@ class AddEventModal(Modal, title="Add a New Clan Event"):
         # --- Check for Conflicting Events ---
         conflicting_events_details = []
         try:
-            all_events = events_sheet.get_all_records()
+            all_events = events_sheet.get_all_records(expected_headers=EVENT_SHEET_HEADERS)
             for event in all_events:
                 existing_start_str = event.get("Start Date")
                 existing_end_str = event.get("End Date")
@@ -1615,7 +1619,7 @@ async def addevent_error(interaction: discord.Interaction, error: app_commands.A
 async def create_and_post_schedule(channel: discord.TextChannel):
     """Fetches events for the week and posts a comprehensive schedule embed."""
     try:
-        all_events = events_sheet.get_all_records()
+        all_events = events_sheet.get_all_records(expected_headers=EVENT_SHEET_HEADERS)
     except Exception as e:
         print(f"Could not fetch event records: {e}")
         await channel.send("⚠️ Could not retrieve event data from the spreadsheet.")
@@ -1989,7 +1993,7 @@ async def on_ready():
         raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="", color=0x00ff00)
         await role_channel.send(embed=raid_embed, view=RaidsView(guild))
         
-        boss_embed = discord.Embed(title="⚔︎ 𝔊𝔯𝔬𝔲𝔭 𝔅𝔬𝔰𝔰𝔢𝔰 ⚔︎", description="", color=0x0000ff)
+        boss_embed = discord.Embed(title="⚔︎ 𝔊𝔯𝔬𝔲p 𝔅𝔬𝔰𝔰𝔢𝔰 ⚔︎", description="", color=0x0000ff)
         await role_channel.send(embed=boss_embed, view=BossesView(guild))
         
         events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢𝔫𝔱𝔰 ⚔︎", description="", color=0xffff00)
