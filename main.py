@@ -1448,6 +1448,32 @@ EVENT_SHEET_HEADERS = [
     "Start Date", "End Date", "Comments"
 ]
 
+def get_all_event_records():
+    """
+    Custom function to get all event records, accounting for header row at row 4.
+    Replicates gspread.get_all_records functionality for older library versions.
+    """
+    try:
+        all_values = events_sheet.get_all_values()
+        if len(all_values) < 5:  # Need at least headers (row 4) and one data row (row 5)
+            return []
+        
+        headers = all_values[3]  # Headers are on row 4 (index 3)
+        data_rows = all_values[4:] # Data starts on row 5 (index 4)
+        
+        records = []
+        for row in data_rows:
+            # Create a dictionary for the current row
+            # Pad row in case it has fewer columns than headers
+            record = {headers[i]: (row[i] if i < len(row) else "") for i in range(len(headers))}
+            # Only add non-empty rows
+            if any(val.strip() for val in record.values()):
+                records.append(record)
+        return records
+    except Exception as e:
+        print(f"Error fetching and parsing event sheet data: {e}")
+        return []
+
 class AddEventModal(Modal, title="Add a New Clan Event"):
     type_of_event = TextInput(
         label="Type of Event",
@@ -1516,7 +1542,7 @@ class AddEventModal(Modal, title="Add a New Clan Event"):
         # --- Check for Conflicting Events ---
         conflicting_events_details = []
         try:
-            all_events = events_sheet.get_all_records(expected_headers=EVENT_SHEET_HEADERS, head_row=4)
+            all_events = get_all_event_records()
             for event in all_events:
                 existing_start_str = event.get("Start Date")
                 existing_end_str = event.get("End Date")
@@ -1619,7 +1645,7 @@ async def addevent_error(interaction: discord.Interaction, error: app_commands.A
 async def create_and_post_schedule(channel: discord.TextChannel):
     """Fetches events for the week and posts a comprehensive schedule embed."""
     try:
-        all_events = events_sheet.get_all_records(expected_headers=EVENT_SHEET_HEADERS, head_row=4)
+        all_events = get_all_event_records()
     except Exception as e:
         print(f"Could not fetch event records: {e}")
         await channel.send("⚠️ Could not retrieve event data from the spreadsheet.")
@@ -2009,3 +2035,4 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
