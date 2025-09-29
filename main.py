@@ -1635,7 +1635,8 @@ async def addevent_error(interaction: discord.Interaction, error: app_commands.A
 async def create_and_post_schedule(channel: discord.TextChannel):
     """Fetches, processes, and posts a clean, consolidated weekly event schedule."""
     try:
-        all_events = get_all_event_records()
+        # Run the synchronous gspread call in an executor
+        all_events = await bot.loop.run_in_executor(None, get_all_event_records)
     except Exception as e:
         print(f"Could not fetch event records: {e}")
         await channel.send("⚠️ Could not retrieve event data from the spreadsheet.")
@@ -2082,26 +2083,5 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
