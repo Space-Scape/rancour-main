@@ -1,8 +1,4 @@
-@bot.tree.command(name="bank", description="Show coffer total and who is holding or owed money")
-async def bank(interaction: discord.Interaction):
-    total, holders, owed = get_current_total_and_holders_and_owed()
-    guild = interaction.guild
-
+import os
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
@@ -583,37 +579,37 @@ async def help(interaction: discord.Interaction):
 async def welcome(interaction: discord.Interaction):
     if not isinstance(interaction.channel, discord.Thread):
         await interaction.response.send_message(
-        f"**{ceo_bank_line}**\n**{clan_coffer_line}**\n\n{holder_text}\n\n{owed_text}",
-        ephemeral=False
-    )
+            "⚠️ This command must be used inside a ticket thread.", ephemeral=True
+        )
+        return
 
-# ---------------------------
-# 🔹 Panel Init()
-# ---------------------------
+    ticket_creator = None
+    async for message in interaction.channel.history(limit=20, oldest_first=True):
+        if message.author.bot and message.author.name.lower().startswith("tickets"):
+            for mention in message.mentions:
+                if not mention.bot:
+                    ticket_creator = mention
+                    break
+            if ticket_creator:
+                break
 
-async def send_rsn_panel(channel: discord.TextChannel):
-    await channel.purge(limit=10)
-    await channel.send(":identification_card: **Link your RSN by clicking below to join the server.\nUse /rsn here to check!**", view=RSNPanelView())
+    if not ticket_creator:
+        await interaction.response.send_message(
+            "⚠️ Could not detect who opened this ticket.", ephemeral=True
+        )
+        return
 
-async def send_time_panel(channel: discord.TextChannel):
-    await channel.purge(limit=10)
-    view = TimezoneView(channel.guild)
-    embed = discord.Embed(
-        title="🕒 Select Your Usual Timezones",
-        description=(
-            "Click the button that best matches the **timezones you are most often playing or active**.\n\n"
-            "After selecting, you’ll get another prompt to pick the **time of day** you usually play."
-        ),
-        color=discord.Color.blurple()
-    )
-    await channel.send(embed=embed, view=view)
+    guild = interaction.guild
+    roles_to_assign = ["Recruit", "Member", "Boss of the Week", "Skill of the Week", "Events"]
+    missing_roles = []
 
-# ---------------------------
-# 🔹 Collat Notifier
-# ---------------------------
+    for role_name in roles_to_assign:
+        role = discord.utils.get(guild.roles, name=role_name)
+        if role:
+            await ticket_creator.add_roles(role)
+        else:
+            missing_roles.append(role_name)
 
-class CollatRequestModal(discord.ui.Modal, title="Request Item"):
-    target_username = discord.ui.TextInput(
     if missing_roles:
         await interaction.response.send_message(
             f"⚠️ Missing roles: {', '.join(missing_roles)}. Please check the server roles.",
@@ -793,7 +789,729 @@ class RSNModal(discord.ui.Modal, title="Register RSN"):
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-        # 1. Date Validation and Parsing is fast and can stay here
+        try:
+            # enqueue the update instead of writing directly
+            await rsn_write_queue.put((interaction.user, str(self.rsn)))
+
+            # Quick acknowledgement
+            await interaction.followup.send(
+                f"✅ Your RSN **{self.rsn}** has been submitted! "
+                "It will be saved in the records shortly.",
+                ephemeral=True
+            )
+
+            # add role after successful registration
+            guild = interaction.guild
+            registered_role = discord.utils.get(guild.roles, name="Registered")
+            if registered_role and registered_role not in interaction.user.roles:
+                await interaction.user.add_roles(registered_role)
+                await interaction.followup.send(
+                    f"🎉 You’ve been given the {registered_role.mention} role!",
+                    ephemeral=True
+                )
+
+            # attempt nickname change
+            try:
+                await interaction.user.edit(nick=str(self.rsn))
+            except discord.Forbidden:
+                await interaction.followup.send(
+                    "⚠️ I don't have permission to change your nickname. "
+                    "Please update it manually.",
+                    ephemeral=True
+                )
+
+        except Exception as e:
+            await interaction.followup.send(
+                f"❌ Failed to update RSN: `{e}`",
+                ephemeral=True
+            )
+
+
+class RSNPanelView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Register RSN",
+        style=discord.ButtonStyle.success,
+        emoji="📝",
+        custom_id="register_rsn_button"
+    )
+    async def register_rsn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(RSNModal())
+
+
+@tree.command(name="rsn_panel", description="Open the RSN registration panel.")
+@app_commands.checks.has_any_role("Moderators")
+async def rsn_panel(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="<:1gp:1347684047773499482> Register your RuneScape Name",
+        description=(
+            "Click the button below to register or update your RuneScape name in the clan records.\n\n"
+            "This helps event staff verify drops and track your achievements. 🪙"
+        ),
+        color=discord.Color.green()
+    )
+
+    await interaction.response.send_message(
+        embed=embed,
+        view=RSNPanelView(),
+        ephemeral=False
+    )
+
+
+@tree.command(name="rsn", description="Check your registered RSN.")
+async def rsn(interaction: discord.Interaction):
+    member_id = str(interaction.user.id)
+
+    try:
+        cell = rsn_sheet.find(member_id)
+        rsn_value = rsn_sheet.cell(cell.row, 4).value
+        await interaction.response.send_message(
+            f"✅ Your registered RSN is **{rsn_value}**.",
+            ephemeral=True
+        )
+    except gspread.exceptions.CellNotFound:
+        await interaction.response.send_message(
+            "⚠️ You have not registered an RSN yet. Use `/rsn_panel` to register.",
+            ephemeral=True
+        )
+
+
+@rsn_panel.error
+async def rsn_panel_error(interaction: discord.Interaction, error):
+    if isinstance(error, app_commands.errors.MissingAnyRole):
+        await interaction.response.send_message(
+            "⛔ You do not have permission to use this command.",
+            ephemeral=True
+        )
+
+# ---------------------------
+# 🔹 TimeZones
+# ---------------------------
+
+class TimePanelView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(Button(label="Morning (8AM–12PM)", style=discord.ButtonStyle.primary, custom_id="time_morning"))
+        self.add_item(Button(label="Afternoon (12PM–4PM)", style=discord.ButtonStyle.primary, custom_id="time_afternoon"))
+        self.add_item(Button(label="Evening (4PM–10PM)", style=discord.ButtonStyle.primary, custom_id="time_evening"))
+        self.add_item(Button(label="Late Night (10PM–2AM)", style=discord.ButtonStyle.primary, custom_id="time_latenight"))
+
+
+TIMEZONE_DATA = {
+    "PST": ("America/Los_Angeles", "🇺🇸"),
+    "MST": ("America/Denver", "🇺🇸"),
+    "CST": ("America/Chicago", "🇺🇸"),
+    "EST": ("America/New_York", "🇺🇸"),
+    "AST": ("America/Halifax", "🇨🇦"),
+    "BRT": ("Brazil", "🇧🇷"),
+    "ART": ("Argentina", "🇦🇷"),
+    "GMT": ("Europe/London", "🇬🇧"),
+    "CET": ("Europe/Paris", "🇫🇷"),
+    "EET": ("Europe/Helsinki", "🇫🇮"),
+    "AWST": ("Australia/Perth", "🇦🇺"),
+    "ACST": ("Australia/Adelaide", "🇦🇺"),
+    "AEST": ("Australia/Sydney", "🇦🇺"),
+}
+
+TIME_OF_DAY_DATA = {
+    "Morning": ("🌄", "6 AM - 12 PM"),
+    "Day": ("🌇", "12 PM - 6 PM"),
+    "Evening": ("🌆", "6 PM - 12 AM"),
+    "Night": ("🌃", "12 AM - 6 AM"),
+}
+
+class TimeOfDayView(discord.ui.View):
+    def __init__(self, guild, timezone_role, tz_abbr):
+        super().__init__(timeout=60)
+        self.guild = guild
+        self.timezone_role = timezone_role
+        self.tz_abbr = tz_abbr
+
+        for tod_label, (emoji, _) in TIME_OF_DAY_DATA.items():
+            role = discord.utils.get(guild.roles, name=tod_label)
+            if role:
+                self.add_item(TimeOfDayButton(tod_label, role, emoji, self.timezone_role, self.tz_abbr))
+
+class TimeOfDayButton(discord.ui.Button):
+    def __init__(self, label, role, emoji, timezone_role, tz_abbr):
+        super().__init__(label=label, style=discord.ButtonStyle.secondary, emoji=emoji)
+        self.role = role
+        self.label = label
+        self.timezone_role = timezone_role
+        self.tz_abbr = tz_abbr
+
+    async def callback(self, interaction: discord.Interaction):
+        member = interaction.user
+
+        if self.role in member.roles:
+            await member.remove_roles(self.role)
+            await interaction.response.send_message(
+                f"❌ Removed time of day role **{self.label}**.",
+                ephemeral=True
+            )
+            return
+
+        await member.add_roles(self.role)
+        time_range = TIME_OF_DAY_DATA[self.label][1]
+        await interaction.response.send_message(
+            f"✅ Added time of day role **{self.label}** ({time_range}) for timezone **{self.tz_abbr}**.",
+            ephemeral=True
+        )
+
+class TimezoneView(discord.ui.View):
+    def __init__(self, guild):
+        super().__init__(timeout=None)
+        self.guild = guild
+        for tz_abbr, (tz_str, flag) in TIMEZONE_DATA.items():
+            role = discord.utils.get(guild.roles, name=tz_abbr)
+            if role:
+                self.add_item(TimezoneButton(tz_abbr, role, tz_str, flag, guild))
+
+class TimezoneButton(discord.ui.Button):
+    def __init__(self, tz_abbr, role, tz_str, emoji, guild):
+        custom_id = f"timezone-btn:{role.id}"
+        super().__init__(label=tz_abbr, style=discord.ButtonStyle.primary, custom_id=custom_id, emoji=emoji)
+        self.tz_abbr = tz_abbr
+        self.role = role
+        self.tz_str = tz_str
+        self.guild = guild
+
+    async def callback(self, interaction: discord.Interaction):
+        member = interaction.user
+        guild = interaction.guild
+
+        if self.role in member.roles:
+            await member.remove_roles(self.role)
+            await interaction.response.send_message(
+                f"❌ Removed timezone role **{self.tz_abbr}**.",
+                ephemeral=True
+            )
+            return
+
+        old_tz_roles = [discord.utils.get(guild.roles, name=abbr) for abbr in TIMEZONE_DATA.keys()]
+        old_tz_roles = [r for r in old_tz_roles if r and r in member.roles]
+        if old_tz_roles:
+            await member.remove_roles(*old_tz_roles)
+
+        await member.add_roles(self.role)
+
+        await interaction.response.send_message(
+            f"✅ Timezone set to **{self.tz_abbr}**. Now select your usual time of day:",
+            view=TimeOfDayView(guild, self.role, self.tz_abbr),
+            ephemeral=True,
+        )
+
+@bot.tree.command(name="time_panel", description="Open the timezone selection panel.")
+async def time_panel(interaction: discord.Interaction):
+    view = TimezoneView(interaction.guild)
+    embed = discord.Embed(
+        title="🕒 Select Your Usual Timezones",
+        description=(
+            "Click the button that best matches the **timezones you are most often playing or active**.\n\n"
+            "After selecting, you’ll get another prompt to pick the **time of day** you usually play."
+        ),
+        color=discord.Color.blurple()
+    )
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+# ---------------------------
+# 🔹 Coffer
+# ---------------------------
+
+CUSTOM_EMOJI = "<:MaxCash:1347684049040183427>"
+
+def parse_amount(input_str: str) -> int:
+    """
+    Parse input like '20m', '20 m', '1.5m', '1,5m' as millions.
+    Also accept plain integers like '5000' (which are treated as millions).
+    Returns integer amount in full units (e.g. 1,500,000).
+    """
+    input_str = input_str.lower().replace(" ", "").replace(",", ".")
+    if input_str.endswith("m"):
+        try:
+            number_part = float(input_str[:-1])
+            return int(number_part * 1_000_000)
+        except ValueError:
+            raise ValueError("Invalid amount format")
+    else:
+        try:
+            number_part = float(input_str)
+            return int(number_part * 1_000_000)
+        except ValueError:
+            raise ValueError("Invalid amount format")
+
+
+def format_million(amount: int) -> str:
+    millions = amount / 1_000_000
+    if millions.is_integer():
+        return f"{int(millions):,}M"
+    else:
+        return f"{millions:,.2f}M".rstrip('0').rstrip('.')
+
+
+def log_coffer_entry(name: str, amount: int, entry_type: str, coffer_change: int = 0):
+    timestamp = datetime.now().strftime("%I:%M%p %m/%d/%Y").lstrip("0").replace(" 0", " ")
+    coffer_sheet.append_row([
+        name,
+        amount,
+        entry_type,
+        f"{'+' if coffer_change >= 0 else ''}{coffer_change}",
+        timestamp
+    ])
+
+
+def get_current_total_and_holders_and_owed():
+    records = coffer_sheet.get_all_records()
+    total = 0
+    inferred_holders = {}
+    inferred_owed = {}
+
+    for row in records:
+        name = row.get("Name")
+        amount = int(row.get("Amount", 0))
+        entry_type = row.get("Type", "").lower()
+
+        if entry_type == "deposit":
+            total += amount
+            inferred_holders[name] = inferred_holders.get(name, 0) + amount
+        elif entry_type == "withdraw":
+            total -= amount
+            inferred_holders[name] = inferred_holders.get(name, 0) - amount
+
+    for row in records:
+        name = row.get("Name")
+        amount = int(row.get("Amount", 0))
+        entry_type = row.get("Type", "").lower()
+
+        if entry_type == "holding":
+            inferred_holders[name] = amount
+        elif entry_type == "owed":
+            inferred_owed[name] = amount
+
+    holders = {k: v for k, v in inferred_holders.items() if v > 0}
+    owed = {k: v for k, v in inferred_owed.items() if v > 0}
+
+    return total, holders, owed
+
+
+def escape_markdown(text: str) -> str:
+    to_escape = r"\*_~`>|"
+    return re.sub(f"([{re.escape(to_escape)}])", r"\\\1", text)
+
+
+# ---------------------------
+# 🔹 Discord Modals and Commands
+# ---------------------------
+
+class DepositWithdrawModal(Modal, title="Deposit/Withdraw"):
+    amount_input = TextInput(label="Amount", placeholder="Enter amount (e.g. 20m)", required=True)
+
+    def __init__(self, action: str):
+        super().__init__()
+        self.action = action
+
+    async def on_submit(self, interaction: discord.Interaction):
+        raw_value = self.amount_input.value
+        try:
+            amount = parse_amount(raw_value)
+        except Exception:
+            await interaction.response.send_message(
+                "❌ Invalid amount format. Use numbers or numbers with 'm' (e.g. 20m).",
+                ephemeral=True
+            )
+            return
+
+        name = interaction.user.display_name
+
+        total, holders, owed = get_current_total_and_holders_and_owed()
+        current_holding = holders.get(name, 0)
+
+        if self.action == "Deposit":
+            log_coffer_entry(name, amount, "deposit", amount)
+
+            if current_holding > 0:
+                new_holding = max(current_holding - amount, 0)
+            else:
+                new_holding = 0
+
+            log_coffer_entry(name, new_holding, "holding", 0)
+
+            verb = "deposited"
+            formatted_amount = format_million(amount)
+
+            await interaction.response.send_message(
+                f"{CUSTOM_EMOJI} {name} {verb} {formatted_amount}!",
+                ephemeral=False
+            )
+
+        else:
+            log_coffer_entry(name, amount, "withdraw", -amount)
+
+            verb = "withdrew"
+            formatted_amount = format_million(amount)
+
+            await interaction.response.send_message(
+                f"{CUSTOM_EMOJI} {name} {verb} {formatted_amount}!",
+                ephemeral=False
+            )
+
+
+class HoldingModal(Modal, title="Set Holding Amount"):
+    amount_input = TextInput(label="Amount Held", placeholder="Enter amount held (e.g. 20m)", required=True)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        raw_value = self.amount_input.value
+        try:
+            amount = parse_amount(raw_value)
+        except Exception:
+            await interaction.response.send_message(
+                "❌ Invalid amount format. Use numbers or numbers with 'm' (e.g. 20m).",
+                ephemeral=True
+            )
+            return
+
+        name = interaction.user.display_name
+
+        if amount > 0:
+            log_coffer_entry(name, amount, "holding", 0)
+            formatted_amount = format_million(amount)
+            await interaction.response.send_message(
+                f"{CUSTOM_EMOJI} {name} is now holding {formatted_amount}.",
+                ephemeral=False
+            )
+        else:
+            log_coffer_entry(name, 0, "holding", 0)
+            await interaction.response.send_message(
+                f"{CUSTOM_EMOJI} {name} is no longer holding any money.",
+                ephemeral=False
+            )
+
+
+@bot.tree.command(name="deposit", description="Deposit money into the clan coffer")
+async def deposit(interaction: discord.Interaction):
+    await interaction.response.send_modal(DepositWithdrawModal("Deposit"))
+
+
+@bot.tree.command(name="withdraw", description="Withdraw money from the clan coffer")
+async def withdraw(interaction: discord.Interaction):
+    await interaction.response.send_modal(DepositWithdrawModal("Withdraw"))
+
+
+@bot.tree.command(name="holding", description="Add to a user's holding amount (defaults to yourself)")
+@app_commands.describe(
+    user="User to add holding for (default yourself)",
+    amount="Amount to add (e.g. 20m)"
+)
+async def holding(
+    interaction: discord.Interaction,
+    amount: str,
+    user: discord.User | None = None
+):
+    target = user or interaction.user
+    name = target.display_name
+
+    try:
+        amt = parse_amount(amount)
+    except Exception:
+        await interaction.response.send_message(
+            "❌ Invalid amount format. Use numbers or numbers with 'm' (e.g. 20m).",
+            ephemeral=True
+        )
+        return
+
+    _, holders, _ = get_current_total_and_holders_and_owed()
+    current_amt = holders.get(name, 0)
+
+    new_amt = current_amt + amt
+
+    if new_amt > 0:
+        log_coffer_entry(name, new_amt, "holding", amt)
+        await interaction.response.send_message(
+            f"{CUSTOM_EMOJI} **{name}** is now holding {format_million(new_amt)}.",
+            ephemeral=False
+        )
+    else:
+        log_coffer_entry(name, 0, "holding", -current_amt)
+        await interaction.response.send_message(
+            f"{CUSTOM_EMOJI} **{name}** is no longer holding any money.",
+            ephemeral=False
+        )
+
+
+@bot.tree.command(name="owed", description="Set a user's owed amount (defaults to yourself)")
+@app_commands.describe(
+    user="User to set owed amount for (default yourself)",
+    amount="Amount owed (e.g. 20m)"
+)
+async def owed(
+    interaction: discord.Interaction,
+    amount: str,
+    user: discord.User | None = None
+):
+    target = user or interaction.user
+    name = target.display_name
+
+    try:
+        amt = parse_amount(amount)
+    except Exception:
+        await interaction.response.send_message(
+            "❌ Invalid amount format. Use numbers or numbers with 'm' (e.g. 20m).",
+            ephemeral=True
+        )
+        return
+
+    if amt > 0:
+        log_coffer_entry(name, amt, "owed", 0)
+        formatted_amount = format_million(amt)
+        await interaction.response.send_message(
+            f"{CUSTOM_EMOJI} {name} is now owed {formatted_amount}.",
+            ephemeral=False
+        )
+    else:
+        log_coffer_entry(name, 0, "owed", 0)
+        await interaction.response.send_message(
+            f"{CUSTOM_EMOJI} {name} is no longer owed any money.",
+            ephemeral=False
+        )
+
+@bot.tree.command(name="clear_owed", description="Clear owed amount for a user")
+@app_commands.describe(user="User to clear owed amount for")
+async def clear_owed(interaction: discord.Interaction, user: discord.User):
+    name = user.display_name
+
+    log_coffer_entry(name, 0, "owed", 0)
+
+    await interaction.response.send_message(
+        f"{CUSTOM_EMOJI} Cleared owed amount for **{name}**.",
+        ephemeral=False
+    )
+
+@bot.tree.command(name="clear_holding", description="Clear holding amount for a user")
+@app_commands.describe(user="User to clear holding for")
+async def clear_holding(interaction: discord.Interaction, user: discord.User):
+    name = user.display_name
+
+    log_coffer_entry(name, 0, "holding", 0)
+
+    await interaction.response.send_message(
+        f"{CUSTOM_EMOJI} Cleared holding for **{name}**.",
+        ephemeral=False
+    )
+
+@bot.tree.command(name="bank", description="Show coffer total and who is holding or owed money")
+async def bank(interaction: discord.Interaction):
+    total, holders, owed = get_current_total_and_holders_and_owed()
+    guild = interaction.guild
+
+    total_holding = sum(holders.values())
+    clan_coffer_total = total + total_holding
+
+    filtered_holders = {name: amount for name, amount in holders.items() if amount > 0}
+    filtered_owed = {name: amount for name, amount in owed.items() if amount > 0}
+
+    holder_lines = []
+    for name, amount in filtered_holders.items():
+        member = discord.utils.get(guild.members, display_name=name) or discord.utils.get(guild.members, name=name)
+        display_name = member.nick if member and member.nick else name
+        display_name = escape_markdown(display_name)
+        formatted_amount = f"{CUSTOM_EMOJI} {format_million(amount)}"
+        holder_lines.append(f"🏦 **{display_name}** is holding {formatted_amount}")
+
+    owed_lines = []
+    for name, amount in filtered_owed.items():
+        member = discord.utils.get(guild.members, display_name=name) or discord.utils.get(guild.members, name=name)
+        display_name = member.nick if member and member.nick else name
+        display_name = escape_markdown(display_name)
+        formatted_amount = f"{CUSTOM_EMOJI} {format_million(amount)}"
+        owed_lines.append(f"💰 **{display_name}** is owed {formatted_amount}")
+
+    ceo_bank_line = f"{CUSTOM_EMOJI} CEO Bank: {format_million(total)}"
+    clan_coffer_line = f"💰 Clan Coffer Total: {format_million(clan_coffer_total)}"
+
+    holder_text = "\n".join(holder_lines) if holder_lines else "_Nobody is holding anything._"
+    owed_text = "\n".join(owed_lines) if owed_lines else "_Nobody is owed anything._"
+
+    await interaction.response.send_message(
+        f"**{ceo_bank_line}**\n**{clan_coffer_line}**\n\n{holder_text}\n\n{owed_text}",
+        ephemeral=False
+    )
+
+# ---------------------------
+# 🔹 Panel Init()
+# ---------------------------
+
+async def send_rsn_panel(channel: discord.TextChannel):
+    await channel.purge(limit=10)
+    await channel.send(":identification_card: **Link your RSN by clicking below to join the server.\nUse /rsn here to check!**", view=RSNPanelView())
+
+async def send_time_panel(channel: discord.TextChannel):
+    await channel.purge(limit=10)
+    view = TimezoneView(channel.guild)
+    embed = discord.Embed(
+        title="🕒 Select Your Usual Timezones",
+        description=(
+            "Click the button that best matches the **timezones you are most often playing or active**.\n\n"
+            "After selecting, you’ll get another prompt to pick the **time of day** you usually play."
+        ),
+        color=discord.Color.blurple()
+    )
+    await channel.send(embed=embed, view=view)
+
+async def send_role_panel(channel: discord.TextChannel):
+    await channel.purge(limit=10)
+    await channel.send(":crossed_swords: **Choose your roles:**", view=RolePanelView(channel.guild))
+
+# ---------------------------
+# 🔹 Collat Notifier
+# ---------------------------
+
+class CollatRequestModal(discord.ui.Modal, title="Request Item"):
+    target_username = discord.ui.TextInput(
+        label="Enter the username to notify",
+        placeholder="Exact username (case-sensitive)",
+        style=discord.TextStyle.short,
+        required=True,
+        max_length=50,
+    )
+
+    def __init__(self, parent_message: discord.Message, requester: discord.User):
+        super().__init__()
+        self.parent_message = parent_message
+        self.requester = requester
+
+    async def on_submit(self, interaction: discord.Interaction):
+        entered_name = str(self.target_username.value).strip()
+        guild = interaction.guild
+
+        target_member = discord.utils.find(
+            lambda m: m.name == entered_name or m.display_name == entered_name,
+            guild.members
+        )
+
+        if not target_member:
+            await interaction.response.send_message(
+                "❌ User not found. Please ensure the name matches exactly.",
+                ephemeral=True
+            )
+            return
+
+        await self.parent_message.reply(
+            f"{self.requester.mention} is requesting their item from {target_member.mention}",
+            mention_author=True,
+        )
+        await interaction.response.send_message("Request sent ✅", ephemeral=True)
+
+
+class CollatButtons(discord.ui.View):
+    def __init__(self, author: discord.User, mentioned: discord.User | None):
+        super().__init__(timeout=None)
+        self.author = author
+        self.mentioned = mentioned
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user == self.author or (self.mentioned and interaction.user == self.mentioned):
+            return True
+        await interaction.response.send_message("You are not allowed to interact with this post.", ephemeral=True)
+        return False
+
+    async def disable_all(self, interaction: discord.Interaction):
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(view=self)
+
+    @discord.ui.button(label="Request Item", style=discord.ButtonStyle.primary, emoji="🔔")
+    async def request_item(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self.mentioned:
+            await interaction.response.send_modal(CollatRequestModal(interaction.message, interaction.user))
+            return
+
+        target = self.mentioned if interaction.user == self.author else self.author
+
+        await interaction.response.defer()
+        await interaction.message.reply(
+            f"{interaction.user.mention} is requesting their item from {target.mention}.",
+            mention_author=True
+        )
+
+    @discord.ui.button(label="Item Returned", style=discord.ButtonStyle.success, emoji="📥")
+    async def item_returned(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.disable_all(interaction)
+        await interaction.response.send_message("Item marked as returned. ✅", ephemeral=True)
+        
+# --------------------------------------------------
+# 🔹 Event Management System
+# --------------------------------------------------
+
+def get_all_event_records():
+    """Custom function to get all event records, accounting for header row at row 4."""
+    try:
+        all_values = events_sheet.get_all_values()
+        if len(all_values) < 5:
+            return []
+        
+        headers = all_values[3]
+        data_rows = all_values[4:]
+        
+        records = []
+        for row in data_rows:
+            record = {headers[i]: (row[i] if i < len(row) else "") for i in range(len(headers))}
+            if any(val.strip() for val in record.values()):
+                records.append(record)
+        return records
+    except Exception as e:
+        print(f"Error fetching and parsing event sheet data: {e}")
+        return []
+
+def parse_flexible_date(date_string: str) -> Optional[datetime.date]:
+    """Tries to parse a date from a few common formats."""
+    formats_to_try = ["%m/%d/%Y", "%m/%d/%y", "%-m/%-d/%Y", "%-m/%-d/%y"]
+    for fmt in formats_to_try:
+        try:
+            return datetime.strptime(date_string.strip(), fmt).date()
+        except ValueError:
+            continue
+    return None
+
+class AddEventModal(Modal):
+    def __init__(self, event_type: str):
+        super().__init__()
+        self.event_type = event_type
+        self.title = f"Create New '{event_type}' Event"
+
+    event_description = TextInput(
+        label="Event Description",
+        placeholder="e.g., Learner ToB or Barb Assault",
+        required=True
+    )
+    start_date = TextInput(
+        label="Start Date (e.g., 9/29/2025)",
+        placeholder="Use MM/DD/YYYY format.",
+        required=True
+    )
+    end_date = TextInput(
+        label="End Date (Optional)",
+        placeholder="Leave blank for single-day events.",
+        required=False
+    )
+    comments = TextInput(
+        label="Comments (Optional)",
+        style=discord.TextStyle.paragraph,
+        placeholder="e.g., Hosted by X, design by Y",
+        required=False
+    )
+    helpers_co_hosts = TextInput(
+        label="Helpers/Co-Hosts (Optional)",
+        style=discord.TextStyle.short,
+        placeholder="Comma-separated names, e.g., Riolu, Macflag",
+        required=False
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
+        # 1. Date Validation and Parsing
         start_date_obj = parse_flexible_date(self.start_date.value)
         if not start_date_obj:
             await interaction.followup.send("❌ **Invalid Start Date.** Please use a valid format like **9/29/2025**.", ephemeral=True)
@@ -813,13 +1531,11 @@ class RSNModal(discord.ui.Modal, title="Register RSN"):
         start_date_str = start_date_obj.strftime("%m/%d/%Y")
         end_date_str = end_date_obj.strftime("%m/%d/%Y")
         
-        # 2. Check for Conflicting Events (run blocking sheet read in executor)
+        # 2. Check for Conflicting Events
         conflicting_events_details = []
         weekly_event_types_to_ignore = ["pet roulette", "sanguine sunday", "botw", "sotw", "boss of the week", "skill of the week"]
         try:
-            # Run the synchronous gspread call in an executor to avoid blocking
-            all_events = await bot.loop.run_in_executor(None, get_all_event_records)
-            
+            all_events = get_all_event_records()
             for event in all_events:
                 if event.get("Type of Event", "").strip().lower() in weekly_event_types_to_ignore:
                     continue
@@ -850,11 +1566,7 @@ class RSNModal(discord.ui.Modal, title="Register RSN"):
         ]
 
         try:
-            # Run the synchronous gspread writes in an executor
-            await bot.loop.run_in_executor(
-                None, 
-                lambda: events_sheet.append_row(event_data, value_input_option='USER_ENTERED')
-            )
+            events_sheet.append_row(event_data, value_input_option='USER_ENTERED')
             
             # Handle Helpers/Co-Hosts
             if self.helpers_co_hosts.value:
@@ -863,10 +1575,7 @@ class RSNModal(discord.ui.Modal, title="Register RSN"):
                     helper_data = event_data.copy()
                     helper_data[2] = name
                     helper_data[5] = "Helper/Co-Host"
-                    await bot.loop.run_in_executor(
-                        None,
-                        lambda: events_sheet.append_row(helper_data, value_input_option='USER_ENTERED')
-                    )
+                    events_sheet.append_row(helper_data, value_input_option='USER_ENTERED')
 
             # 4. Public Announcement and Private Confirmation
             event_channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
@@ -926,8 +1635,7 @@ async def addevent_error(interaction: discord.Interaction, error: app_commands.A
 async def create_and_post_schedule(channel: discord.TextChannel):
     """Fetches, processes, and posts a clean, consolidated weekly event schedule."""
     try:
-        # Run the synchronous gspread call in an executor
-        all_events = await bot.loop.run_in_executor(None, get_all_event_records)
+        all_events = get_all_event_records()
     except Exception as e:
         print(f"Could not fetch event records: {e}")
         await channel.send("⚠️ Could not retrieve event data from the spreadsheet.")
@@ -1374,6 +2082,10 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
+
+
 
 
 
