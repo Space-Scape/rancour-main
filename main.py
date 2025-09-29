@@ -1477,9 +1477,16 @@ def get_all_event_records():
 class AddEventModal(Modal):
     def __init__(self, event_type: str):
         super().__init__()
-        self.event_type = event_type
         self.title = f"Create New '{event_type}' Event"
+        # Pre-populate the event type field with the value from the command.
+        self.event_type_input.default = event_type
 
+    # The field is now part of the modal again.
+    event_type_input = TextInput(
+        label="Type of Event",
+        placeholder="e.g., Bingo, BOTW, Mass Event",
+        required=True
+    )
     event_description = TextInput(
         label="Event Description",
         placeholder="e.g., Learner ToB or Barb Assault",
@@ -1504,6 +1511,9 @@ class AddEventModal(Modal):
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
+        
+        # Get the type from the modal's input field for use in logic and messages.
+        event_type_value = self.event_type_input.value
 
         # --- Validation ---
         # 1. Validate Dates
@@ -1551,7 +1561,7 @@ class AddEventModal(Modal):
         # --- Data Preparation ---
         event_owner = interaction.user.display_name
         event_data = [
-            self.event_type,  # Use the type passed from the command
+            event_type_value,
             self.event_description.value,
             event_owner,
             self.start_date.value,
@@ -1569,7 +1579,7 @@ class AddEventModal(Modal):
             if event_channel:
                 announce_embed = discord.Embed(
                     title=f"🗓️ New Event Added: {self.event_description.value}",
-                    description=f"A new **{self.event_type}** has been added to the schedule!",
+                    description=f"A new **{event_type_value}** has been added to the schedule!",
                     color=discord.Color.blue()
                 )
                 announce_embed.add_field(name="Host", value=event_owner, inline=True)
@@ -1594,7 +1604,7 @@ class AddEventModal(Modal):
                 description="The following event has been added and a notification has been posted.",
                 color=discord.Color.green()
             )
-            confirm_embed.add_field(name="Type", value=self.event_type, inline=False)
+            confirm_embed.add_field(name="Type", value=event_type_value, inline=False)
             confirm_embed.add_field(name="Description", value=self.event_description.value, inline=False)
             if self.comments.value:
                 confirm_embed.add_field(name="Comments", value=self.comments.value, inline=False)
@@ -2090,7 +2100,6 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
 
 
 
