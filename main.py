@@ -1,4 +1,8 @@
-import os
+@bot.tree.command(name="bank", description="Show coffer total and who is holding or owed money")
+async def bank(interaction: discord.Interaction):
+    total, holders, owed = get_current_total_and_holders_and_owed()
+    guild = interaction.guild
+
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
@@ -579,37 +583,37 @@ async def help(interaction: discord.Interaction):
 async def welcome(interaction: discord.Interaction):
     if not isinstance(interaction.channel, discord.Thread):
         await interaction.response.send_message(
-            "⚠️ This command must be used inside a ticket thread.", ephemeral=True
-        )
-        return
+        f"**{ceo_bank_line}**\n**{clan_coffer_line}**\n\n{holder_text}\n\n{owed_text}",
+        ephemeral=False
+    )
 
-    ticket_creator = None
-    async for message in interaction.channel.history(limit=20, oldest_first=True):
-        if message.author.bot and message.author.name.lower().startswith("tickets"):
-            for mention in message.mentions:
-                if not mention.bot:
-                    ticket_creator = mention
-                    break
-            if ticket_creator:
-                break
+# ---------------------------
+# 🔹 Panel Init()
+# ---------------------------
 
-    if not ticket_creator:
-        await interaction.response.send_message(
-            "⚠️ Could not detect who opened this ticket.", ephemeral=True
-        )
-        return
+async def send_rsn_panel(channel: discord.TextChannel):
+    await channel.purge(limit=10)
+    await channel.send(":identification_card: **Link your RSN by clicking below to join the server.\nUse /rsn here to check!**", view=RSNPanelView())
 
-    guild = interaction.guild
-    roles_to_assign = ["Recruit", "Member", "Boss of the Week", "Skill of the Week", "Events"]
-    missing_roles = []
+async def send_time_panel(channel: discord.TextChannel):
+    await channel.purge(limit=10)
+    view = TimezoneView(channel.guild)
+    embed = discord.Embed(
+        title="🕒 Select Your Usual Timezones",
+        description=(
+            "Click the button that best matches the **timezones you are most often playing or active**.\n\n"
+            "After selecting, you’ll get another prompt to pick the **time of day** you usually play."
+        ),
+        color=discord.Color.blurple()
+    )
+    await channel.send(embed=embed, view=view)
 
-    for role_name in roles_to_assign:
-        role = discord.utils.get(guild.roles, name=role_name)
-        if role:
-            await ticket_creator.add_roles(role)
-        else:
-            missing_roles.append(role_name)
+# ---------------------------
+# 🔹 Collat Notifier
+# ---------------------------
 
+class CollatRequestModal(discord.ui.Modal, title="Request Item"):
+    target_username = discord.ui.TextInput(
     if missing_roles:
         await interaction.response.send_message(
             f"⚠️ Missing roles: {', '.join(missing_roles)}. Please check the server roles.",
@@ -1370,6 +1374,19 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
