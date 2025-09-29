@@ -1476,38 +1476,47 @@ def get_all_event_records():
 
 class AddEventModal(Modal):
     def __init__(self, event_type: str):
-        super().__init__()
-        self.title = f"Create New '{event_type}' Event"
-        # Pre-populate the event type field with the value from the command.
-        self.event_type_input.default = event_type
+        # Set the title in the super constructor for cleanliness.
+        super().__init__(title=f"Create New '{event_type}' Event")
 
-    # The field is now part of the modal again.
-    event_type_input = TextInput(
-        label="Type of Event",
-        placeholder="e.g., Bingo, BOTW, Mass Event",
-        required=True
-    )
-    event_description = TextInput(
-        label="Event Description",
-        placeholder="e.g., Learner ToB or Barb Assault",
-        required=True
-    )
-    start_date = TextInput(
-        label="Start Date (MM/DD/YYYY)",
-        placeholder="Must be in MM/DD/YYYY format",
-        required=True
-    )
-    end_date = TextInput(
-        label="End Date (MM/DD/YYYY)",
-        placeholder="For single-day events, use the same date as start.",
-        required=True
-    )
-    comments = TextInput(
-        label="Comments (Optional)",
-        style=discord.TextStyle.paragraph,
-        placeholder="e.g., Hosted by X, design by Y",
-        required=False
-    )
+        # Define all UI components within __init__ for dynamic values.
+        self.event_type_input = TextInput(
+            label="Type of Event",
+            placeholder="e.g., Bingo, BOTW, Mass Event",
+            required=True,
+            default=event_type  # Pre-populate with the selected type.
+        )
+        self.add_item(self.event_type_input)
+
+        self.event_description = TextInput(
+            label="Event Description",
+            placeholder="e.g., Learner ToB or Barb Assault",
+            required=True
+        )
+        self.add_item(self.event_description)
+
+        self.start_date = TextInput(
+            label="Start Date (MM/DD/YYYY)",
+            placeholder="Must be in MM/DD/YYYY format",
+            required=True
+        )
+        self.add_item(self.start_date)
+
+        self.end_date = TextInput(
+            label="End Date (MM/DD/YYYY)",
+            placeholder="For single-day events, use the same date as start.",
+            required=True
+        )
+        self.add_item(self.end_date)
+        
+        self.comments = TextInput(
+            label="Comments (Optional)",
+            style=discord.TextStyle.paragraph,
+            placeholder="e.g., Hosted by X, design by Y",
+            required=False
+        )
+        self.add_item(self.comments)
+
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
