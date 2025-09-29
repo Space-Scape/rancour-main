@@ -1477,24 +1477,25 @@ def get_all_event_records():
 # The normalize_date_str function has been removed as it's no longer needed.
 
 class AddEventModal(Modal):
-    # Declarative syntax for modal items. This is the most stable and recommended approach.
-    event_type = TextInput(
+    # Using completely generic, numbered field names as a last resort to bypass
+    # any potential hidden naming conflicts within the discord.py library.
+    field1 = TextInput(
         label="Type of Event"
     )
-    description = TextInput(
+    field2 = TextInput(
         label="Event Description",
         placeholder="e.g., Learner ToB or Barb Assault"
     )
-    start_date = TextInput(
+    field3 = TextInput(
         label="Start Date (M/D/YYYY)",
         placeholder="e.g., 9/9/2025"
     )
-    end_date = TextInput(
+    field4 = TextInput(
         label="End Date (Optional, defaults to Start Date)",
         placeholder="Leave blank for single-day events",
         required=False
     )
-    comments = TextInput(
+    field5 = TextInput(
         label="Comments (Optional)",
         style=discord.TextStyle.paragraph,
         placeholder="e.g., Hosted by X, design by Y",
@@ -1504,18 +1505,28 @@ class AddEventModal(Modal):
     def __init__(self, event_type_str: str):
         super().__init__(title=f"Create New '{event_type_str}' Event")
         # Pre-fill the event type from the command
-        self.event_type.default = event_type_str
+        self.field1.default = event_type_str
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         
         # --- Data Gathering ---
-        # Access values directly from the declarative attributes. This cannot fail.
-        event_type_value = self.event_type.value
-        description_value = self.description.value
-        start_date_val = self.start_date.value
-        end_date_val = self.end_date.value
-        comments_val = self.comments.value
+        # Access values directly from the generic attributes.
+        event_type_value = self.field1.value
+        description_value = self.field2.value
+        start_date_val = self.field3.value
+        end_date_val = self.field4.value
+        comments_val = self.field5.value
+
+        # --- DIAGNOSTIC PRINT ---
+        # This will log the raw values to your console to confirm what the bot is receiving.
+        print("--- RAW MODAL VALUES RECEIVED ---")
+        print(f"Type of Event (field1): '{event_type_value}'")
+        print(f"Description (field2):   '{description_value}'")
+        print(f"Start Date (field3):    '{start_date_val}'")
+        print(f"End Date (field4):      '{end_date_val}'")
+        print(f"Comments (field5):      '{comments_val}'")
+        print("---------------------------------")
 
 
         # --- Set Defaults ---
@@ -2090,45 +2101,3 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
