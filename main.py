@@ -102,7 +102,7 @@ LOG_CHANNEL_ID = 1391921275332722749
 BANK_CHANNEL_ID = 1276197776849633404
 LISTEN_CHANNEL_ID = 1272875477555482666
 COLLAT_CHANNEL_ID = 1272648340940525648
-EVENT_SCHEDULE_CHANNEL_ID = 1273094409432469605 # Temporarily changed for testing
+EVENT_SCHEDULE_CHANNEL_ID = 1273094409432469605
 SANG_CHANNEL_ID = 1338295765759688767
 STAFF_ROLE_ID = 1272635396991221824
 MENTOR_ROLE_ID = 1306021911830073414
@@ -1506,9 +1506,7 @@ class AddEventModal(Modal):
         await interaction.response.defer(ephemeral=True)
 
         # --- Validation ---
-        # Event Type is already validated by the command choices.
-
-        # 2. Validate Dates
+        # 1. Validate Dates
         try:
             start_date_obj = datetime.strptime(self.start_date.value, "%m/%d/%Y").date()
         except ValueError:
@@ -1571,7 +1569,7 @@ class AddEventModal(Modal):
             if event_channel:
                 announce_embed = discord.Embed(
                     title=f"🗓️ New Event Added: {self.event_description.value}",
-                    description=f"A new **{valid_type}** has been added to the schedule!",
+                    description=f"A new **{self.event_type}** has been added to the schedule!",
                     color=discord.Color.blue()
                 )
                 announce_embed.add_field(name="Host", value=event_owner, inline=True)
@@ -1596,7 +1594,7 @@ class AddEventModal(Modal):
                 description="The following event has been added and a notification has been posted.",
                 color=discord.Color.green()
             )
-            confirm_embed.add_field(name="Type", value=valid_type, inline=False)
+            confirm_embed.add_field(name="Type", value=self.event_type, inline=False)
             confirm_embed.add_field(name="Description", value=self.event_description.value, inline=False)
             if self.comments.value:
                 confirm_embed.add_field(name="Comments", value=self.comments.value, inline=False)
@@ -1789,7 +1787,7 @@ async def schedule(interaction: discord.Interaction):
 
 @schedule.error
 async def schedule_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-     if isinstance(error, app_commands.MissingRole):
+   if isinstance(error, app_commands.MissingRole):
         await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
 
 @tasks.loop(time=time(hour=9, minute=0, tzinfo=CST))
@@ -1987,7 +1985,7 @@ async def maintain_reactions():
              try:
                 await signup_message.add_reaction(emoji)
              except (discord.NotFound, discord.Forbidden):
-                pass
+                 pass
 
 
 @scheduled_post_signup.before_loop
