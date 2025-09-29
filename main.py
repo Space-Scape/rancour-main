@@ -1623,19 +1623,19 @@ class AddEventModal(Modal):
                 print(f"An error occurred while fetching RSN for event owner: {e}")
             
             # Fallback: clean the display name by removing leading non-alphanumeric characters.
-            event_owner = re.sub(r'^\W+', '', interaction.user.display_name)
+        event_owner = re.sub(r'^\W+', '', interaction.user.display_name)
 
-        event_data = [
-            event_type_value,
-            description_value,
-            event_owner,
-            start_date_val,
-            end_date_val,
-            comments_val or ""
-        ]
+    event_data = [
+        event_type_value,
+        description_value,
+        event_owner,
+        normalized_start, # Use the normalized date string
+        normalized_end,   # Use the normalized date string
+        comments_val or ""
+    ]
 
-        # --- Write to Google Sheet ---
-        try:
+    # --- Write to Google Sheet ---
+    try:
             # Change value_input_option to 'USER_ENTERED' to allow Google Sheets
             # to parse the date string correctly, respecting the column's format.
             events_sheet.append_row(event_data, value_input_option='USER_ENTERED')
@@ -2173,10 +2173,6 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
-
-
-
 
 
 
