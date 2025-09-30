@@ -758,10 +758,10 @@ class EventsView(View):
 class SupportRoleView(View):
     def __init__(self):
         super().__init__(timeout=None)
-        self.add_item(RoleButton("Clan Support", emoji="🤝"))
+        self.add_item(RoleButton("Clan Support", emoji="🔔"))
         self.add_item(RoleButton("Ticket Support", emoji="🎫"))
-        self.add_item(RoleButton("Technical/Bot Support", emoji="🤖"))
-        self.add_item(RoleButton("Event Support", emoji="🎉"))
+        self.add_item(RoleButton("Technical/Bot Support", emoji="🔧"))
+        self.add_item(RoleButton("Event Staff", emoji="🎡"))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         staff_role = discord.utils.get(interaction.guild.roles, id=STAFF_ROLE_ID)
