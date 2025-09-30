@@ -111,10 +111,12 @@ TOB_ROLE_ID = 1272694636921753701
 EVENTS_ROLE_ID = 1298358942887317555
 
 # --- NEW ADMIN PANEL CONFIG ---
-# IMPORTANT: Replace these placeholder IDs with your actual channel and role IDs.
-ADMIN_PANEL_CHANNEL_ID = 1422373286368776314  # Channel where the admin panel will be.
+ADMIN_PANEL_CHANNEL_ID = 123456789012345678  # Channel where the admin panel will be.
 ADMINISTRATOR_ROLE_ID = 1272961765034164318   # Role that can CONFIRM actions.
 SENIOR_STAFF_ROLE_ID = 1336473488159936512    # Role that can CONFIRM actions.
+
+# --- NEW SUPPORT PANEL CONFIG ---
+SUPPORT_PANEL_CHANNEL_ID = 123456789012345678 # Channel where the support panel will be.
 
 
 # Other constants
@@ -571,6 +573,7 @@ async def help(interaction: discord.Interaction):
         `/addevent` - Opens a modal to add a new event to the clan schedule.
         `/schedule` - Manually posts the daily event schedule.
         `/admin_panel` - Posts the interactive admin panel for moderation.
+        `/support_panel` - Posts the staff support specialty role selector.
         """,
         inline=False
     )
@@ -751,6 +754,22 @@ class EventsView(View):
         self.add_item(RoleButton("Skill of the Week", get_emoji("sotw")))
         self.add_item(RoleButton("Sanguine Sunday - Learn ToB!", get_emoji("sanguine_sunday")))
         self.add_item(RoleButton("PvP", "💀"))
+
+class SupportRoleView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(RoleButton("Clan Support", emoji="🤝"))
+        self.add_item(RoleButton("Ticket Support", emoji="🎫"))
+        self.add_item(RoleButton("Technical/Bot Support", emoji="🤖"))
+        self.add_item(RoleButton("Event Support", emoji="🎉"))
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        staff_role = discord.utils.get(interaction.guild.roles, id=STAFF_ROLE_ID)
+        if staff_role in interaction.user.roles:
+            return True
+        else:
+            await interaction.response.send_message("❌ This panel is for Clan Staff only.", ephemeral=True)
+            return False
 
 # ---------------------------
 # 🔹 RSN Commands
@@ -2214,6 +2233,23 @@ async def admin_panel(interaction: discord.Interaction):
     await channel.send(embed=embed, view=AdminPanelView())
     await interaction.response.send_message(f"✅ Admin panel posted in {channel.mention}.", ephemeral=True)
 
+@bot.tree.command(name="support_panel", description="Posts the staff support specialty role selector.")
+@app_commands.checks.has_any_role("Administrators")
+async def support_panel(interaction: discord.Interaction):
+    channel = bot.get_channel(SUPPORT_PANEL_CHANNEL_ID)
+    if not channel:
+        await interaction.response.send_message("❌ Support panel channel not found. Please set it in the config.", ephemeral=True)
+        return
+
+    embed = discord.Embed(
+        title="🛠️ Staff Support Specialties",
+        description="Clan Staff: Please select your area of specialty. This will help others know who to ping for specific types of help.",
+        color=discord.Color.teal()
+    )
+    await channel.purge(limit=10) # Clean the channel first
+    await channel.send(embed=embed, view=SupportRoleView())
+    await interaction.response.send_message(f"✅ Support specialty panel posted in {channel.mention}.", ephemeral=True)
+
 # ---------------------------
 # 🔹 Bot Events
 # ---------------------------
@@ -2254,6 +2290,7 @@ async def on_ready():
     
     # Add persistent views
     bot.add_view(AdminPanelView())
+    bot.add_view(SupportRoleView())
 
     # Start the RSN writer task
     asyncio.create_task(rsn_writer())
