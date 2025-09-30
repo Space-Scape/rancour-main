@@ -117,7 +117,7 @@ SENIOR_STAFF_ROLE_ID = 1336473488159936512    # Role that can CONFIRM actions.
 
 # --- NEW SUPPORT PANEL CONFIG ---
 SUPPORT_PANEL_CHANNEL_ID = 1422397857142542346 # Channel where the support panel will be.
-SUPPORT_TICKET_CHANNEL_ID = 1422397857142542346 # Channel where support tickets are created.
+SUPPORT_TICKET_CHANNEL_ID = 1272648498554077304 # Channel where support tickets are created.
 
 
 # Other constants
