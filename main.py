@@ -116,7 +116,7 @@ ADMINISTRATOR_ROLE_ID = 1272961765034164318   # Role that can CONFIRM actions.
 SENIOR_STAFF_ROLE_ID = 1336473488159936512    # Role that can CONFIRM actions.
 
 # --- NEW SUPPORT PANEL CONFIG ---
-SUPPORT_PANEL_CHANNEL_ID = 123456789012345678 # Channel where the support panel will be.
+SUPPORT_PANEL_CHANNEL_ID = 1422397857142542346 # Channel where the support panel will be.
 
 
 # Other constants
@@ -1416,6 +1416,19 @@ async def send_role_panel(channel: discord.TextChannel):
     await channel.purge(limit=10)
     await channel.send(":crossed_swords: **Choose your roles:**", view=RolePanelView(channel.guild))
 
+async def send_support_panel(channel: discord.TextChannel):
+    """Posts the support specialty role selection panel."""
+    if not channel:
+        return
+    embed = discord.Embed(
+        title="🛠️ Staff Support Specialties",
+        description="Clan Staff: Please select your area of specialty. This will help others know who to ping for specific types of help.",
+        color=discord.Color.teal()
+    )
+    await channel.purge(limit=10) # Clean the channel first
+    await channel.send(embed=embed, view=SupportRoleView())
+
+
 # ---------------------------
 # 🔹 Collat Notifier
 # ---------------------------
@@ -2260,14 +2273,8 @@ async def support_panel(interaction: discord.Interaction):
     if not channel:
         await interaction.response.send_message("❌ Support panel channel not found. Please set it in the config.", ephemeral=True)
         return
-
-    embed = discord.Embed(
-        title="🛠️ Staff Support Specialties",
-        description="Clan Staff: Please select your area of specialty. This will help others know who to ping for specific types of help.",
-        color=discord.Color.teal()
-    )
-    await channel.purge(limit=10) # Clean the channel first
-    await channel.send(embed=embed, view=SupportRoleView())
+    
+    await send_support_panel(channel)
     await interaction.response.send_message(f"✅ Support specialty panel posted in {channel.mention}.", ephemeral=True)
 
 # ---------------------------
@@ -2341,6 +2348,10 @@ async def on_ready():
     if time_channel:
         await send_time_panel(time_channel)
 
+    support_channel = bot.get_channel(SUPPORT_PANEL_CHANNEL_ID)
+    if support_channel:
+        await send_support_panel(support_channel)
+
     role_channel = bot.get_channel(1272648586198519818)
     if role_channel:
         guild = role_channel.guild
@@ -2370,4 +2381,5 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
 
