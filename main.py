@@ -117,7 +117,7 @@ SENIOR_STAFF_ROLE_ID = 1336473488159936512    # Role that can CONFIRM actions.
 
 # --- NEW SUPPORT PANEL CONFIG ---
 SUPPORT_PANEL_CHANNEL_ID = 1422397857142542346 # Channel where the support panel will be.
-SUPPORT_TICKET_CHANNEL_ID = 1272648498554077304 # Channel where support tickets are created.
+SUPPORT_TICKET_CHANNEL_ID = 1422397857142542346 # Channel where support tickets are created.
 
 
 # Other constants
@@ -756,6 +756,53 @@ class EventsView(View):
         self.add_item(RoleButton("Sanguine Sunday - Learn ToB!", get_emoji("sanguine_sunday")))
         self.add_item(RoleButton("PvP", "💀"))
 
+class SupportTicketActionView(View):
+    """A view with Approve/Deny buttons for a support role ticket."""
+    def __init__(self, target_user: discord.Member, role_name: str):
+        super().__init__(timeout=None)
+        self.target_user = target_user
+        self.role_name = role_name
+
+    async def disable_all(self, interaction: discord.Interaction):
+        for item in self.children:
+            item.disabled = True
+        await interaction.message.edit(view=self)
+
+    @discord.ui.button(label="Approve", style=discord.ButtonStyle.success)
+    async def approve_button(self, interaction: discord.Interaction, button: Button):
+        admin_role = discord.utils.get(interaction.guild.roles, id=ADMINISTRATOR_ROLE_ID)
+        if not admin_role or admin_role not in interaction.user.roles:
+            await interaction.response.send_message("❌ You don't have permission to approve this request.", ephemeral=True)
+            return
+
+        role_to_add = discord.utils.get(interaction.guild.roles, name=self.role_name)
+        if not role_to_add:
+            await interaction.response.send_message(f"❌ Role '{self.role_name}' could not be found.", ephemeral=True)
+            await self.disable_all(interaction)
+            return
+
+        try:
+            await self.target_user.add_roles(role_to_add)
+            await interaction.response.send_message(f"✅ **Approved by {interaction.user.mention}**. The `{self.role_name}` role has been added to {self.target_user.mention}.")
+            await self.disable_all(interaction)
+        except discord.Forbidden:
+            await interaction.response.send_message("❌ I don't have the necessary permissions to add this role.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"An unexpected error occurred: {e}", ephemeral=True)
+
+    @discord.ui.button(label="Deny", style=discord.ButtonStyle.danger)
+    async def deny_button(self, interaction: discord.Interaction, button: Button):
+        admin_role = discord.utils.get(interaction.guild.roles, id=ADMINISTRATOR_ROLE_ID)
+        if not admin_role or admin_role not in interaction.user.roles:
+            await interaction.response.send_message("❌ You don't have permission to deny this request.", ephemeral=True)
+            return
+
+        await interaction.response.send_message(f"❌ **Denied by {interaction.user.mention}**. This ticket will now be closed.")
+        await self.disable_all(interaction)
+        await asyncio.sleep(2) # Give a moment for users to read the message
+        if isinstance(interaction.channel, discord.Thread):
+            await interaction.channel.edit(archived=True, locked=True)
+
 class SupportTicketButton(Button):
     """A custom button that creates a support ticket thread when clicked."""
     def __init__(self, role_name: str, emoji=None):
@@ -781,9 +828,20 @@ class SupportTicketButton(Button):
                 type=discord.ChannelType.private_thread
             )
 
-            # Add the user to the thread and send a welcome message
+            # Add the user to the thread
             await thread.add_user(user)
-            await thread.send(f"Welcome, {user.mention}! A staff member will be with you shortly to discuss the **{self.label}** role.")
+
+            # Ping the administrators and welcome the user in the new thread
+            admin_role_mention = f"<@&{ADMINISTRATOR_ROLE_ID}>"
+            await thread.send(
+                f"{admin_role_mention}, {user.mention} has requested the **{self.label}** role. Please assist them.",
+                allowed_mentions=discord.AllowedMentions(roles=True, users=True)
+            )
+
+            # Send the approval/denial view
+            action_view = SupportTicketActionView(target_user=user, role_name=self.label)
+            await thread.send("Please approve or deny the role request:", view=action_view)
+
 
             # Give feedback to the user who clicked the button
             await interaction.followup.send(f"✅ A support ticket has been created for you in {thread.mention}.", ephemeral=True)
@@ -799,6 +857,7 @@ class SupportRoleView(View):
         super().__init__(timeout=None)
         # Use the new SupportTicketButton instead of the old RoleButton
         self.add_item(SupportTicketButton("Clan Support", emoji="🤝"))
+        self.add_item(SupportTicketButton("Ticket Support", emoji="🎫"))
         self.add_item(SupportTicketButton("Technical/Bot Support", emoji="🤖"))
         self.add_item(SupportTicketButton("Event Support", emoji="🎉"))
 
