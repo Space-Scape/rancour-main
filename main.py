@@ -112,7 +112,7 @@ EVENTS_ROLE_ID = 1298358942887317555
 
 # --- NEW ADMIN PANEL CONFIG ---
 # IMPORTANT: Replace these placeholder IDs with your actual channel and role IDs.
-ADMIN_PANEL_CHANNEL_ID = 123456789012345678  # Channel where the admin panel will be.
+ADMIN_PANEL_CHANNEL_ID = 1422373286368776314  # Channel where the admin panel will be.
 ADMINISTRATOR_ROLE_ID = 1272961765034164318   # Role that can CONFIRM actions.
 SENIOR_STAFF_ROLE_ID = 1336473488159936512    # Role that can CONFIRM actions.
 
