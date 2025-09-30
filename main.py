@@ -697,22 +697,21 @@ class RoleButton(Button):
             await interaction.response.send_message(f"❌ Role '{role_name}' not found.", ephemeral=True)
             return
 
-        if role in interaction.user.roles:
-            await interaction.user.remove_roles(role)
-            feedback_message = f"Role **{role_name}** removed."
-        else:
-            await interaction.user.add_roles(role)
-            feedback_message = f"Role **{role_name}** added."
+        feedback_message = ""
+        try:
+            if role in interaction.user.roles:
+                await interaction.user.remove_roles(role)
+                feedback_message = f"✅ Role **{role_name}** has been removed."
+            else:
+                await interaction.user.add_roles(role)
+                feedback_message = f"✅ Role **{role_name}** has been added."
+            
+            await interaction.response.send_message(feedback_message, ephemeral=True)
 
-        # Send a temporary, visible confirmation in the channel
-        temp_message = await interaction.channel.send(f"{interaction.user.mention}, {feedback_message}")
-        
-        # Acknowledge the interaction ephemerally so there's no "Interaction failed" message
-        await interaction.response.send_message("Your roles have been updated!", ephemeral=True, delete_after=1)
-
-        # Clean up the temporary message after a few seconds
-        await asyncio.sleep(5)
-        await temp_message.delete()
+        except discord.Forbidden:
+            await interaction.response.send_message(f"❌ I don't have permission to manage this role.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ An error occurred: {e}", ephemeral=True)
 
 
 class RaidsView(View):
@@ -2372,7 +2371,13 @@ async def support_panel(interaction: discord.Interaction):
 
     embed = discord.Embed(
         title="🛠️ Staff Support Specialties",
-        description="Clan Staff: Please select your area of specialty. This will help others know who to ping for specific types of help.",
+        description="""Clan Staff: Select your area of specialty to assist members more effectively. This helps route member tickets to the most knowledgeable staff member.
+
+🤝 **Clan Support:** For general inquiries, including recruitment, the coffer, and rank-ups.
+        
+🤖 **Technical/Bot Support:** For reporting issues with the bot, spreadsheets, or server functions. Admins are looped in for code/server changes.
+
+🎓 **Mentor Support:** For staff members who are also official mentors and can assist with PvM/raid-related questions.""",
         color=discord.Color.teal()
     )
     await channel.purge(limit=10) # Clean the channel first
@@ -2421,7 +2426,6 @@ async def on_ready():
     bot.add_view(AdminPanelView())
     bot.add_view(SupportRoleView())
     bot.add_view(RSNPanelView())
-    bot.add_view(TimezoneView(bot.guilds[0] if bot.guilds else None))
 
 
     # Start the RSN writer task
@@ -2502,4 +2506,13 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
+
+
+
+
+
+
+
 
