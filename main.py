@@ -2243,7 +2243,11 @@ async def support_panel(interaction: discord.Interaction):
 
     embed = discord.Embed(
         title="🛠️ Staff Support Specialties",
-        description="Clan Staff: Please select your area of specialty. This will help others know who to ping for specific types of help.",
+        description="""Clan Staff: **Please select your area of specialty.** 
+        This will help others know who to ping for specific types of help.
+        `Please only select these roles if you are confident enough to take them on.` 
+        
+        We may help you with a role you do not know how to do if you are interested.""",
         color=discord.Color.teal()
     )
     await channel.purge(limit=10) # Clean the channel first
