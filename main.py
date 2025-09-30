@@ -112,7 +112,7 @@ EVENTS_ROLE_ID = 1298358942887317555
 
 # --- NEW ADMIN PANEL CONFIG ---
 # IMPORTANT: Replace these placeholder IDs with your actual channel and role IDs.
-ADMIN_PANEL_CHANNEL_ID = 1422373286368776314  # Channel where the admin panel will be.
+ADMIN_PANEL_CHANNEL_ID = 123456789012345678  # Channel where the admin panel will be.
 ADMINISTRATOR_ROLE_ID = 1272961765034164318   # Role that can CONFIRM actions.
 SENIOR_STAFF_ROLE_ID = 1336473488159936512    # Role that can CONFIRM actions.
 
@@ -133,7 +133,7 @@ CST = ZoneInfo("America/Chicago")
 # 🔹 Info Command
 # ---------------------------
 @bot.tree.command(name="info", description="Post general information about the clan.")
-@app_commands.checks.has_any_role("Moderators")
+@app_commands.checks.has_any_role("Administrators")
 async def info(interaction: discord.Interaction):
     """Posts a general information embed for the clan."""
     # Defer the response to give the bot more than 3 seconds to process.
@@ -266,7 +266,7 @@ Requesting pings a user, and Returning locks the buttons.
 # 🔹 Rules Command (Refactored)
 # ---------------------------
 @bot.tree.command(name="rules", description="Post the clan rules message.")
-@app_commands.checks.has_any_role("Moderators")
+@app_commands.checks.has_any_role("Administrators")
 async def rules(interaction: discord.Interaction):
     """Posts a series of embeds detailing the clan rules."""
     await interaction.response.defer(ephemeral=True, thinking=True)
@@ -336,7 +336,7 @@ async def rules(interaction: discord.Interaction):
 # 🔹 Rank Command
 # ---------------------------
 @bot.tree.command(name="rank", description="Post the clan rank requirements.")
-@app_commands.checks.has_any_role("Moderators")
+@app_commands.checks.has_any_role("Administrators")
 async def rank(interaction: discord.Interaction):
     """Posts a series of embeds detailing the clan rank requirements."""
     await interaction.response.defer(ephemeral=True, thinking=True)
@@ -850,7 +850,7 @@ class RSNPanelView(discord.ui.View):
 
 
 @tree.command(name="rsn_panel", description="Open the RSN registration panel.")
-@app_commands.checks.has_any_role("Moderators")
+@app_commands.checks.has_any_role("Administrators")
 async def rsn_panel(interaction: discord.Interaction):
     embed = discord.Embed(
         title="<:1gp:1347684047773499482> Register your RuneScape Name",
@@ -2199,7 +2199,7 @@ class AdminPanelView(View):
         await interaction.response.send_modal(AdminActionModal("ban"))
 
 @bot.tree.command(name="admin_panel", description="Posts the admin panel for moderation actions.")
-@app_commands.checks.has_any_role("Moderators")
+@app_commands.checks.has_any_role("Administrators")
 async def admin_panel(interaction: discord.Interaction):
     channel = bot.get_channel(ADMIN_PANEL_CHANNEL_ID)
     if not channel:
