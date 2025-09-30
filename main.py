@@ -858,11 +858,9 @@ class SupportTicketButton(Button):
             return
 
         user = interaction.user
-        # Format the role name for the thread title (e.g., "Technical/Bot Support" -> "Technical-Bot-Support")
         role_name_formatted = self.label.replace("/", "-").replace(" ", "-")
         thread_name = f"{role_name_formatted}-Role-Request-{user.display_name}"
 
-        # Define the detailed descriptions for each role
         role_descriptions = {
             "Clan Support": "This ticket is for a general clan support role, covering inquiries on recruitment, the coffer, and rank-ups. Staff with this role are the first point of contact for many member questions.",
             "Technical/Bot Support": "This ticket is for the technical support role, focused on reporting issues with the bot, spreadsheets, or other server functions. An Administrator will be looped in for any necessary code or server changes.",
@@ -1545,11 +1543,6 @@ async def send_time_panel(channel: discord.TextChannel):
     )
     await channel.send(embed=embed, view=view)
 
-# This function is no longer needed with the corrected on_ready logic
-# async def send_role_panel(channel: discord.TextChannel):
-#     await channel.purge(limit=10)
-#     await channel.send(":crossed_swords: **Choose your roles:**", view=RolePanelView(channel.guild))
-
 # ---------------------------
 # 🔹 Collat Notifier
 # ---------------------------
@@ -1673,8 +1666,6 @@ def get_all_event_records():
         return []
 
 class AddEventModal(Modal):
-    # Using completely generic, numbered field names as a last resort to bypass
-    # any potential hidden naming conflicts within the discord.py library.
     field1 = TextInput(label="Type of Event")
     field2 = TextInput(label="Event Description", placeholder="e.g., Learner ToB or Barb Assault")
     field3 = TextInput(label="Start Date", placeholder="e.g., 9/29/2025")
@@ -1686,10 +1677,8 @@ class AddEventModal(Modal):
         self.is_international = is_international
         self.cover_image = cover_image
         
-        # Pre-fill the event type from the command
         self.field1.default = event_type_str
 
-        # Conditionally set the date labels and placeholders
         if is_international:
             self.field3.label = "Start Date (D/M/YYYY)"
             self.field3.placeholder = "e.g., 29/9/2025"
@@ -1711,7 +1700,6 @@ class AddEventModal(Modal):
         comments_val = self.field5.value
 
         # --- Date Parsing and Validation ---
-        # Determine the correct date format based on the user's role
         expected_format_str = "%d/%m/%Y" if self.is_international else "%m/%d/%Y"
         
         try:
@@ -2535,11 +2523,11 @@ async def on_ready():
                 title="🛠️ Staff Support Specialties",
                 description="""Clan Staff: Select your area of specialty to assist members more effectively. This helps route member tickets to the most knowledgeable staff member.
 
-🤝 **Clan Support:** For general inquiries, including recruitment, the coffer, and rank-ups.
+🔔 **Clan Support:** For general inquiries, questions, ideas/suggestions, and issues with rank-ups or other problems.
                 
-🤖 **Technical/Bot Support:** For reporting issues with the bot, spreadsheets, or server functions. Admins are looped in for code/server changes.
+🔧 **Technical/Bot Support:** For reporting issues with the bot, spreadsheets, or server functions. Admins are looped in for code/server changes.
 
-🎓 **Mentor Support:** For staff members who are also official mentors and can assist with PvM/raid-related questions.""",
+🎓 **Mentor Support:** For staff members who are also official mentors and can assist with PvM/raid-related questions from Mentors, Mentor Ticket control, and assist with adding new Mentors.""",
                 color=discord.Color.teal()
             )
             await support_channel.purge(limit=10) # Clean the channel first
