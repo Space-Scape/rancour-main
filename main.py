@@ -111,7 +111,7 @@ TOB_ROLE_ID = 1272694636921753701
 EVENTS_ROLE_ID = 1298358942887317555
 
 # --- Justice Panel Config ---
-JUSTICE_PANEL_CHANNEL_ID = 123456789012345678 # Channel where the main panel will be.
+JUSTICE_PANEL_CHANNEL_ID = 1422373286368776314 # Channel where the main panel will be.
 SENIOR_STAFF_CHANNEL_ID = 1336473990302142484  # Channel for approval notifications.
 ADMINISTRATOR_ROLE_ID = 1272961765034164318     # Role that can approve actions.
 SENIOR_STAFF_ROLE_ID = 1336473488159936512     # Role that can approve actions.
