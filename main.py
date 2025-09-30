@@ -2334,6 +2334,28 @@ class ApprovalView(View):
 
         await interaction.response.edit_message(embed=embed, view=None)
 
+@bot.tree.command(name="support_panel", description="Posts the staff support specialty role selector.")
+@app_commands.checks.has_any_role("Administrators")
+async def support_panel(interaction: discord.Interaction):
+    channel = bot.get_channel(SUPPORT_PANEL_CHANNEL_ID)
+    if not channel:
+        await interaction.response.send_message("❌ Support panel channel not found. Please set it in the config.", ephemeral=True)
+        return
+
+    embed = discord.Embed(
+        title="🛠️ Staff Support Specialties",
+        description="""Clan Staff: Select your area of specialty to assist members more effectively. This helps route member tickets to the most knowledgeable staff member.
+
+🔔 **Clan Support:** For general inquiries, questions, ideas/suggestions, and issues with rank-ups or other problems.
+        
+🔧 **Technical/Bot Support:** For reporting issues with the bot, spreadsheets, or server functions. Admins are looped in for code/server changes.
+
+🎓 **Mentor Support:** For staff members who are also official mentors and can assist with PvM/raid-related questions from Mentors, Mentor Ticket control, and assist with adding new Mentors.""",
+        color=discord.Color.teal()
+    )
+    await channel.purge(limit=10) # Clean the channel first
+    await channel.send(embed=embed, view=SupportRoleView())
+    await interaction.response.send_message(f"✅ Support specialty panel posted in {channel.mention}.", ephemeral=True)
 
 class JusticeActionModal(Modal):
     target_user = TextInput(label="User's Name or ID", placeholder="Enter the exact username or user ID.", required=True)
