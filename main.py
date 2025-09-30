@@ -110,6 +110,13 @@ SANG_ROLE_ID = 1387153629072592916
 TOB_ROLE_ID = 1272694636921753701
 EVENTS_ROLE_ID = 1298358942887317555
 
+# --- NEW ADMIN PANEL CONFIG ---
+# IMPORTANT: Replace these placeholder IDs with your actual channel and role IDs.
+ADMIN_PANEL_CHANNEL_ID = 123456789012345678  # Channel where the admin panel will be.
+ADMINISTRATOR_ROLE_ID = 123456789012345678   # Role that can CONFIRM actions.
+SENIOR_STAFF_ROLE_ID = 123456789012345678    # Role that can CONFIRM actions.
+
+
 # Other constants
 REQUIRED_ROLE_NAME = "Event Staff"
 CURRENCY_SYMBOL = " 💰"
@@ -563,6 +570,7 @@ async def help(interaction: discord.Interaction):
         `/sangsignup [variant] [channel]` - Manually posts the Sanguine Sunday signup or reminder message.
         `/addevent` - Opens a modal to add a new event to the clan schedule.
         `/schedule` - Manually posts the daily event schedule.
+        `/admin_panel` - Posts the interactive admin panel for moderation.
         """,
         inline=False
     )
@@ -1564,6 +1572,7 @@ class AddEventModal(Modal):
         if not event_owner:
             event_owner = re.sub(r'^\W+', '', interaction.user.display_name)
         
+        # This list MUST match the spreadsheet structure from Column B to L
         event_data = [
             event_type_value,      # Column B: Type of Event
             description_value,     # Column C: Event Description
@@ -1580,8 +1589,8 @@ class AddEventModal(Modal):
 
         # --- Write to Google Sheet ---
         try:
-            next_row = len(events_sheet.col_values(2)) + 1
-            cell_range = f"B{next_row}:L{next_row}"
+            next_row = len(events_sheet.col_values(2)) + 1 # Check Column B for last row
+            cell_range = f"B{next_row}:L{next_row}" # Range from B to L
             events_sheet.update(cell_range, [event_data], value_input_option='USER_ENTERED')
 
             # --- Create Discord Scheduled Event ---
@@ -2049,6 +2058,163 @@ async def before_scheduled_tasks():
     await bot.wait_until_ready()
 
 # ---------------------------
+# 🔹 Admin Panel
+# ---------------------------
+class ConfirmationView(View):
+    def __init__(self, initiator: discord.Member, target: discord.Member, action: str, reason: str):
+        super().__init__(timeout=3600) # 1 hour timeout for confirmation
+        self.initiator = initiator
+        self.target = target
+        self.action = action
+        self.reason = reason
+        self.confirmed = False
+
+    async def disable_all(self):
+        for item in self.children:
+            item.disabled = True
+        # Make sure to get the original message and edit it
+        original_message = await self.message
+        await original_message.edit(view=self)
+
+    @discord.ui.button(label="Confirm", style=discord.ButtonStyle.success)
+    async def confirm_button(self, interaction: discord.Interaction, button: Button):
+        # --- Security Checks ---
+        if interaction.user.id == self.initiator.id:
+            await interaction.response.send_message("❌ You cannot confirm your own action.", ephemeral=True)
+            return
+
+        confirmer_roles = {role.id for role in interaction.user.roles}
+        if not {ADMINISTRATOR_ROLE_ID, SENIOR_STAFF_ROLE_ID}.intersection(confirmer_roles):
+            await interaction.response.send_message("❌ You do not have the required role (Administrator or Senior Staff) to confirm this action.", ephemeral=True)
+            return
+        
+        # --- Perform Action ---
+        await interaction.response.defer()
+        log_channel = bot.get_channel(LOG_CHANNEL_ID)
+        
+        try:
+            if self.action == "kick":
+                await self.target.kick(reason=f"Action initiated by {self.initiator.name}, confirmed by {interaction.user.name}. Reason: {self.reason}")
+            elif self.action == "ban":
+                await self.target.ban(reason=f"Action initiated by {self.initiator.name}, confirmed by {interaction.user.name}. Reason: {self.reason}")
+            
+            self.confirmed = True
+
+            # --- Update original message ---
+            embed = self.message.embeds[0]
+            embed.title = f"✅ Action Confirmed: {self.action.capitalize()}"
+            embed.color = discord.Color.green()
+            embed.add_field(name="Confirmed By", value=interaction.user.mention, inline=False)
+            await self.message.edit(embed=embed)
+            
+            # --- Send Log Message ---
+            if log_channel:
+                log_embed = discord.Embed(
+                    title=f"Moderation Action: {self.action.capitalize()}",
+                    color=discord.Color.red() if self.action == "ban" else discord.Color.orange(),
+                    timestamp=datetime.now()
+                )
+                log_embed.add_field(name="Target User", value=f"{self.target.name} ({self.target.id})", inline=False)
+                log_embed.add_field(name="Initiated By", value=f"{self.initiator.name} ({self.initiator.id})", inline=True)
+                log_embed.add_field(name="Confirmed By", value=f"{interaction.user.name} ({interaction.user.id})", inline=True)
+                log_embed.add_field(name="Reason", value=self.reason, inline=False)
+                await log_channel.send(embed=log_embed)
+
+        except discord.Forbidden:
+            await interaction.followup.send("❌ I don't have the necessary permissions to perform this action.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"An unexpected error occurred: {e}", ephemeral=True)
+        
+        await self.disable_all()
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger)
+    async def cancel_button(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.defer()
+        embed = self.message.embeds[0]
+        embed.title = f"❌ Action Canceled: {self.action.capitalize()}"
+        embed.color = discord.Color.dark_grey()
+        embed.add_field(name="Canceled By", value=interaction.user.mention, inline=False)
+        await self.message.edit(embed=embed)
+        await self.disable_all()
+
+class AdminActionModal(Modal):
+    target_user = TextInput(label="User's Name or ID", placeholder="Enter the exact username or ID of the user.", required=True)
+    reason = TextInput(label="Reason", style=discord.TextStyle.paragraph, placeholder="Provide a detailed reason for this action.", required=True)
+
+    def __init__(self, action: str):
+        super().__init__(title=f"Initiate User {action.capitalize()}")
+        self.action = action
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
+        target_str = self.target_user.value
+        target = None
+        try:
+            # Try to convert to int to see if it's an ID
+            target_id = int(target_str)
+            target = interaction.guild.get_member(target_id)
+        except ValueError:
+            # It's not an ID, so search by name
+            target = discord.utils.get(interaction.guild.members, name=target_str)
+
+        if not target:
+            await interaction.followup.send(f"❌ Could not find a user with the name or ID: `{target_str}`.", ephemeral=True)
+            return
+
+        # --- Post Confirmation Message ---
+        admin_channel = bot.get_channel(ADMIN_PANEL_CHANNEL_ID)
+        if not admin_channel:
+            await interaction.followup.send("❌ Admin panel channel not found. Please configure the bot.", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title=f"⏳ Confirmation Required: {self.action.capitalize()}",
+            description=f"A senior staff member must confirm this action.",
+            color=discord.Color.yellow()
+        )
+        embed.add_field(name="Target User", value=target.mention, inline=False)
+        embed.add_field(name="Initiated By", value=interaction.user.mention, inline=False)
+        embed.add_field(name="Reason", value=self.reason.value, inline=False)
+        
+        view = ConfirmationView(initiator=interaction.user, target=target, action=self.action, reason=self.reason.value)
+        
+        message = await admin_channel.send(embed=embed, view=view)
+        view.message = message # Give the view a reference to its own message
+
+        await interaction.followup.send(f"✅ Your request to **{self.action} {target.name}** has been posted for confirmation.", ephemeral=True)
+
+class AdminPanelView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Initiate Kick", style=discord.ButtonStyle.secondary, custom_id="initiate_kick", emoji="👢")
+    @app_commands.checks.has_role(STAFF_ROLE_ID)
+    async def initiate_kick(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.send_modal(AdminActionModal("kick"))
+
+    @discord.ui.button(label="Initiate Ban", style=discord.ButtonStyle.danger, custom_id="initiate_ban", emoji="🔨")
+    @app_commands.checks.has_role(STAFF_ROLE_ID)
+    async def initiate_ban(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.send_modal(AdminActionModal("ban"))
+
+@bot.tree.command(name="admin_panel", description="Posts the admin panel for moderation actions.")
+@app_commands.checks.has_any_role("Moderators")
+async def admin_panel(interaction: discord.Interaction):
+    channel = bot.get_channel(ADMIN_PANEL_CHANNEL_ID)
+    if not channel:
+        await interaction.response.send_message("❌ Admin panel channel not found. Please set it in the config.", ephemeral=True)
+        return
+
+    embed = discord.Embed(
+        title="🛡️ Admin Moderation Panel",
+        description="Initiate moderation actions below. All kicks and bans require confirmation from a second, senior staff member.",
+        color=discord.Color.dark_blue()
+    )
+    await channel.send(embed=embed, view=AdminPanelView())
+    await interaction.response.send_message(f"✅ Admin panel posted in {channel.mention}.", ephemeral=True)
+
+# ---------------------------
 # 🔹 Bot Events
 # ---------------------------
 
@@ -2086,6 +2252,9 @@ async def on_message(message: discord.Message):
 async def on_ready():
     print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
     
+    # Add persistent views
+    bot.add_view(AdminPanelView())
+
     # Start the RSN writer task
     asyncio.create_task(rsn_writer())
     
