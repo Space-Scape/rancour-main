@@ -116,8 +116,7 @@ ADMINISTRATOR_ROLE_ID = 1272961765034164318   # Role that can CONFIRM actions.
 SENIOR_STAFF_ROLE_ID = 1336473488159936512    # Role that can CONFIRM actions.
 
 # --- NEW SUPPORT PANEL CONFIG ---
-SUPPORT_PANEL_CHANNEL_ID = 1422397857142542346 # Channel where the support panel will be.
-SUPPORT_TICKET_CHANNEL_ID = 1422397857142542346 # Channel where support tickets are created.
+SUPPORT_PANEL_CHANNEL_ID = 123456789012345678 # Channel where the support panel will be.
 
 
 # Other constants
@@ -586,6 +585,26 @@ async def help(interaction: discord.Interaction):
 # ---------------------------
 # 🔹 Welcome
 # ---------------------------
+class WelcomeView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Approve & Close", style=discord.ButtonStyle.success, custom_id="approve_and_close")
+    async def approve_and_close(self, interaction: discord.Interaction, button: Button):
+        # Permission Check
+        staff_role = discord.utils.get(interaction.guild.roles, id=STAFF_ROLE_ID)
+        if staff_role not in interaction.user.roles:
+            await interaction.response.send_message("❌ You do not have permission to use this button.", ephemeral=True)
+            return
+        
+        if not isinstance(interaction.channel, discord.Thread):
+            await interaction.response.send_message("❌ This button can only be used in a ticket thread.", ephemeral=True)
+            return
+
+        await interaction.response.send_message(f"✅ Ticket approved and closed by {interaction.user.mention}.")
+        
+        # Lock and archive the thread
+        await interaction.channel.edit(locked=True, archived=True)
 
 @bot.tree.command(name="welcome", description="Welcome the ticket creator and give them the Recruit role.")
 async def welcome(interaction: discord.Interaction):
@@ -679,10 +698,10 @@ async def welcome(interaction: discord.Interaction):
         inline=False
     )
 
-    await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(embed=embed, view=WelcomeView())
 
 # -----------------------------
-# Role Button & Views
+# Role Button
 # -----------------------------
 
 class RoleButton(Button):
@@ -697,22 +716,23 @@ class RoleButton(Button):
             await interaction.response.send_message(f"❌ Role '{role_name}' not found.", ephemeral=True)
             return
 
-        feedback_message = ""
+        if role in interaction.user.roles:
+            await interaction.user.remove_roles(role)
+            feedback = f"{interaction.user.mention}, role **{role_name}** removed."
+        else:
+            await interaction.user.add_roles(role)
+            feedback = f"{interaction.user.mention}, role **{role_name}** added."
+
+        await interaction.response.send_message(feedback, ephemeral=False)
+        await asyncio.sleep(1)
         try:
-            if role in interaction.user.roles:
-                await interaction.user.remove_roles(role)
-                feedback_message = f"✅ Role **{role_name}** has been removed."
-            else:
-                await interaction.user.add_roles(role)
-                feedback_message = f"✅ Role **{role_name}** has been added."
-            
-            await interaction.response.send_message(feedback_message, ephemeral=True)
+            await interaction.delete_original_response()
+        except Exception:
+            pass
 
-        except discord.Forbidden:
-            await interaction.response.send_message(f"❌ I don't have permission to manage this role.", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"❌ An error occurred: {e}", ephemeral=True)
-
+# -----------------------------
+# Views for each group
+# -----------------------------
 
 class RaidsView(View):
     def __init__(self, guild: discord.Guild):
@@ -755,142 +775,13 @@ class EventsView(View):
         self.add_item(RoleButton("Sanguine Sunday - Learn ToB!", get_emoji("sanguine_sunday")))
         self.add_item(RoleButton("PvP", "💀"))
 
-class SupportTicketActionView(View):
-    """A view with Approve/Deny buttons for a support role ticket."""
-    def __init__(self, target_user: discord.Member, role_name: str):
-        super().__init__(timeout=None)
-        self.target_user = target_user
-        self.role_name = role_name
-
-    async def disable_all(self, interaction: discord.Interaction):
-        for item in self.children:
-            item.disabled = True
-        await interaction.message.edit(view=self)
-
-    @discord.ui.button(label="Approve", style=discord.ButtonStyle.success)
-    async def approve_button(self, interaction: discord.Interaction, button: Button):
-        admin_role = discord.utils.get(interaction.guild.roles, id=ADMINISTRATOR_ROLE_ID)
-        if not admin_role or admin_role not in interaction.user.roles:
-            await interaction.response.send_message("❌ You don't have permission to approve this request.", ephemeral=True)
-            return
-
-        role_to_add = discord.utils.get(interaction.guild.roles, name=self.role_name)
-        if not role_to_add:
-            await interaction.response.send_message(f"❌ Role '{self.role_name}' could not be found.", ephemeral=True)
-            await self.disable_all(interaction)
-            return
-
-        try:
-            await self.target_user.add_roles(role_to_add)
-            
-            embed = discord.Embed(
-                title="✅ Request Approved",
-                color=discord.Color.green(),
-                description=f"The `{self.role_name}` role has been added to {self.target_user.mention}."
-            )
-            embed.set_footer(text=f"Approved by {interaction.user.display_name}")
-            await interaction.response.send_message(embed=embed)
-
-            await self.disable_all(interaction)
-        except discord.Forbidden:
-            await interaction.response.send_message("❌ I don't have the necessary permissions to add this role.", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"An unexpected error occurred: {e}", ephemeral=True)
-
-    @discord.ui.button(label="Deny", style=discord.ButtonStyle.danger)
-    async def deny_button(self, interaction: discord.Interaction, button: Button):
-        admin_role = discord.utils.get(interaction.guild.roles, id=ADMINISTRATOR_ROLE_ID)
-        if not admin_role or admin_role not in interaction.user.roles:
-            await interaction.response.send_message("❌ You don't have permission to deny this request.", ephemeral=True)
-            return
-
-        embed = discord.Embed(
-            title="❌ Request Denied",
-            color=discord.Color.red(),
-            description="This ticket will be closed shortly."
-        )
-        embed.set_footer(text=f"Denied by {interaction.user.display_name}")
-        await interaction.response.send_message(embed=embed)
-
-        await self.disable_all(interaction)
-        await asyncio.sleep(5) # Give a moment for users to read the message
-        if isinstance(interaction.channel, discord.Thread):
-            await interaction.channel.edit(archived=True, locked=True)
-
-class SupportTicketButton(Button):
-    """A custom button that creates a support ticket thread when clicked."""
-    def __init__(self, role_name: str, emoji=None):
-        super().__init__(label=role_name, style=discord.ButtonStyle.secondary, emoji=emoji, custom_id=f"support_ticket_{role_name.replace(' ', '_')}")
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-
-        support_channel = bot.get_channel(SUPPORT_TICKET_CHANNEL_ID)
-        if not support_channel:
-            await interaction.followup.send("❌ Error: Support ticket channel not found. Please notify an admin.", ephemeral=True)
-            return
-
-        user = interaction.user
-        # Format the role name for the thread title (e.g., "Technical/Bot Support" -> "Technical-Bot-Support")
-        role_name_formatted = self.label.replace("/", "-").replace(" ", "-")
-        thread_name = f"{role_name_formatted}-Role-Request-{user.display_name}"
-
-        # Define the detailed descriptions for each role
-        role_descriptions = {
-            "Clan Support": "This ticket is for a general clan support role, covering inquiries on recruitment, the coffer, and rank-ups. Staff with this role are the first point of contact for many member questions.",
-            "Technical/Bot Support": "This ticket is for the technical support role, focused on reporting issues with the bot, spreadsheets, or other server functions. An Administrator will be looped in for any necessary code or server changes.",
-            "Mentor Support": "This ticket is for the mentor support role, which assists with questions related to PvM learning, raid mechanics, and connecting members with mentors."
-        }
-        
-        description = role_descriptions.get(self.label, "A new support role request has been opened.")
-
-
-        try:
-            # Create a private thread for the ticket
-            thread = await support_channel.create_thread(
-                name=thread_name,
-                type=discord.ChannelType.private_thread
-            )
-
-            # Add the user to the thread
-            await thread.add_user(user)
-
-            # Ping the administrators and send a detailed embed
-            admin_role_mention = f"<@&{ADMINISTRATOR_ROLE_ID}>"
-            
-            embed = discord.Embed(
-                title=f"New '{self.label}' Role Request",
-                description=description,
-                color=discord.Color.blue()
-            )
-            embed.add_field(name="Requested By", value=user.mention, inline=False)
-            embed.set_footer(text="Administrators will assist if designated support staff are unavailable.")
-
-            # Send the approval/denial view along with the ping and embed in a single message
-            action_view = SupportTicketActionView(target_user=user, role_name=self.label)
-            await thread.send(
-                content=f"{admin_role_mention}, a new role request has been submitted.",
-                embed=embed,
-                view=action_view,
-                allowed_mentions=discord.AllowedMentions(roles=True, users=True)
-            )
-
-            # Give feedback to the user who clicked the button
-            await interaction.followup.send(f"✅ A support ticket has been created for you in {thread.mention}.", ephemeral=True)
-
-        except discord.Forbidden:
-            await interaction.followup.send("❌ I don't have permission to create threads in the support channel.", ephemeral=True)
-        except Exception as e:
-            print(f"Error creating support thread: {e}")
-            await interaction.followup.send("❌ An unexpected error occurred while creating the ticket.", ephemeral=True)
-
 class SupportRoleView(View):
     def __init__(self):
         super().__init__(timeout=None)
-        # Use the new SupportTicketButton instead of the old RoleButton
-        self.add_item(SupportTicketButton("Clan Support", emoji="🤝"))
-        self.add_item(SupportTicketButton("Technical/Bot Support", emoji="🤖"))
-        self.add_item(SupportTicketButton("Mentor Support", emoji="🎓"))
+        self.add_item(RoleButton("Clan Support", emoji="🤝"))
+        self.add_item(RoleButton("Ticket Support", emoji="🎫"))
+        self.add_item(RoleButton("Technical/Bot Support", emoji="🤖"))
+        self.add_item(RoleButton("Event Support", emoji="🎉"))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         staff_role = discord.utils.get(interaction.guild.roles, id=STAFF_ROLE_ID)
@@ -909,6 +800,8 @@ rsn_write_queue = asyncio.Queue()
 async def rsn_writer():
     """Background worker for writing RSNs to Google Sheets."""
     while True:
+        member: discord.Member
+        rsn_value: str
         member, rsn_value = await rsn_write_queue.get()
         try:
             cell = rsn_sheet.find(str(member.id))
@@ -1519,10 +1412,9 @@ async def send_time_panel(channel: discord.TextChannel):
     )
     await channel.send(embed=embed, view=view)
 
-# This function is no longer needed with the corrected on_ready logic
-# async def send_role_panel(channel: discord.TextChannel):
-#     await channel.purge(limit=10)
-#     await channel.send(":crossed_swords: **Choose your roles:**", view=RolePanelView(channel.guild))
+async def send_role_panel(channel: discord.TextChannel):
+    await channel.purge(limit=10)
+    await channel.send(":crossed_swords: **Choose your roles:**", view=RolePanelView(channel.guild))
 
 # ---------------------------
 # 🔹 Collat Notifier
@@ -2371,13 +2263,7 @@ async def support_panel(interaction: discord.Interaction):
 
     embed = discord.Embed(
         title="🛠️ Staff Support Specialties",
-        description="""Clan Staff: Select your area of specialty to assist members more effectively. This helps route member tickets to the most knowledgeable staff member.
-
-🤝 **Clan Support:** For general inquiries, including recruitment, the coffer, and rank-ups.
-        
-🤖 **Technical/Bot Support:** For reporting issues with the bot, spreadsheets, or server functions. Admins are looped in for code/server changes.
-
-🎓 **Mentor Support:** For staff members who are also official mentors and can assist with PvM/raid-related questions.""",
+        description="Clan Staff: Please select your area of specialty. This will help others know who to ping for specific types of help.",
         color=discord.Color.teal()
     )
     await channel.purge(limit=10) # Clean the channel first
@@ -2425,8 +2311,7 @@ async def on_ready():
     # Add persistent views
     bot.add_view(AdminPanelView())
     bot.add_view(SupportRoleView())
-    bot.add_view(RSNPanelView())
-
+    bot.add_view(WelcomeView())
 
     # Start the RSN writer task
     asyncio.create_task(rsn_writer())
@@ -2448,53 +2333,32 @@ async def on_ready():
         print("✅ Started daily event schedule task.")
 
     # Panel initializations
-    rsn_channel_id = 1280532494139002912
-    rsn_channel = bot.get_channel(rsn_channel_id)
+    rsn_channel = bot.get_channel(1280532494139002912)
     if rsn_channel:
-        # Check if the panel is already there to avoid spamming on reconnects
-        found = False
-        async for msg in rsn_channel.history(limit=5):
-            if msg.author == bot.user and msg.components:
-                found = True
-                break
-        if not found:
-            await rsn_channel.purge(limit=10)
-            await send_rsn_panel(rsn_channel)
+        await send_rsn_panel(rsn_channel)
 
-    time_channel_id = 1398775387139342386
-    time_channel = bot.get_channel(time_channel_id)
+    time_channel = bot.get_channel(1398775387139342386)
     if time_channel:
-        found = False
-        async for msg in time_channel.history(limit=5):
-            if msg.author == bot.user and msg.embeds:
-                found = True
-                break
-        if not found:
-            await send_time_panel(time_channel)
+        await send_time_panel(time_channel)
 
-    role_channel_id = 1272648586198519818
-    role_channel = bot.get_channel(role_channel_id)
+    role_channel = bot.get_channel(1272648586198519818)
     if role_channel:
         guild = role_channel.guild
         
-        # Check if panels exist before re-posting
-        history = [msg async for msg in role_channel.history(limit=10)]
-        bot_messages_in_history = [m for m in history if m.author == bot.user]
-        
-        if len(bot_messages_in_history) < 4: # If not all 4 parts are there
-            for msg in bot_messages_in_history:
+        async for msg in role_channel.history(limit=100):
+            if msg.author == bot.user:
                 await msg.delete()
-            
-            await role_channel.send("Select your roles below:")
-            
-            raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="", color=0x00ff00)
-            await role_channel.send(embed=raid_embed, view=RaidsView(guild))
-            
-            boss_embed = discord.Embed(title="⚔︎ 𝔊𝔯𝔬𝔲p 𝔅𝔬𝔰𝔰𝔢𝔰 ⚔︎", description="", color=0x0000ff)
-            await role_channel.send(embed=boss_embed, view=BossesView(guild))
-            
-            events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢n𝔱𝔰 ⚔︎", description="", color=0xffff00)
-            await role_channel.send(embed=events_embed, view=EventsView(guild))
+        
+        await role_channel.send("Select your roles below:")
+        
+        raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="", color=0x00ff00)
+        await role_channel.send(embed=raid_embed, view=RaidsView(guild))
+        
+        boss_embed = discord.Embed(title="⚔︎ 𝔊𝔯𝔬𝔲p 𝔅𝔬𝔰𝔰𝔢𝔰 ⚔︎", description="", color=0x0000ff)
+        await role_channel.send(embed=boss_embed, view=BossesView(guild))
+        
+        events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢𝔫𝔱𝔰 ⚔︎", description="", color=0xffff00)
+        await role_channel.send(embed=events_embed, view=EventsView(guild))
         
     try:
         synced = await bot.tree.sync()
@@ -2506,13 +2370,4 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
-
-
-
-
-
-
-
-
 
