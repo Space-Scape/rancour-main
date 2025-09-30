@@ -799,7 +799,6 @@ class SupportRoleView(View):
         super().__init__(timeout=None)
         # Use the new SupportTicketButton instead of the old RoleButton
         self.add_item(SupportTicketButton("Clan Support", emoji="🤝"))
-        self.add_item(SupportTicketButton("Ticket Support", emoji="🎫"))
         self.add_item(SupportTicketButton("Technical/Bot Support", emoji="🤖"))
         self.add_item(SupportTicketButton("Event Support", emoji="🎉"))
 
