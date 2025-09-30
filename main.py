@@ -913,9 +913,8 @@ class SupportTicketButton(Button):
 class SupportRoleView(View):
     def __init__(self):
         super().__init__(timeout=None)
-        # Use the new SupportTicketButton instead of the old RoleButton
-        self.add_item(SupportTicketButton("Clan Support", emoji="🤝"))
-        self.add_item(SupportTicketButton("Technical/Bot Support", emoji="🤖"))
+        self.add_item(SupportTicketButton("Clan Support", emoji="🔔"))
+        self.add_item(SupportTicketButton("Technical/Bot Support", emoji="🔧"))
         self.add_item(SupportTicketButton("Mentor Support", emoji="🎓"))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -2399,11 +2398,11 @@ async def support_panel(interaction: discord.Interaction):
         title="🛠️ Staff Support Specialties",
         description="""Clan Staff: Select your area of specialty to assist members more effectively. This helps route member tickets to the most knowledgeable staff member.
 
-🤝 **Clan Support:** For general inquiries, including recruitment, the coffer, and rank-ups.
+🔔 **Clan Support:** For general inquiries, questions, ideas/suggestions, and issues with rank-ups or other problems.
         
-🤖 **Technical/Bot Support:** For reporting issues with the bot, spreadsheets, or server functions. Admins are looped in for code/server changes.
+🔧 **Technical/Bot Support:** For reporting issues with the bot, spreadsheets, or server functions. Admins are looped in for code/server changes.
 
-🎓 **Mentor Support:** For staff members who are also official mentors and can assist with PvM/raid-related questions.""",
+🎓 **Mentor Support:** For staff members who are also official mentors and can assist with PvM/raid-related questions from Mentors, Mentor Ticket control, and assist with adding new Mentors.""",
         color=discord.Color.teal()
     )
     await channel.purge(limit=10) # Clean the channel first
