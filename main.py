@@ -116,7 +116,7 @@ ADMINISTRATOR_ROLE_ID = 1272961765034164318   # Role that can CONFIRM actions.
 SENIOR_STAFF_ROLE_ID = 1336473488159936512    # Role that can CONFIRM actions.
 
 # --- NEW SUPPORT PANEL CONFIG ---
-SUPPORT_PANEL_CHANNEL_ID = 123456789012345678 # Channel where the support panel will be.
+SUPPORT_PANEL_CHANNEL_ID = 1422397857142542346 # Channel where the support panel will be.
 
 
 # Other constants
