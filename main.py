@@ -526,64 +526,101 @@ async def say(interaction: discord.Interaction, message: str):
 # 🔹 Help Command
 # ---------------------------
 
-@bot.tree.command(name="help", description="Shows a list of all available commands and what they do.")
-async def help(interaction: discord.Interaction):
-    """Displays a comprehensive help message with all bot commands."""
-    await interaction.response.defer(ephemeral=True, thinking=True)
+@bot.tree.command(name="welcome", description="Welcome the ticket creator and give them the Recruit role.")
+async def welcome(interaction: discord.Interaction):
+    await interaction.response.defer()
+
+    if not isinstance(interaction.channel, discord.Thread):
+        await interaction.followup.send(
+            "⚠️ This command must be used inside a ticket thread.", ephemeral=True
+        )
+        return
+
+    ticket_creator = None
+    async for message in interaction.channel.history(limit=20, oldest_first=True):
+        if message.author.bot and message.author.name.lower().startswith("tickets"):
+            for mention in message.mentions:
+                if not mention.bot:
+                    ticket_creator = mention
+                    break
+            if ticket_creator:
+                break
+
+    if not ticket_creator:
+        await interaction.followup.send(
+            "⚠️ Could not detect who opened this ticket.", ephemeral=True
+        )
+        return
+
+    guild = interaction.guild
+    roles_to_assign = ["Recruit", "Member", "Boss of the Week", "Skill of the Week", "Events"]
+    missing_roles = []
+
+    for role_name in roles_to_assign:
+        role = discord.utils.get(guild.roles, name=role_name)
+        if role:
+            await ticket_creator.add_roles(role)
+        else:
+            missing_roles.append(role_name)
+
+    if missing_roles:
+        await interaction.followup.send(
+            f"⚠️ Missing roles: {', '.join(missing_roles)}. Please check the server roles.",
+            ephemeral=True
+        )
+        return
 
     embed = discord.Embed(
-        title="🤖 Rancour Bot Help",
-        description="Here is a list of all the commands you can use. Commands marked with 🔒 are for Staff only.",
-        color=discord.Color.blue()
+        title="🎉 Welcome to the Clan! 🎉",
+        description=(
+            f"Happy to have you with us, {ticket_creator.mention}! 🎊\n\n"
+            "📜 Please make sure you visit our [Guidelines]"
+            "(https://discord.com/channels/1272629330115297330/1420752491515215872) "
+            "to ensure you're aware of the rules.\n\n"
+            "**💡 Self-Role Assign**\n"
+            "[Click here](https://discord.com/channels/1272629330115297330/1272648586198519818) — "
+            "Select roles to be pinged for bosses, raids, and other activities, "
+            "including [Sanguine Sunday](https://discord.com/channels/1272629330115297330/1338295765759688767) for Theatre of Blood **learner** runs on Sundays. 🩸\n\n"
+        ),
+        color=discord.Color.blurple()
     )
 
+    embed.add_field(name="💭 General Chat", value="[Say hello!](https://discord.com/channels/1272629330115297330/1272629331524587623)", inline=True)
+    embed.add_field(name="✨ Achievements", value="[Show off your gains](https://discord.com/channels/1272629330115297330/1272629331524587624)", inline=True)
+    embed.add_field(name="💬 Clan Chat", value="[Stay updated](https://discord.com/channels/1272629330115297330/1272875477555482666)", inline=True)
+    embed.add_field(name="🏹 Team Finder", value="[Find PVM teams](https://discord.com/channels/1272629330115297330/1272648555772776529)", inline=True)
+    embed.add_field(name="📢 Events", value="[Check upcoming events](https://discord.com/channels/1272629330115297330/1272646577432825977)", inline=True)
+    embed.add_field(name="⚔️ Rank Up", value="[Request a rank up](https://discord.com/channels/1272629330115297330/1272648472184487937)\n", inline=True)
+    embed.add_field(name=" ", value=" ", inline=True)
+    embed.add_field(name="🎓 Mentor Info", value="", inline=True)
+    embed.add_field(name=" ", value=" ", inline=True)
     embed.add_field(
-        name="👋 General Commands",
-        value="""
-        `/help` - Displays this help message.
-        `/rsn` - Checks your currently registered RuneScape Name.
-        `/submitdrop` - Opens a modal to submit a boss drop for events.
-        """,
+        name=(
+            "<:corporal:1406217420187893771> **Want to learn raids?**\n"
+            "Once you've been here for two weeks and earned your "
+            "<:corporal:1406217420187893771> rank, you can open a mentor ticket "
+            "for guidance on PVM!"
+        ),
+        value="", inline=True
+    )
+    embed.add_field(
+        name=(
+            "<:mentor:1406802212382052412> **Want to mentor others?**\n"
+            "Please open a mentor rank request in <#1272648472184487937>. "
+            "State which raid you’d like to mentor and an admin will reach out to you."
+        ),
+        value="", inline=True
+    )
+    embed.add_field(
+        name="⚠️ Need Help?",
+        value=(
+            "If you encounter any issues, please reach out to Clan Staff or use the "
+            "[Support Ticket channel](https://discord.com/channels/1272629330115297330/1272648498554077304)."
+        ),
         inline=False
     )
 
-    embed.add_field(
-        name="💰 Clan Coffer Commands",
-        value="""
-        `/bank` - Shows the current coffer total and who is holding or owed money.
-        `/deposit` - Opens a modal to deposit money into the clan coffer.
-        `/withdraw` - Opens a modal to withdraw money from the clan coffer.
-        `/holding [amount] [user]` - Sets or adds to the amount of money a user is holding.
-        `/owed [amount] [user]` - Sets the amount of money a user is owed.
-        `/clear_owed [user]` - Clears the owed amount for a specific user.
-        `/clear_holding [user]` - Clears the holding amount for a specific user.
-        """,
-        inline=False
-    )
-
-    embed.add_field(
-        name="🔒 Staff Commands",
-        value="""
-        `/info` - Posts the detailed clan information embeds in the current channel.
-        `/rules` - Posts the clan rules embeds in the current channel.
-        `/rank` - Posts the rank requirement embeds in the current channel.
-        `/say [message]` - Makes the bot send the specified message in the current channel.
-        `/welcome` - (Used in ticket threads) Welcomes a new member and assigns default roles.
-        `/rsn_panel` - Posts the interactive RSN registration panel.
-        `/time_panel` - Posts the interactive timezone selection panel.
-        `/sangsignup [variant] [channel]` - Manually posts the Sanguine Sunday signup or reminder message.
-        `/addevent` - Opens a modal to add a new event to the clan schedule.
-        `/schedule` - Manually posts the daily event schedule.
-        `/admin_panel` - Posts the interactive admin panel for moderation.
-        `/support_panel` - Posts the staff support specialty role selector.
-        """,
-        inline=False
-    )
-
-    embed.set_footer(text="Use the commands in the appropriate channels. Contact staff for any issues.")
-
-    await interaction.followup.send(embed=embed, ephemeral=True)
-
+    await interaction.followup.send(embed=embed)
 # ---------------------------
 # 🔹 Welcome
 # ---------------------------
@@ -1666,6 +1703,8 @@ def get_all_event_records():
         return []
 
 class AddEventModal(Modal):
+    # Using completely generic, numbered field names as a last resort to bypass
+    # any potential hidden naming conflicts within the discord.py library.
     field1 = TextInput(label="Type of Event")
     field2 = TextInput(label="Event Description", placeholder="e.g., Learner ToB or Barb Assault")
     field3 = TextInput(label="Start Date", placeholder="e.g., 9/29/2025")
@@ -1677,8 +1716,10 @@ class AddEventModal(Modal):
         self.is_international = is_international
         self.cover_image = cover_image
         
+        # Pre-fill the event type from the command
         self.field1.default = event_type_str
 
+        # Conditionally set the date labels and placeholders
         if is_international:
             self.field3.label = "Start Date (D/M/YYYY)"
             self.field3.placeholder = "e.g., 29/9/2025"
@@ -1700,6 +1741,7 @@ class AddEventModal(Modal):
         comments_val = self.field5.value
 
         # --- Date Parsing and Validation ---
+        # Determine the correct date format based on the user's role
         expected_format_str = "%d/%m/%Y" if self.is_international else "%m/%d/%Y"
         
         try:
@@ -1752,7 +1794,7 @@ class AddEventModal(Modal):
         try:
             next_row = len(events_sheet.col_values(2)) + 1 # Check Column B for last row
             cell_range = f"B{next_row}:L{next_row}" # Range from B to L
-            events_sheet.update(cell_range, [event_data], value_input_option='USER_ENTERED')
+            events_sheet.update(range_name=cell_range, values=[event_data], value_input_option='USER_ENTERED')
 
             # --- Create Discord Scheduled Event ---
             guild = interaction.guild
