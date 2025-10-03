@@ -2517,74 +2517,65 @@ async def on_ready():
     rsn_channel_id = 1280532494139002912
     rsn_channel = bot.get_channel(rsn_channel_id)
     if rsn_channel:
-        # Check if the panel is already there to avoid spamming on reconnects
-        found = False
-        async for msg in rsn_channel.history(limit=5):
-            if msg.author == bot.user and msg.components:
-                found = True
-                break
-        if not found:
-            await rsn_channel.purge(limit=10)
-            await send_rsn_panel(rsn_channel)
+        print("🔄 Checking and posting RSN panel...")
+        await send_rsn_panel(rsn_channel)
+        print("✅ RSN panel posted.")
 
     time_channel_id = 1398775387139342386
     time_channel = bot.get_channel(time_channel_id)
     if time_channel:
-        found = False
-        async for msg in time_channel.history(limit=5):
-            if msg.author == bot.user and msg.embeds:
-                found = True
-                break
-        if not found:
-            await send_time_panel(time_channel)
+        print("🔄 Checking and posting Timezone panel...")
+        await send_time_panel(time_channel)
+        print("✅ Timezone panel posted.")
             
     support_channel_id = SUPPORT_PANEL_CHANNEL_ID
     support_channel = bot.get_channel(support_channel_id)
     if support_channel:
-        found = False
-        async for msg in support_channel.history(limit=5):
-            if msg.author == bot.user and msg.embeds and "Staff Support Specialties" in msg.embeds[0].title:
-                found = True
-                break
-        if not found:
-            embed = discord.Embed(
-                title="🛠️ Staff Support Specialties",
-                description="""Clan Staff: Select your area of specialty to assist members more effectively. This helps route member tickets to the most knowledgeable staff member.
+        print("🔄 Checking and posting Support panel...")
+        embed = discord.Embed(
+            title="🛠️ Staff Support Specialties",
+            description="""Clan Staff: Select your area of specialty to assist members more effectively. This helps route member tickets to the most knowledgeable staff member.
 
 🔔 **Clan Support:** For general inquiries, questions, ideas/suggestions, and issues with rank-ups or other problems.
-                
+            
 🔧 **Technical/Bot Support:** For reporting issues with the bot, spreadsheets, or server functions. Admins are looped in for code/server changes.
 
 🎓 **Mentor Support:** For staff members who are also official mentors and can assist with PvM/raid-related questions from Mentors, Mentor Ticket control, and assist with adding new Mentors.""",
-                color=discord.Color.teal()
-            )
-            await support_channel.purge(limit=10) # Clean the channel first
-            await support_channel.send(embed=embed, view=SupportRoleView())
-            print(f"✅ Posted support panel in #{support_channel.name}.")
+            color=discord.Color.teal()
+        )
+        await support_channel.purge(limit=10) # Clean the channel first
+        await support_channel.send(embed=embed, view=SupportRoleView())
+        print(f"✅ Posted support panel in #{support_channel.name}.")
 
     role_channel_id = 1272648586198519818
     role_channel = bot.get_channel(role_channel_id)
     if role_channel:
         guild = role_channel.guild
         
-        # Check if panels exist before re-posting
-        history = [msg async for msg in role_channel.history(limit=10)]
-        bot_messages_in_history = [m for m in history if m.author == bot.user]
-        
-        if len(bot_messages_in_history) < 4: # If not all 4 parts are there
-            for msg in bot_messages_in_history:
+        print("🔄 Purging and reposting role assignment panels...")
+        # A simple purge of bot's own messages is more reliable.
+        async for msg in role_channel.history(limit=100):
+            if msg.author == bot.user:
                 await msg.delete()
-            
-            await role_channel.send("Select your roles below:")
-            
-            raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="", color=0x00ff00)
-            await role_channel.send(embed=raid_embed, view=RaidsView(guild))
-            
-            boss_embed = discord.Embed(title="⚔︎ 𝔊𝔯𝔬𝔲p 𝔅𝔬𝔰𝔰𝔢𝔰 ⚔︎", description="", color=0x0000ff)
-            await role_channel.send(embed=boss_embed, view=BossesView(guild))
-            
-            events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢n𝔱𝔰 ⚔︎", description="", color=0xffff00)
-            await role_channel.send(embed=events_embed, view=EventsView(guild))
+        
+        await role_channel.send("Select your roles below:")
+        
+        raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="", color=0x00ff00)
+        await role_channel.send(embed=raid_embed, view=RaidsView(guild))
+        
+        boss_embed = discord.Embed(title="⚔︎ 𝔊𝔯𝔬𝔲p 𝔅𝔬𝔰𝔰𝔢𝔰 ⚔︎", description="", color=0x0000ff)
+        await role_channel.send(embed=boss_embed, view=BossesView(guild))
+        
+        events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢𝔫𝔱𝔰 ⚔︎", description="", color=0xffff00)
+        await role_channel.send(embed=events_embed, view=EventsView(guild))
+        print("✅ Role assignment panels reposted.")
+
+    # Post initial schedule on startup to ensure it's always present.
+    schedule_channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
+    if schedule_channel:
+        print("🔄 Posting initial event schedule on startup...")
+        await create_and_post_schedule(schedule_channel)
+        print("✅ Initial event schedule posted.")
         
     try:
         synced = await bot.tree.sync()
