@@ -1655,11 +1655,14 @@ def get_all_event_records():
         
         records = []
         for row in data_rows:
-            # Create a dictionary for the current row
-            # Pad row in case it has fewer columns than headers
-            record = {headers[i]: (row[i] if i < len(row) else "") for i in range(len(headers))}
+            record = {}
+            for i, header in enumerate(headers):
+                value = row[i] if i < len(row) else ""
+                # Explicitly handle None to prevent errors downstream
+                record[header] = value if value is not None else ""
+
             # Only add non-empty rows
-            if any(val.strip() for val in record.values()):
+            if any(str(val).strip() for val in record.values()):
                 records.append(record)
         return records
     except Exception as e:
@@ -2592,3 +2595,4 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
