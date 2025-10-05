@@ -233,7 +233,7 @@ async def info(interaction: discord.Interaction):
     # --- More Channels & Bots Embed ---
     more_channels_embed = discord.Embed(
         title="5️⃣ More Channels & Bots",
-        description="""<#1272648340940525648> - For item trades. Post a screenshot and @mention a user to bring up `Request Item` & `Item Returned` buttons.
+        description="""<#1272648340940525648> - For item trades. Post a screenshot and @mention a user to bring up Request Item & Item Returned buttons.
 Requesting pings a user, and Returning locks the buttons.
 
  <#1272875477555482666> - A real-time feed of the in-game clan chat.
@@ -244,7 +244,7 @@ Requesting pings a user, and Returning locks the buttons.
 
  <#1340349468712767538> - Hunt down the weekly bounty pet for a prize!
 
- 🎧 **Music Bots:** Use `/play` in <#1409931256967204945> to queue music with Euphony or MatchBox while in a voice channel.
+ 🎧 **Music Bots:** Use /play in <#1409931256967204945> to queue music with Euphony or MatchBox while in a voice channel.
 
  🔊 **TempVoice Bot:** Create a temporary voice channel in <#1272808271392014336>. Manage your channel's settings (name, limit, waiting room, block others, etc.) in the <#1272808273468325930>. Your settings are saved for next time!""",
         color=discord.Color.from_rgb(239, 194, 194)
@@ -279,7 +279,7 @@ async def rules(interaction: discord.Interaction):
     await asyncio.sleep(0.5)
 
     embed_welcome = discord.Embed(
-        description="""`Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are very simple. Please note that Staff and Mods may issue warnings or ban at their discretion if they feel it is necessary to maintain a positive environment.`
+        description="""Welcome! Before joining the conversations in the clan, please take a moment to review our rules. They are designed to keep the community fun and respectful for everyone, and are very simple. Please note that Staff and Mods may issue warnings or ban at their discretion if they feel it is necessary to maintain a positive environment.
 
         **Discord is a clan requirement**
         We use it for announcements, events, clan discussions, and a wide range of other purposes. We also suggest members **not** mute the <#1272646547020185704> channel.
@@ -320,7 +320,7 @@ async def rules(interaction: discord.Interaction):
         ("Rule 5️⃣ - No Sharing or Using Plug-ins from Unofficial Clients", "Cheat plug-ins or plug-ins aimed at scamming others through downloads are not allowed, both in-game and on a Discord. These plug-ins are often dangerous and can lead to being banned if undeniable proof is given to us."),
         ("Rule 6️⃣ - No Scamming, Luring, or Begging", "Social engineering, scamming, and luring will result in a RuneWatch case and a ban from the clan, whether it happens to people inside or outside of the clan.\nBegging is extremely irritating and will result in a warning."),
         ("Rule 7️⃣ - All Uniques Must Be Split", "Any unique obtained in group content **must be split** unless stated otherwise before the raid and **agreed upon by all members - This includes members joining your raid**.\nYou also need to split loot with your team members (who are in the clan) **even if** you are doing content on an FFA world, in an FFA clan chat, or if you are an Ironman."),
-        ("Rule 8️⃣ - You Must Have Your In-Game Name Set As Your Discord Name", "In order to keep track of clan members during events and reach out to you, you **MUST** have your Discord nickname include your in-game name.\n\n**Acceptable Formats:**\n✅ `- Discord Name / In-Game Name`\n✅ `- Discord Name (In-Game Name)`\n✅ `- In-Game Name Only`\n❌ `- Discord Name Only`\n\n**Enforcement:**\n*We will attempt to replace your name for you, but may reach out if we do not find an in-game match. If you do not reply, you may be mistakenly removed from the Discord.*")
+        ("Rule 8️⃣ - You Must Have Your In-Game Name Set As Your Discord Name", "In order to keep track of clan members during events and reach out to you, you **MUST** have your Discord nickname include your in-game name.\n\n**Acceptable Formats:**\n✅ - Discord Name / In-Game Name\n✅ - Discord Name (In-Game Name)\n✅ - In-Game Name Only\n❌ - Discord Name Only\n\n**Enforcement:**\n*We will attempt to replace your name for you, but may reach out if we do not find an in-game match. If you do not reply, you may be mistakenly removed from the Discord.*")
     ]
 
     rule_colors = [
@@ -539,9 +539,9 @@ async def help(interaction: discord.Interaction):
     embed.add_field(
         name="👋 General Commands",
         value="""
-        `/help` - Displays this help message.
-        `/rsn` - Checks your currently registered RuneScape Name.
-        `/submitdrop` - Opens a modal to submit a boss drop for events.
+        /help - Displays this help message.
+        /rsn - Checks your currently registered RuneScape Name.
+        /submitdrop - Opens a modal to submit a boss drop for events.
         """,
         inline=False
     )
@@ -549,13 +549,13 @@ async def help(interaction: discord.Interaction):
     embed.add_field(
         name="💰 Clan Coffer Commands",
         value="""
-        `/bank` - Shows the current coffer total and who is holding or owed money.
-        `/deposit` - Opens a modal to deposit money into the clan coffer.
-        `/withdraw` - Opens a modal to withdraw money from the clan coffer.
-        `/holding [amount] [user]` - Sets or adds to the amount of money a user is holding.
-        `/owed [amount] [user]` - Sets the amount of money a user is owed.
-        `/clear_owed [user]` - Clears the owed amount for a specific user.
-        `/clear_holding [user]` - Clears the holding amount for a specific user.
+        /bank - Shows the current coffer total and who is holding or owed money.
+        /deposit - Opens a modal to deposit money into the clan coffer.
+        /withdraw - Opens a modal to withdraw money from the clan coffer.
+        /holding [amount] [user] - Sets or adds to the amount of money a user is holding.
+        /owed [amount] [user] - Sets the amount of money a user is owed.
+        /clear_owed [user] - Clears the owed amount for a specific user.
+        /clear_holding [user] - Clears the holding amount for a specific user.
         """,
         inline=False
     )
@@ -563,18 +563,18 @@ async def help(interaction: discord.Interaction):
     embed.add_field(
         name="🔒 Staff Commands",
         value="""
-        `/info` - Posts the detailed clan information embeds in the current channel.
-        `/rules` - Posts the clan rules embeds in the current channel.
-        `/rank` - Posts the rank requirement embeds in the current channel.
-        `/say [message]` - Makes the bot send the specified message in the current channel.
-        `/welcome` - (Used in ticket threads) Welcomes a new member and assigns default roles.
-        `/rsn_panel` - Posts the interactive RSN registration panel.
-        `/time_panel` - Posts the interactive timezone selection panel.
-        `/sangsignup [variant] [channel]` - Manually posts the Sanguine Sunday signup or reminder message.
-        `/addevent` - Opens a modal to add a new event to the clan schedule.
-        `/schedule` - Manually posts the daily event schedule.
-        `/admin_panel` - Posts the interactive admin panel for moderation.
-        `/support_panel` - Posts the staff support specialty role selector.
+        /info - Posts the detailed clan information embeds in the current channel.
+        /rules - Posts the clan rules embeds in the current channel.
+        /rank - Posts the rank requirement embeds in the current channel.
+        /say [message] - Makes the bot send the specified message in the current channel.
+        /welcome - (Used in ticket threads) Welcomes a new member and assigns default roles.
+        /rsn_panel - Posts the interactive RSN registration panel.
+        /time_panel - Posts the interactive timezone selection panel.
+        /sangsignup [variant] [channel] - Manually posts the Sanguine Sunday signup or reminder message.
+        /addevent - Opens a modal to add a new event to the clan schedule.
+        /schedule - Manually posts the daily event schedule.
+        /admin_panel - Posts the interactive admin panel for moderation.
+        /support_panel - Posts the staff support specialty role selector.
         """,
         inline=False
     )
@@ -813,7 +813,7 @@ class SupportTicketActionView(View):
             embed = discord.Embed(
                 title="✅ Request Approved",
                 color=discord.Color.green(),
-                description=f"The `{self.role_name}` role has been granted to {self.target_user.mention}.\nThis thread can now be closed."
+                description=f"The {self.role_name} role has been granted to {self.target_user.mention}.\nThis thread can now be closed."
             )
             embed.set_footer(text=f"Approved by {interaction.user.display_name}")
             
@@ -1001,7 +1001,7 @@ class RSNModal(discord.ui.Modal, title="Register RSN"):
 
         except Exception as e:
             await interaction.followup.send(
-                f"❌ Failed to update RSN: `{e}`",
+                f"❌ Failed to update RSN: {e}",
                 ephemeral=True
             )
 
@@ -1052,7 +1052,7 @@ async def rsn(interaction: discord.Interaction):
         )
     except gspread.exceptions.CellNotFound:
         await interaction.response.send_message(
-            "⚠️ You have not registered an RSN yet. Use `/rsn_panel` to register.",
+            "⚠️ You have not registered an RSN yet. Use /rsn_panel to register.",
             ephemeral=True
         )
 
@@ -1282,7 +1282,7 @@ def get_current_total_and_holders_and_owed():
 
 
 def escape_markdown(text: str) -> str:
-    to_escape = r"\*_~`>|"
+    to_escape = r"\*_~>|"
     return re.sub(f"([{re.escape(to_escape)}])", r"\\\1", text)
 
 
@@ -1766,6 +1766,7 @@ class AddEventModal(Modal):
             event_start_time = datetime.combine(start_date_obj, time(12, 0), tzinfo=CST)
             event_end_time = datetime.combine(end_date_obj, time(13, 0), tzinfo=CST) # Default 1 hour duration
 
+            # FIX: Added required 'privacy_level' parameter.
             await guild.create_scheduled_event(
                 name=description_value,
                 description=comments_val or "Check the events channel for more details!",
@@ -1773,6 +1774,7 @@ class AddEventModal(Modal):
                 end_time=event_end_time,
                 entity_type=discord.EntityType.external,
                 location="In Rancour PVM",
+                privacy_level=discord.PrivacyLevel.guild_only,
                 image=self.cover_image
             )
 
@@ -1886,9 +1888,12 @@ async def create_and_post_schedule(channel: discord.TextChannel):
     }
 
     for event in all_events:
-        owner = event.get("Event Owner", "N/A").strip()
-        event_type = event.get("Type of Event", "").strip()
-        description = event.get("Event Description", "").strip()
+        # FIX: Added defensive checks for None to prevent errors with empty sheet cells.
+        owner = (event.get("Event Owner") or "N/A").strip()
+        event_type = (event.get("Type of Event") or "").strip()
+        description = (event.get("Event Description") or "").strip()
+        comments = (event.get("Comments") or "").strip()
+
 
         # Use a rigid if/elif/else structure with comprehensive, case-insensitive checks.
         if event_type.lower() == "pet roulette":
@@ -1900,8 +1905,8 @@ async def create_and_post_schedule(channel: discord.TextChannel):
         elif event_type.lower() in ["skill of the week", "sotw"] or description.lower().startswith("sotw"):
             weekly_events["SOTW"]["hosts"].add(owner)
             
-        elif event.get("Comments", "").strip().lower() == "helper/co-host":
-            continue # This is just for skipping, it's fine.
+        elif comments.lower() == "helper/co-host":
+            continue
 
         else: # This event is a regular event
             key = (event.get("Start Date"), description)
@@ -2321,7 +2326,7 @@ class ApprovalView(View):
             reason=self.reason
         )
         await interaction.response.send_message(
-            f"⚠️ **Final Warning** ⚠️\nAre you sure you want to **{self.action.upper()}** the user `{self.target.name}`?",
+            f"⚠️ **Final Warning** ⚠️\nAre you sure you want to **{self.action.upper()}** the user {self.target.name}?",
             view=final_view,
             ephemeral=True
         )
@@ -2383,7 +2388,7 @@ class JusticeActionModal(Modal):
             target = discord.utils.get(interaction.guild.members, name=target_str)
 
         if not target:
-            await interaction.followup.send(f"❌ Could not find a user with the name or ID: `{target_str}`.", ephemeral=True)
+            await interaction.followup.send(f"❌ Could not find a user with the name or ID: {target_str}.", ephemeral=True)
             return
 
         # Post Confirmation Message to Senior Staff Channel
@@ -2441,7 +2446,7 @@ async def justice_panel(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🛡️ Justice Panel 🛡️",
         description=(
-            "This panel serves as a server protection system. It allows `Clan Staff` to request the removal of a user, subject to approval.\n\n"
+            "This panel serves as a server protection system. It allows Clan Staff to request the removal of a user, subject to approval.\n\n"
             "**Instructions for Clan Staff:**\n"
             "1. Click **Initiate Kick** or **Initiate Ban**.\n"
             "2. Fill out the user's **exact name or ID** and a **detailed reason**.\n"
