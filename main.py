@@ -1678,10 +1678,9 @@ class AddEventModal(Modal):
     field4 = TextInput(label="End Date (Optional)", placeholder="Leave blank for single-day events", required=False)
     field5 = TextInput(label="Comments (Optional)", style=discord.TextStyle.paragraph, placeholder="e.g., Hosted by X, design by Y", required=False)
 
-    def __init__(self, event_type_str: str, is_international: bool = False, cover_image: Optional[bytes] = None):
+    def __init__(self, event_type_str: str, is_international: bool = False):
         super().__init__(title=f"Create New '{event_type_str}' Event")
         self.is_international = is_international
-        self.cover_image = cover_image
         
         # Pre-fill the event type from the command
         self.field1.default = event_type_str
@@ -1763,24 +1762,6 @@ class AddEventModal(Modal):
             cell_range = f"B{next_row}:L{next_row}" # Range from B to L
             events_sheet.update(range_name=cell_range, values=[event_data], value_input_option='USER_ENTERED')
 
-            # --- Create Discord Scheduled Event ---
-            guild = interaction.guild
-            # Set a default start time (e.g., 12:00 PM CST) and combine with date
-            event_start_time = datetime.combine(start_date_obj, time(12, 0), tzinfo=CST)
-            event_end_time = datetime.combine(end_date_obj, time(13, 0), tzinfo=CST) # Default 1 hour duration
-
-            # FIX: Added required 'privacy_level' parameter.
-            await guild.create_scheduled_event(
-                name=description_value,
-                description=comments_val or "Check the events channel for more details!",
-                start_time=event_start_time,
-                end_time=event_end_time,
-                entity_type=discord.EntityType.external,
-                location="In Rancour PVM",
-                privacy_level=discord.PrivacyLevel.guild_only,
-                image=self.cover_image
-            )
-
             # --- Public Announcement ---
             event_channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
             if event_channel:
@@ -1827,15 +1808,14 @@ class AddEventModal(Modal):
             await interaction.followup.send(embed=confirm_embed, ephemeral=True)
 
         except Exception as e:
-            print(f"Error writing event to sheet or creating Discord event: {e}")
+            print(f"Error writing event to sheet or posting announcement: {e}")
             await interaction.followup.send("❌ An error occurred while saving the event. Please check logs.", ephemeral=True)
 
 
 @bot.tree.command(name="addevent", description="Add a new event to the clan schedule.")
 @app_commands.checks.has_role(STAFF_ROLE_ID)
 @app_commands.describe(
-    event_type="The type of event you want to create.",
-    image="Optional cover image for the Discord event."
+    event_type="The type of event you want to create."
 )
 @app_commands.choices(event_type=[
     app_commands.Choice(name="BOTW", value="BOTW"),
@@ -1851,15 +1831,13 @@ class AddEventModal(Modal):
     app_commands.Choice(name="Hide and seek", value="Hide and seek"),
     app_commands.Choice(name="Other Event", value="Other Event"),
 ])
-async def addevent(interaction: discord.Interaction, event_type: str, image: Optional[discord.Attachment] = None):
+async def addevent(interaction: discord.Interaction, event_type: str):
     """Opens a modal to add the details for the chosen event type."""
     # Check the user's roles to determine if they use the international date format.
     user_roles = {role.name for role in interaction.user.roles}
     is_international = bool(user_roles.intersection(INTERNATIONAL_TIMEZONES))
-
-    image_bytes = await image.read() if image else None
     
-    await interaction.response.send_modal(AddEventModal(event_type_str=event_type, is_international=is_international, cover_image=image_bytes))
+    await interaction.response.send_modal(AddEventModal(event_type_str=event_type, is_international=is_international))
 
 
 @addevent.error
@@ -1891,21 +1869,21 @@ async def create_and_post_schedule(channel: discord.TextChannel):
     }
 
     for event in all_events:
-        # FIX: Added defensive checks for None to prevent errors with empty sheet cells.
-        owner = (event.get("Event Owner") or "N/A").strip()
-        event_type = (event.get("Type of Event") or "").strip()
-        description = (event.get("Event Description") or "").strip()
-        comments = (event.get("Comments") or "").strip()
+        # FIX: Make variable assignments more robust to handle potential None values from sheet
+        owner = str(event.get("Event Owner") or "N/A").strip()
+        event_type = str(event.get("Type of Event") or "").strip()
+        description = str(event.get("Event Description") or "").strip()
+        comments = str(event.get("Comments") or "").strip()
 
 
         # Use a rigid if/elif/else structure with comprehensive, case-insensitive checks.
         if event_type.lower() == "pet roulette":
             weekly_events["Pet Roulette"]["hosts"].add(owner)
         
-        elif event_type.lower() in ["boss of the week", "botw"] or description.lower().startswith("botw"):
+        elif event_type.lower() in ["boss of the week", "botw"] or (description and description.lower().startswith("botw")):
             weekly_events["BOTW"]["hosts"].add(owner)
 
-        elif event_type.lower() in ["skill of the week", "sotw"] or description.lower().startswith("sotw"):
+        elif event_type.lower() in ["skill of the week", "sotw"] or (description and description.lower().startswith("sotw")):
             weekly_events["SOTW"]["hosts"].add(owner)
             
         elif comments.lower() == "helper/co-host":
