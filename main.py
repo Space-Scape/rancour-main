@@ -11,7 +11,7 @@ from discord import ButtonStyle
 from typing import Optional
 from datetime import datetime, timedelta, timezone, time
 from zoneinfo import ZoneInfo
-from gspread.exceptions import APIError, GSpreadException
+from gspread.exceptions import APIError, GSpreadException, CellNotFound
 
 # ---------------------------
 # 🔹 Google Sheets Setup
@@ -575,6 +575,8 @@ async def help(interaction: discord.Interaction):
         `/schedule` - Manually posts the daily event schedule.
         `/admin_panel` - Posts the interactive admin panel for moderation.
         `/support_panel` - Posts the staff support specialty role selector.
+        `/deleteevent [event_id]` - Deletes an event from the schedule.
+        `/editevent [event_id]` - Edits an existing event.
         """,
         inline=False
     )
@@ -1522,8 +1524,7 @@ async def update_schedule_message(channel: discord.TextChannel):
 
 def get_all_event_records():
     """
-    Custom function to get all event records, accounting for header row at row 4.
-    Replicates gspread.get_all_records functionality for older library versions.
+    Custom function to get all event records, accounting for header row and adding row number.
     """
     try:
         all_values = events_sheet.get_all_values()
@@ -1534,12 +1535,11 @@ def get_all_event_records():
         data_rows = all_values[4:] # Data starts on row 5 (index 4)
         
         records = []
-        for row in data_rows:
-            # Create a dictionary for the current row
-            # Pad row in case it has fewer columns than headers
-            record = {headers[i]: (row[i] if i < len(row) else "") for i in range(len(headers))}
-            # Only add non-empty rows
-            if any(val.strip() for val in record.values()):
+        for i, row in enumerate(data_rows):
+            record = {headers[j]: (row[j] if j < len(row) else "") for j in range(len(headers))}
+            record['row_number'] = i + 5  # Add the actual row number from the sheet
+            
+            if any(val for key, val in record.items() if key != 'row_number'):
                 records.append(record)
         return records
     except Exception as e:
@@ -1547,32 +1547,52 @@ def get_all_event_records():
         return []
 
 class AddEventModal(Modal):
-    # Using completely generic, numbered field names as a last resort to bypass
-    # any potential hidden naming conflicts within the discord.py library.
-    field1 = TextInput(label="Type of Event")
-    field2 = TextInput(label="Event Description", placeholder="e.g., Learner ToB or Barb Assault")
-    field3 = TextInput(label="Start Date", placeholder="e.g., 9/29/2025")
-    field4 = TextInput(label="End Date (Optional)", placeholder="Leave blank for single-day events", required=False)
-    field5 = TextInput(label="Comments (Optional)", style=discord.TextStyle.paragraph, placeholder="e.g., Hosted by X, design by Y", required=False)
-
-    def __init__(self, event_type_str: str, is_international: bool = False, cover_image: Optional[bytes] = None):
-        super().__init__(title=f"Create New '{event_type_str}' Event")
+    def __init__(self, event_type_str: str, is_international: bool = False, cover_image: Optional[bytes] = None, existing_data: Optional[dict] = None):
+        super().__init__(title=f"Create/Edit Event")
         self.is_international = is_international
         self.cover_image = cover_image
+        self.existing_data = existing_data
+
+        # Determine date format strings
+        date_label = "Start Date (D/M/YYYY)" if is_international else "Start Date (M/D/YYYY)"
+        date_placeholder = "e.g., 29/9/2025" if is_international else "e.g., 9/29/2025"
+        end_date_label = "End Date (Optional, D/M/YYYY)" if is_international else "End Date (Optional, M/D/YYYY)"
+
+        # Set default values from existing_data if editing
+        default_type = existing_data.get("Type of Event", event_type_str) if existing_data else event_type_str
+        default_desc = existing_data.get("Event Description", "") if existing_data else ""
+        default_owner = existing_data.get("Event Owner", "") if existing_data else ""
+        default_start = existing_data.get("Start Date", "") if existing_data else ""
+        default_end = existing_data.get("End Date", "") if existing_data else ""
+        default_comments = existing_data.get("Comments", "") if existing_data else ""
         
-        # Pre-fill the event type from the command
-        self.field1.default = event_type_str
+        # If editing, we may need to reformat the date for the user
+        if default_start and is_international:
+            try:
+                default_start = datetime.strptime(default_start, "%m/%d/%Y").strftime("%d/%m/%Y")
+            except ValueError:
+                pass # Keep original if format is wrong
+        if default_end and is_international:
+            try:
+                default_end = datetime.strptime(default_end, "%m/%d/%Y").strftime("%d/%m/%Y")
+            except ValueError:
+                pass
 
-        # Conditionally set the date labels and placeholders
-        if is_international:
-            self.field3.label = "Start Date (D/M/YYYY)"
-            self.field3.placeholder = "e.g., 29/9/2025"
-            self.field4.label = "End Date (Optional, D/M/YYYY)"
-        else:
-            self.field3.label = "Start Date (M/D/YYYY)"
-            self.field3.placeholder = "e.g., 9/29/2025"
-            self.field4.label = "End Date (Optional, M/D/YYYY)"
+        # Create items
+        self.field1 = TextInput(label="Type of Event", default=default_type)
+        self.field2 = TextInput(label="Event Description", placeholder="e.g., Learner ToB", default=default_desc)
+        self.field3 = TextInput(label="Event Owner (Optional)", placeholder="Leave blank to default to you", default=default_owner, required=False)
+        self.field4 = TextInput(label=date_label, placeholder=date_placeholder, default=default_start)
+        self.field5 = TextInput(label=end_date_label, placeholder="Leave blank for single-day events", default=default_end, required=False)
+        self.field6 = TextInput(label="Comments (Optional)", style=discord.TextStyle.paragraph, default=default_comments, required=False)
 
+        # Add items to the modal
+        self.add_item(self.field1)
+        self.add_item(self.field2)
+        self.add_item(self.field3)
+        self.add_item(self.field4)
+        self.add_item(self.field5)
+        self.add_item(self.field6)
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -1580,138 +1600,78 @@ class AddEventModal(Modal):
         # --- Data Gathering ---
         event_type_value = self.field1.value
         description_value = self.field2.value
-        start_date_str = self.field3.value
-        end_date_str = self.field4.value
-        comments_val = self.field5.value
+        owner_value = self.field3.value
+        start_date_str = self.field4.value
+        end_date_str = self.field5.value
+        comments_val = self.field6.value
 
         # --- Date Parsing and Validation ---
-        # Determine the correct date format based on the user's role
         expected_format_str = "%d/%m/%Y" if self.is_international else "%m/%d/%Y"
-        
         try:
             start_date_obj = datetime.strptime(start_date_str, expected_format_str)
-            
-            if end_date_str:
-                end_date_obj = datetime.strptime(end_date_str, expected_format_str)
-            else:
-                end_date_obj = start_date_obj # Default to start date if empty
-
+            end_date_obj = datetime.strptime(end_date_str, expected_format_str) if end_date_str else start_date_obj
         except ValueError:
             error_format = "D/M/YYYY" if self.is_international else "M/D/YYYY"
             await interaction.followup.send(f"❌ **Invalid Date.** Please use the **{error_format}** format.", ephemeral=True)
             return
 
         # --- Data Preparation ---
-        # ALWAYS format the date as M/D/YYYY for the spreadsheet to ensure consistency
         start_date_for_sheet = start_date_obj.strftime("%m/%d/%Y")
         end_date_for_sheet = end_date_obj.strftime("%m/%d/%Y")
 
-        event_owner = ""
-        try:
-            cell = rsn_sheet.find(str(interaction.user.id))
-            if cell:
-                event_owner = rsn_sheet.cell(cell.row, 4).value
-        except gspread.exceptions.CellNotFound:
-            pass
-        except Exception as e:
-            print(f"Error looking up RSN for {interaction.user.id}: {e}")
-
+        event_owner = owner_value.strip()
         if not event_owner:
-            event_owner = re.sub(r'^\W+', '', interaction.user.display_name)
-        
-        # This list MUST match the spreadsheet structure from Column B to L
+            try:
+                cell = rsn_sheet.find(str(interaction.user.id))
+                event_owner = rsn_sheet.cell(cell.row, 4).value if cell else re.sub(r'^\W+', '', interaction.user.display_name)
+            except (CellNotFound, Exception):
+                event_owner = re.sub(r'^\W+', '', interaction.user.display_name)
+
         event_data = [
-            event_type_value,      # Column B: Type of Event
-            description_value,     # Column C: Event Description
-            event_owner,           # Column D: Event Owner
-            "",                    # Column E: Owners Discord ID - Placeholder
-            "",                    # Column F: Owners Rank - Placeholder
-            start_date_for_sheet,  # Column G: Start Date
-            end_date_for_sheet,    # Column H: End Date
-            "",                    # Column I: Month - Placeholder
-            "",                    # Column J: Year - Placeholder
-            "",                    # Column K: Duration - Placeholder
-            comments_val or ""     # Column L: Comments
+            event_type_value, description_value, event_owner, "", "",
+            start_date_for_sheet, end_date_for_sheet, "", "", "", comments_val or ""
         ]
 
         # --- Write to Google Sheet ---
         try:
-            next_row = len(events_sheet.col_values(2)) + 1 # Check Column B for last row
-            cell_range = f"B{next_row}:L{next_row}" # Range from B to L
-            events_sheet.update(cell_range, [event_data], value_input_option='USER_ENTERED')
+            if self.existing_data: # This is an edit
+                row_num = self.existing_data['row_number']
+                cell_range = f"B{row_num}:L{row_num}"
+                events_sheet.update(cell_range, [event_data], value_input_option='USER_ENTERED')
+                action_verb = "edited"
+            else: # This is a new event
+                next_row = len(events_sheet.col_values(2)) + 1
+                cell_range = f"B{next_row}:L{next_row}"
+                events_sheet.update(cell_range, [event_data], value_input_option='USER_ENTERED')
+                action_verb = "created"
 
-            # --- Create Discord Scheduled Event ---
-            guild = interaction.guild
-            # Set a default start time (e.g., 12:00 PM CST) and combine with date
-            event_start_time = datetime.combine(start_date_obj, time(12, 0), tzinfo=CST)
-            event_end_time = datetime.combine(end_date_obj, time(13, 0), tzinfo=CST) # Default 1 hour duration
+                # Only create a new Discord event for new submissions
+                guild = interaction.guild
+                event_start_time = datetime.combine(start_date_obj, time(12, 0), tzinfo=CST)
+                event_end_time = datetime.combine(end_date_obj, time(13, 0), tzinfo=CST)
+                await guild.create_scheduled_event(
+                    name=description_value, description=comments_val or "Details in events channel.",
+                    start_time=event_start_time, end_time=event_end_time,
+                    entity_type=discord.EntityType.external, location="In Rancour PVM", image=self.cover_image
+                )
 
-            await guild.create_scheduled_event(
-                name=description_value,
-                description=comments_val or "Check the events channel for more details!",
-                start_time=event_start_time,
-                end_time=event_end_time,
-                entity_type=discord.EntityType.external,
-                location="In Rancour PVM",
-                image=self.cover_image
-            )
-
-            # --- Public Announcement ---
+            # --- Notifications ---
             event_channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
             if event_channel:
-                announce_embed = discord.Embed(
-                    title=f"🗓️ New Event Added: {description_value}",
-                    description=f"A new **{event_type_value}** has been added to the schedule!",
-                    color=discord.Color.blue()
-                )
-                announce_embed.add_field(name="Host", value=event_owner, inline=True)
-                
-                if start_date_for_sheet == end_date_for_sheet:
-                    announce_embed.add_field(name="Date", value=start_date_for_sheet, inline=True)
-                else:
-                    announce_embed.add_field(name="Dates", value=f"{start_date_for_sheet} to {end_date_for_sheet}", inline=True)
-
-                if comments_val:
-                    announce_embed.add_field(name="Details", value=comments_val, inline=False)
-                
-                announce_embed.set_footer(text=f"Event added by {interaction.user.name}")
-                announce_embed.timestamp = datetime.now()
-                await event_channel.send(embed=announce_embed)
-
-                # --- Update the Main Schedule Message ---
                 await update_schedule_message(event_channel)
 
-
-            # --- Confirmation Embed ---
-            confirm_embed = discord.Embed(
-                title="✅ Event Created Successfully!",
-                description="The following event has been added and a notification has been posted.",
-                color=discord.Color.green()
-            )
-            confirm_embed.add_field(name="Type", value=event_type_value, inline=False)
+            confirm_embed = discord.Embed(title=f"✅ Event {action_verb.capitalize()} Successfully!", color=discord.Color.green())
             confirm_embed.add_field(name="Description", value=description_value, inline=False)
-            
-            if start_date_for_sheet == end_date_for_sheet:
-                confirm_embed.add_field(name="Date", value=start_date_for_sheet, inline=False)
-            else:
-                confirm_embed.add_field(name="Dates", value=f"{start_date_for_sheet} to {end_date_for_sheet}", inline=False)
-            
-            if comments_val:
-                confirm_embed.add_field(name="Comments", value=comments_val, inline=False)
-            
             await interaction.followup.send(embed=confirm_embed, ephemeral=True)
 
         except Exception as e:
-            print(f"Error writing event to sheet or creating Discord event: {e}")
-            await interaction.followup.send("❌ An error occurred while saving the event. Please check logs.", ephemeral=True)
+            print(f"Error processing event: {e}")
+            await interaction.followup.send("❌ An error occurred. Please check logs.", ephemeral=True)
 
 
 @bot.tree.command(name="addevent", description="Add a new event to the clan schedule.")
 @app_commands.checks.has_role(STAFF_ROLE_ID)
-@app_commands.describe(
-    event_type="The type of event you want to create.",
-    image="Optional cover image for the Discord event."
-)
+@app_commands.describe(event_type="The type of event.", image="Optional cover image.")
 @app_commands.choices(event_type=[
     app_commands.Choice(name="BOTW", value="BOTW"),
     app_commands.Choice(name="SOTW", value="SOTW"),
@@ -1727,18 +1687,100 @@ class AddEventModal(Modal):
     app_commands.Choice(name="Other Event", value="Other Event"),
 ])
 async def addevent(interaction: discord.Interaction, event_type: str, image: Optional[discord.Attachment] = None):
-    """Opens a modal to add the details for the chosen event type."""
-    # Check the user's roles to determine if they use the international date format.
     user_roles = {role.name for role in interaction.user.roles}
     is_international = bool(user_roles.intersection(INTERNATIONAL_TIMEZONES))
-
     image_bytes = await image.read() if image else None
-    
-    await interaction.response.send_modal(AddEventModal(event_type_str=event_type, is_international=is_international, cover_image=image_bytes))
+    await interaction.response.send_modal(AddEventModal(event_type, is_international, image_bytes))
+
+@bot.tree.command(name="editevent", description="Edit an existing event by its ID (row number).")
+@app_commands.checks.has_role(STAFF_ROLE_ID)
+@app_commands.describe(event_id="The ID (row number) of the event to edit.")
+async def editevent(interaction: discord.Interaction, event_id: int):
+    try:
+        if event_id < 5:
+            await interaction.response.send_message("❌ Invalid event ID. Please enter a valid row number.", ephemeral=True)
+            return
+            
+        row_data = events_sheet.row_values(event_id)
+        if not any(row_data):
+            await interaction.response.send_message(f"❌ No event found at ID `{event_id}`.", ephemeral=True)
+            return
+
+        headers = events_sheet.row_values(4)
+        event_dict = {headers[i]: (row_data[i] if i < len(row_data) else "") for i in range(len(headers))}
+        event_dict['row_number'] = event_id
+
+        user_roles = {role.name for role in interaction.user.roles}
+        is_international = bool(user_roles.intersection(INTERNATIONAL_TIMEZONES))
+        
+        await interaction.response.send_modal(AddEventModal(
+            event_type_str="", is_international=is_international, existing_data=event_dict
+        ))
+    except (IndexError, gspread.exceptions.APIError):
+        await interaction.response.send_message(f"❌ Could not find event with ID `{event_id}`.", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"An error occurred: {e}", ephemeral=True)
+
+class DeleteConfirmationView(View):
+    def __init__(self, event_id: int):
+        super().__init__(timeout=60)
+        self.event_id = event_id
+
+    @discord.ui.button(label="Confirm Delete", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: Button):
+        try:
+            events_sheet.delete_rows(self.event_id)
+            await interaction.response.edit_message(content=f"✅ Event ID `{self.event_id}` has been deleted.", view=None)
+            event_channel = bot.get_channel(EVENT_SCHEDULE_CHANNEL_ID)
+            if event_channel:
+                await update_schedule_message(event_channel)
+        except Exception as e:
+            await interaction.response.edit_message(content=f"❌ An error occurred while deleting: {e}", view=None)
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.edit_message(content="Deletion canceled.", view=None)
+
+@bot.tree.command(name="deleteevent", description="Delete an event by its ID (row number).")
+@app_commands.checks.has_role(STAFF_ROLE_ID)
+@app_commands.describe(event_id="The ID (row number) of the event to delete.")
+async def deleteevent(interaction: discord.Interaction, event_id: int):
+    try:
+        if event_id < 5: # Data starts at row 5
+            await interaction.response.send_message("❌ Invalid event ID. Please enter a valid row number.", ephemeral=True)
+            return
+
+        row_data = events_sheet.row_values(event_id)
+        if not any(row_data):
+            await interaction.response.send_message(f"❌ No event found at ID `{event_id}`.", ephemeral=True)
+            return
+            
+        desc = row_data[1] if len(row_data) > 1 else "N/A"
+        owner = row_data[2] if len(row_data) > 2 else "N/A"
+        start_date = row_data[5] if len(row_data) > 5 else "N/A"
+        
+        embed = discord.Embed(
+            title="⚠️ Confirm Deletion",
+            description=f"Are you sure you want to delete the following event?\n**This action cannot be undone.**",
+            color=discord.Color.red()
+        )
+        embed.add_field(name="ID", value=f"`{event_id}`")
+        embed.add_field(name="Description", value=desc)
+        embed.add_field(name="Host", value=owner)
+        embed.add_field(name="Date", value=start_date)
+
+        await interaction.response.send_message(embed=embed, view=DeleteConfirmationView(event_id), ephemeral=True)
+
+    except (IndexError, gspread.exceptions.APIError):
+         await interaction.response.send_message(f"❌ Could not find event with ID `{event_id}`.", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"An error occurred: {e}", ephemeral=True)
 
 
 @addevent.error
-async def addevent_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+@editevent.error
+@deleteevent.error
+async def event_management_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.MissingRole):
         await interaction.response.send_message("❌ You don't have permission to use this command.", ephemeral=True)
 
@@ -1748,7 +1790,6 @@ async def create_and_post_schedule(channel: discord.TextChannel):
         all_events = get_all_event_records()
     except Exception as e:
         print(f"Could not fetch event records: {e}")
-        await channel.send("⚠️ Could not retrieve event data from the spreadsheet.")
         return
 
     now = datetime.now(CST)
@@ -1756,131 +1797,97 @@ async def create_and_post_schedule(channel: discord.TextChannel):
     start_of_week = today - timedelta(days=(today.weekday() + 1) % 7)
     end_of_week = start_of_week + timedelta(days=6)
 
-    # --- 1. Pre-process and Consolidate Events ---
-    regular_events = {}
-    # Use the preferred shorter names for the keys and types
-    weekly_events = {
-        "BOTW": {"hosts": set(), "type": "BOTW"},
-        "SOTW": {"hosts": set(), "type": "SOTW"},
-        "Pet Roulette": {"hosts": set(), "type": "Pet Roulette"}
-    }
+    daily_events = {start_of_week + timedelta(days=i): [] for i in range(7)}
+    week_long_events = []
 
     for event in all_events:
-        owner = event.get("Event Owner", "N/A").strip()
-        event_type = event.get("Type of Event", "").strip()
-        description = event.get("Event Description", "").strip()
-
-        # Use a rigid if/elif/else structure with comprehensive, case-insensitive checks.
-        if event_type.lower() == "pet roulette":
-            weekly_events["Pet Roulette"]["hosts"].add(owner)
-        
-        elif event_type.lower() in ["boss of the week", "botw"] or description.lower().startswith("botw"):
-            weekly_events["BOTW"]["hosts"].add(owner)
-
-        elif event_type.lower() in ["skill of the week", "sotw"] or description.lower().startswith("sotw"):
-            weekly_events["SOTW"]["hosts"].add(owner)
-            
-        elif event.get("Comments", "").strip().lower() == "helper/co-host":
-            continue # This is just for skipping, it's fine.
-
-        else: # This event is a regular event
-            key = (event.get("Start Date"), description)
-            if key not in regular_events:
-                regular_events[key] = event.copy()
-                regular_events[key]["hosts"] = {owner}
-            else:
-                regular_events[key]["hosts"].add(owner)
-
-    # --- 2. Populate the Weekly Schedule ---
-    events_by_date = {start_of_week + timedelta(days=i): [] for i in range(7)}
-
-    # Add regular, consolidated events to the schedule
-    for event in regular_events.values():
         try:
             start_date_str = event.get("Start Date")
-            if not start_date_str: continue # Skip if no start date
+            if not start_date_str: continue
             
             start_date = datetime.strptime(start_date_str, "%m/%d/%Y").date()
-            
             end_date_str = event.get("End Date")
             end_date = datetime.strptime(end_date_str, "%m/%d/%Y").date() if end_date_str else start_date
 
-            current_date = start_date
-            while current_date <= end_date:
-                if start_of_week <= current_date <= end_of_week:
-                    events_by_date[current_date].append(event)
-                current_date += timedelta(days=1)
+            duration = (end_date - start_date).days
+
+            # Categorize as week-long or daily
+            if duration >= 6:
+                week_long_events.append(event)
+            else:
+                current_date = start_date
+                while current_date <= end_date:
+                    if start_of_week <= current_date <= end_of_week:
+                        daily_events[current_date].append(event)
+                    current_date += timedelta(days=1)
         except (ValueError, TypeError, KeyError):
-            # Safely skip any rows with missing or malformed dates.
-            print(f"Skipping event due to date error: {event.get('Event Description')}")
             continue
-
-    # Add the special weekly events ONLY on Sunday
-    sunday_date = start_of_week
-    for desc, data in weekly_events.items():
-        if data["hosts"]:
-            events_by_date[sunday_date].append({
-                "Event Description": desc,
-                "Type of Event": data["type"],
-                "hosts": data["hosts"]
-            })
-
-    # --- 3. Build the Embed ---
+    
+    # --- Build the Embed ---
     embed = discord.Embed(
         title=f"📅 Weekly Clan Schedule ({start_of_week.strftime('%b %d')} - {end_of_week.strftime('%b %d')})",
         color=discord.Color.gold()
     )
 
-    # Build the main schedule description
-    weekly_lines = ["# Events Schedule"]
+    # --- Week-Long Events Section ---
+    if week_long_events:
+        week_long_lines = []
+        for event in sorted(week_long_events, key=lambda x: x.get("Event Description", "")):
+            host_str = " & ".join(sorted(list(event.get("hosts", {event.get("Event Owner", "N/A")}))))
+            desc = event.get('Event Description', 'N/A')
+            event_id = event.get('row_number', 'N/A')
+            line = f"• `||{event_id}||` **{desc}**・Hosted by {host_str}"
+            week_long_lines.append(line)
+        embed.add_field(name="# Week-Long Events", value="\n".join(week_long_lines), inline=False)
+
+
+    # --- Daily Events Section ---
     for day_index in range(7):
         current_date = start_of_week + timedelta(days=day_index)
         day_name = current_date.strftime("%A")
-        weekly_lines.append(f"\n**{day_name}**")
-
-        day_events = sorted(events_by_date[current_date], key=lambda x: x.get("Event Description", ""))
+        
+        day_events = sorted(daily_events[current_date], key=lambda x: x.get("Event Description", ""))
         
         if not day_events:
-            weekly_lines.append("- No Event Planned.")
-        else:
-            for event in day_events:
-                host_list = sorted(list(event.get("hosts", {"N/A"})))
-                host_str = " & ".join(host_list)
-                
-                event_type_str = event.get('Type of Event', '').strip() or 'Other Event'
-                event_desc_str = event.get('Event Description', '').strip()
+            embed.add_field(name=f"**{day_name}**", value="- No Event Planned.", inline=False)
+            continue
 
-                # Avoid redundancy like "Bingo: Bingo"
-                if event_type_str.lower() == event_desc_str.lower():
-                    line = f"- **{event_type_str}**・Hosted by {host_str}"
-                else:
-                    line = f"- **{event_type_str}**: {event_desc_str}・Hosted by {host_str}"
-                weekly_lines.append(line)
+        day_lines = []
+        for event in day_events:
+            host_str = " & ".join(sorted(list(event.get("hosts", {event.get("Event Owner", "N/A")}))))
+            event_type = event.get('Type of Event', 'Other Event').strip()
+            desc = event.get('Event Description', '').strip()
+            event_id = event.get('row_number', 'N/A')
+            
+            # Format line
+            if event_type.lower() == desc.lower():
+                line = f"• `||{event_id}||` **{event_type}**・Hosted by {host_str}"
+            else:
+                line = f"• `||{event_id}||` **{event_type}**: {desc}・Hosted by {host_str}"
+            day_lines.append(line)
 
-    embed.description = "\n".join(weekly_lines)
+        embed.add_field(name=f"**{day_name}**", value="\n".join(day_lines), inline=False)
 
-    # Build the "Events Today" field
-    todays_events = sorted(events_by_date.get(today, []), key=lambda x: x.get("Event Description", ""))
+
+    # --- Events Today Field ---
+    todays_events = sorted(daily_events.get(today, []), key=lambda x: x.get("Event Description", ""))
     if todays_events:
         today_lines = []
         for event in todays_events:
-            host_list = sorted(list(event.get("hosts", {"N/A"})))
-            host_str = " & ".join(host_list)
-
-            event_type_str = event.get('Type of Event', '').strip() or 'Other Event'
-            event_desc_str = event.get('Event Description', '').strip()
-
-            # Avoid redundancy like "Bingo: Bingo"
-            if event_type_str.lower() == event_desc_str.lower():
-                line = f"- **{event_type_str}**・Hosted by {host_str}"
+            host_str = " & ".join(sorted(list(event.get("hosts", {event.get("Event Owner", "N/A")}))))
+            event_type = event.get('Type of Event', 'Other Event').strip()
+            desc = event.get('Event Description', '').strip()
+            event_id = event.get('row_number', 'N/A')
+            if event_type.lower() == desc.lower():
+                line = f"• `||{event_id}||` **{event_type}**・Hosted by {host_str}"
             else:
-                line = f"- **{event_type_str}**: {event_desc_str}・Hosted by {host_str}"
+                line = f"• `||{event_id}||` **{event_type}**: {desc}・Hosted by {host_str}"
             today_lines.append(line)
-        
         embed.add_field(name="# Events Today #", value="\n".join(today_lines), inline=False)
 
     embed.set_footer(text=f"Last Updated: {now.strftime('%m/%d/%Y %I:%M %p CST')}")
     await channel.send(embed=embed)
+
 
 @bot.tree.command(name="schedule", description="Posts the daily event schedule.")
 @app_commands.checks.has_role(STAFF_ROLE_ID)
@@ -2376,5 +2383,4 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
 
