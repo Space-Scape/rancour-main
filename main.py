@@ -11,7 +11,7 @@ from discord import ButtonStyle
 from typing import Optional
 from datetime import datetime, timedelta, timezone, time
 from zoneinfo import ZoneInfo
-from gspread.exceptions import APIError, GSpreadException, CellNotFound
+from gspread.exceptions import APIError, GSpreadException
 
 # ---------------------------
 # 🔹 Google Sheets Setup
@@ -921,7 +921,7 @@ async def rsn(interaction: discord.Interaction):
             f"✅ Your registered RSN is **{rsn_value}**.",
             ephemeral=True
         )
-    except gspread.exceptions.CellNotFound:
+    except gspread.CellNotFound:
         await interaction.response.send_message(
             "⚠️ You have not registered an RSN yet. Use `/rsn_panel` to register.",
             ephemeral=True
@@ -1624,7 +1624,7 @@ class AddEventModal(Modal):
             try:
                 cell = rsn_sheet.find(str(interaction.user.id))
                 event_owner = rsn_sheet.cell(cell.row, 4).value if cell else re.sub(r'^\W+', '', interaction.user.display_name)
-            except (CellNotFound, Exception):
+            except (gspread.CellNotFound, Exception):
                 event_owner = re.sub(r'^\W+', '', interaction.user.display_name)
 
         event_data = [
@@ -1833,7 +1833,7 @@ async def create_and_post_schedule(channel: discord.TextChannel):
     if week_long_events:
         week_long_lines = []
         for event in sorted(week_long_events, key=lambda x: x.get("Event Description", "")):
-            host_str = " & ".join(sorted(list(event.get("hosts", {event.get("Event Owner", "N/A")}))))
+            host_str = event.get("Event Owner", "N/A")
             desc = event.get('Event Description', 'N/A')
             event_id = event.get('row_number', 'N/A')
             line = f"• `||{event_id}||` **{desc}**・Hosted by {host_str}"
@@ -1854,7 +1854,7 @@ async def create_and_post_schedule(channel: discord.TextChannel):
 
         day_lines = []
         for event in day_events:
-            host_str = " & ".join(sorted(list(event.get("hosts", {event.get("Event Owner", "N/A")}))))
+            host_str = event.get("Event Owner", "N/A")
             event_type = event.get('Type of Event', 'Other Event').strip()
             desc = event.get('Event Description', '').strip()
             event_id = event.get('row_number', 'N/A')
@@ -1874,7 +1874,7 @@ async def create_and_post_schedule(channel: discord.TextChannel):
     if todays_events:
         today_lines = []
         for event in todays_events:
-            host_str = " & ".join(sorted(list(event.get("hosts", {event.get("Event Owner", "N/A")}))))
+            host_str = event.get("Event Owner", "N/A")
             event_type = event.get('Type of Event', 'Other Event').strip()
             desc = event.get('Event Description', '').strip()
             event_id = event.get('row_number', 'N/A')
@@ -2383,4 +2383,5 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
 
