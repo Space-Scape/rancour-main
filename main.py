@@ -656,7 +656,7 @@ async def welcome(interaction: discord.Interaction):
         description=(
             f"Happy to have you with us, {ticket_creator.mention}! 🎊\n\n"
             "📜 Please make sure you visit our [Guidelines]"
-            "(https://discord.com/channels/1272629330115297330/1272629843552501802) "
+            "(https://discord.com/channels/1272629330115297330/1420752491515215872) "
             "to ensure you're aware of the rules.\n\n"
             "**💡 Self-Role Assign**\n"
             "[Click here](https://discord.com/channels/1272629330115297330/1272648586198519818) — "
