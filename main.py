@@ -1673,12 +1673,12 @@ class CollatButtons(discord.ui.View):
         await interaction.response.send_message("Item marked as returned. ✅", ephemeral=True)
         
 # --------------------------------------------------
-# 🔹 Sanguine Sunday Signup System (Final – No Preparation Header)
+# 🔹 Sanguine Sunday Signup System (Header + Emoji Corrected)
 # --------------------------------------------------
 
 SANG_MESSAGE_IDENTIFIER = "Sanguine Sunday Sign Up"
 SANG_MESSAGE = f"""\
-<:sanguine_sunday:1388100187985154130>  # {SANG_MESSAGE_IDENTIFIER} – Hosted by Macflag
+# {SANG_MESSAGE_IDENTIFIER} – Hosted by Macflag <:sanguine_sunday:1388100187985154130>
 
 Looking for a fun Sunday activity? Look no farther than **Sanguine Sunday!**
 Spend an afternoon or evening sending **Theatre of Blood** runs with clan members.
@@ -1688,7 +1688,7 @@ We plan to have mentors on hand to help out with the learners.
 A learner is someone who needs the mechanics explained for each room.
 
 ───────────────────────────────
-## **ToB Learner Resource Hub**
+**ToB Learner Resource Hub**
 
 All Theatre of Blood guides, setups, and related resources are organized here:
 ➤ [**ToB Resource Hub**](https://discord.com/channels/1272629330115297330/1426262876699496598)
@@ -1704,13 +1704,13 @@ No matter if you're a learner or an experienced raider, we strongly encourage yo
 🔵 [**Rancour Meta Setups**](https://discord.com/channels/1272629330115297330/1426272592452391012)
 
 ───────────────────────────────
-## **Sign-Up Reactions**
+**Sign-Up Reactions**
 
 React to this post to indicate your experience level:
 
-⚪ – Learner
-🔵 – Proficient
-🔴 – Mentor
+⚪ – Learner  
+🔵 – Proficient  
+🔴 – Mentor  
 
 Event link: <https://discord.com/events/1272629330115297330/1386302870646816788>
 
@@ -1719,7 +1719,7 @@ Event link: <https://discord.com/events/1272629330115297330/1386302870646816788>
 
 LEARNER_REMINDER_IDENTIFIER = "Sanguine Sunday Learner Reminder"
 LEARNER_REMINDER_MESSAGE = f"""\
-# <:sanguine_sunday:1388100187985154130> {LEARNER_REMINDER_IDENTIFIER} ⏰
+# {LEARNER_REMINDER_IDENTIFIER} ⏰ <:sanguine_sunday:1388100187985154130>
 
 This is a reminder for all learners who signed up for Sanguine Sunday!
 
