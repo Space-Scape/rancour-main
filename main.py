@@ -1676,41 +1676,62 @@ class CollatButtons(discord.ui.View):
 # 🔹 Sanguine Sunday Signup System
 # --------------------------------------------------
 
-# --- Message Content ---
 SANG_MESSAGE_IDENTIFIER = "Sanguine Sunday Sign Up"
-SANG_MESSAGE = "\n".join([
-    f"{SANG_MESSAGE_IDENTIFIER} - Hosted by Macflag",
-    "Looking for a fun Sunday activity? Look no farther than Sanguine Sunday! Spend an afternoon/evening sending TOBs with clan members. The focus on this event is on Learners and general KC.",
-    "",
-    "We plan to have mentors on hand to help out with the learners. Learner is someone who need the mechanics explained for each room.",
-    "",
-    "LEARNERS - please review this thread, watch the xzact guides, and get your plugins setup before Sunday - <#1388887895837773895>",
-    "",
-    "No matter if you're a learner or an experienced raider, we STRONGLY ENCOURAGE you use one of the setups in this thread. We have setups for both learners and experienced (rancour meta setup) - <#1388884558191268070>",
-    "",
-    "If you want to participate, leave a reaction to the post depending on your skill level.",
-    "",
-    "⚪ - Learner",
-    "🔵 - Proficient",
-    "🔴 - Mentor",
-    "",
-    "https://discord.com/events/1272629330115297330/1386302870646816788",
-    "",
-    f"||<@&{MENTOR_ROLE_ID}> <@&{SANG_ROLE_ID}> <@&{TOB_ROLE_ID}>||"
-])
+SANG_MESSAGE = f"""\
+{SANG_MESSAGE_IDENTIFIER} – Hosted by Macflag
 
+Looking for a fun Sunday activity? Look no farther than **Sanguine Sunday!**
+Spend an afternoon or evening sending **Theatre of Blood** runs with clan members.
+The focus on this event is on **Learners** and general KC.
+
+We plan to have mentors on hand to help out with the learners.
+A learner is someone who needs the mechanics explained for each room.
+
+───────────────────────────────
+**ToB Learner Resource Hub**
+All Theatre of Blood guides, setups, and related resources are organized here:
+➤ <https://discord.com/channels/1272629330115297330/1426262876699496598>
+
+Learners should review this hub before the event.
+It includes the same setups and guides listed below.
+
+───────────────────────────────
+**Preparation**
+LEARNERS – please review this thread, watch the xzact guides, and get your plugins set up before Sunday:
+➤ [Guides & Plugins](https://discord.com/channels/1272629330115297330/1388887895837773895)
+
+No matter if you're a learner or an experienced raider, we strongly encourage you to use one of the setups in this thread.
+
+⚪ **Learner Setups:** [Click Here](https://discord.com/channels/1272629330115297330/1426263868950450257)
+🔵 **Rancour Meta Setups:** [Click Here](https://discord.com/channels/1272629330115297330/1426272592452391012)
+
+───────────────────────────────
+**Sign-Up Reactions**
+React to this post to indicate your experience level:
+
+⚪ – Learner
+🔵 – Proficient
+🔴 – Mentor
+
+Event link: <https://discord.com/events/1272629330115297330/1386302870646816788>
+
+||<@&{MENTOR_ROLE_ID}> <@&{SANG_ROLE_ID}> <@&{TOB_ROLE_ID}>||
+"""
 
 LEARNER_REMINDER_IDENTIFIER = "Sanguine Sunday Learner Reminder"
-LEARNER_REMINDER_MESSAGE = "\n".join([
-    f"### {LEARNER_REMINDER_IDENTIFIER} ⏰",
-    "This is a reminder for all learners who signed up for Sanguine Sunday!",
-    "",
-    "Please make sure you have reviewed the following guides and have your gear and plugins ready to go:",
-    "- **Setups:** <#1388884558191268070>",
-    "- **Guides & Plugins:** <#1388887895837773895>",
-    "",
-    "We look forward to seeing you there!"
-])
+LEARNER_REMINDER_MESSAGE = f"""\
+{LEARNER_REMINDER_IDENTIFIER} ⏰
+
+This is a reminder for all learners who signed up for Sanguine Sunday!
+
+Please make sure you have reviewed the following guides and have your gear and plugins ready to go:
+• **ToB Learner Resource Hub:** https://discord.com/channels/1272629330115297330/1426262876699496598
+• **Learner Setups:** https://discord.com/channels/1272629330115297330/1426263868950450257
+• **Rancour Meta Setups:** https://discord.com/channels/1272629330115297330/1426272592452391012
+• **Guides & Plugins:** https://discord.com/channels/1272629330115297330/1388887895837773895
+
+We look forward to seeing you there!
+"""
 
 SIGNUP_REACTIONS = ["⚪", "🔵", "🔴"]
 
