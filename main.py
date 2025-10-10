@@ -536,7 +536,18 @@ async def help(interaction: discord.Interaction):
         """,
         inline=False
     )
-
+   
+    embed.add_field(
+        name="🎉 Events",
+        value="""
+        `/addevent` - Create a new event.\n"
+        `/editevent` - Edit an event by its ID.\n"
+        `/deleteevent` - Delete an event by its ID.\n"
+        `/schedule` - Manually post the weekly schedule.
+        """,
+        inline=False
+    )
+    
     embed.add_field(
         name="💰 Clan Coffer Commands",
         value="""
