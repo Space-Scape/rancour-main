@@ -218,9 +218,11 @@ async def info(interaction: discord.Interaction):
         title="4️⃣ Key Channels & Roles",
         description="""<#1272648586198519818> - assign roles to get pings for bosses, raids, and events.
 
-        <#1272648555772776529> - Looking for a group?
+        <#1272648555772776529> - Looking for a group? Find one here.
 
         <#1272646577432825977> - Check out all upcoming clan events.
+        
+        <#1426183325093203979> - The clan event schedule. Events of the day are posted here as well!
 
         <#1272629331524587624> - Share your drops and level-ups.
 
@@ -238,7 +240,7 @@ Requesting pings a user, and Returning locks the buttons.
 
  <#1272875477555482666> - A real-time feed of the in-game clan chat.
 
- <#1420951302841831587> - A drop leaderboard and clan-wide loot tracker (instructions here: https://discord.com/channels/1272629330115297330/1272646547020185704/1421015420160184381)
+ <#1420951302841831587> and <#1424585001235648624> - A drop leaderboard and clan-wide loot tracker (instructions in <#1424585001235648624>)
 
  <#1400112943475069029> - Discuss bosses, gear, raids, and strategy.
 
