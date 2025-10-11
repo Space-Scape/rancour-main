@@ -457,7 +457,6 @@ For large-scale events, such as bingo or team competitions, winners will be able
         description="""
 ✦ 5 Weeks in the Clan
 ✦ 20+ Pets
-✦ Meets Sergeant Requirements
         """,
         color=discord.Color.from_rgb(180, 45, 45)
     )
@@ -470,7 +469,6 @@ For large-scale events, such as bingo or team competitions, winners will be able
         description="""
 ✦ 5 Weeks in the Clan
 ✦ 1000+ Collection Log Slots
-✦ Meets Sergeant Requirements
         """,
         color=discord.Color.from_rgb(160, 40, 40)
     )
@@ -481,6 +479,7 @@ For large-scale events, such as bingo or team competitions, winners will be able
     maxed_embed = discord.Embed(
         title="Maxed - <:maxed:1426589648141946992>",
         description="""
+✦ 5 Weeks in the Clan
 ✦ 2277 total level
         """,
         color=discord.Color.from_rgb(160, 40, 40)
@@ -492,6 +491,7 @@ For large-scale events, such as bingo or team competitions, winners will be able
     achiever_embed = discord.Embed(
         title="Achiever - <:achiever:1426589654966210571>",
         description="""
+✦ 5 Weeks in the Clan
 ✦ 500+ Collection Log slots
 ✦ 5+ Ornament Kits (shown in log)
 ✦ Music Cape
