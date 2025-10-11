@@ -140,14 +140,11 @@ CST = ZoneInfo("America/Chicago")
 @app_commands.checks.has_any_role("Administrators")
 async def info(interaction: discord.Interaction):
     """Posts a general information embed for the clan."""
-    # Defer the response to give the bot more than 3 seconds to process.
     await interaction.response.defer(ephemeral=True, thinking=True)
 
-    # Sending the initial banner image
     await interaction.channel.send("https://i.postimg.cc/8G3CWSDP/info.png")
     await asyncio.sleep(0.5)
 
-    # --- Main Info Embed ---
     info_embed = discord.Embed(
         title="Rancour PvM - Clan Information",
         description="""We are a social, international PvM clan where community, fairness, transparency, and fun are our top priorities.
@@ -161,44 +158,8 @@ async def info(interaction: discord.Interaction):
     await interaction.channel.send("https://i.postimg.cc/Zn7d5nwq/border.png")
     await asyncio.sleep(0.5)
 
-    # --- What We Offer Embed ---
-    offer_embed = discord.Embed(
-        title="1️⃣ What We Offer",
-        description="""➤ PvM of all levels
-        ➤ Skilling and Bossing Competitions
-        ➤ Raids - and learner friendly raids
-        ➤ Games/Bingos - win huge prizes
-        ➤ Social Events - come and hang out!
-        ➤ ToB Learner Events - hosted by MacFlag
-        ➤ Mentoring - happy to assist""",
-        color=discord.Color.from_rgb(195, 238, 238)
-    )
-    await interaction.channel.send(embed=offer_embed)
-    await asyncio.sleep(0.5)
-
-    # --- Requirements Embed ---
-    requirements_embed = discord.Embed(
-        title="2️⃣ Our Requirements",
-        description="""༒ 115+ Combat
-        ༒ 1700+ Total Level
-        ༒ Medium Combat Achievements
-        ༒ Barrows Gloves
-        ༒ Dragon Defender
-        ༒ Fire Cape
-        ༒ Ava’s Assembler
-        ༒ MA2 Cape
-        ༒ Full Void
-        ༒ Any: Torso/Bandos/Torva/Oathplate
-        ༒ Piety, Thralls
-        ༒ 1/3: BGS/DWH/Elder Maul""",
-        color=discord.Color.from_rgb(206, 227, 227)
-    )
-    await interaction.channel.send(embed=requirements_embed)
-    await asyncio.sleep(0.5)
-
-    # --- Systems Embed ---
     systems_embed = discord.Embed(
-        title="3️⃣ Clan Ticket Systems and Name Changing",
+        title="1️⃣ Clan Ticket Systems and Name Changing",
         description="""<#1272648453264248852> - Welcome!
 
         <#1272648472184487937> - Update your ranks here.
@@ -213,9 +174,8 @@ async def info(interaction: discord.Interaction):
     await interaction.channel.send(embed=systems_embed)
     await asyncio.sleep(0.5)
 
-    # --- Key Channels & Roles Embed ---
     key_channels_embed = discord.Embed(
-        title="4️⃣ Key Channels & Roles",
+        title="2️⃣ Key Channels & Roles",
         description="""<#1272648586198519818> - assign roles to get pings for bosses, raids, and events.
 
         <#1272648555772776529> - Looking for a group? Find one here.
@@ -232,9 +192,8 @@ async def info(interaction: discord.Interaction):
     await interaction.channel.send(embed=key_channels_embed)
     await asyncio.sleep(0.5)
 
-    # --- More Channels & Bots Embed ---
     more_channels_embed = discord.Embed(
-        title="5️⃣ More Channels & Bots",
+        title="3️⃣ More Channels & Bots",
         description="""<#1272648340940525648> - For item trades. Post a screenshot and @mention a user to bring up `Request Item` & `Item Returned` buttons.
 Requesting pings a user, and Returning locks the buttons.
 
@@ -256,7 +215,7 @@ Requesting pings a user, and Returning locks the buttons.
 
     # --- Timezones Embed ---
     timezones_embed = discord.Embed(
-        title="6️⃣ Timezones & Active Hours",
+        title="4️⃣ Timezones & Active Hours",
         description="""Our clan has members from all over the world! We are most active during the EU and NA evenings.
 
         You can select your timezone role in <#1398775387139342386> to get pings for events in your local time.""",
@@ -364,6 +323,7 @@ Bronze Star – Trial Staff <:trialmod:1420745477279846430>
 
 **Special Ranks**
 Mentor - Raid Leaders <:mentor:1406802212382052412>
+
 
 **Other Ranks**
 Guest of the Clan - <:guest:1406225439172722752>
@@ -494,8 +454,11 @@ For large-scale events, such as bingo or team competitions, winners will be able
     # --- Pet Hunter Embed ---
     pet_hunter_embed = discord.Embed(
         title="Pet hunter - <:pethunter:1406225392989114378>",
-        description="""✦ 20+ Pets
-        ✦ Meets Sergeant Requirements""",
+        description="""
+✦ 5 Weeks in the Clan
+✦ 20+ Pets
+✦ Meets Sergeant Requirements
+        """,
         color=discord.Color.from_rgb(180, 45, 45)
     )
     await interaction.channel.send(embed=pet_hunter_embed)
@@ -504,12 +467,44 @@ For large-scale events, such as bingo or team competitions, winners will be able
     # --- Clogger Embed ---
     clogger_embed = discord.Embed(
         title="Clogger - <:clogger:1406233084311113808>",
-        description="""✦ 1000+ Collection Log Slots
-        ✦ Meets Sergeant Requirements""",
+        description="""
+✦ 5 Weeks in the Clan
+✦ 1000+ Collection Log Slots
+✦ Meets Sergeant Requirements
+        """,
         color=discord.Color.from_rgb(160, 40, 40)
     )
     await interaction.channel.send(embed=clogger_embed)
     await asyncio.sleep(0.5)
+
+    # --- Maxed Embed ---
+    maxed_embed = discord.Embed(
+        title="Maxed - <:maxed:1426589648141946992>",
+        description="""
+✦ 2277 total level
+        """,
+        color=discord.Color.from_rgb(160, 40, 40)
+    )
+    await interaction.channel.send(embed=maxed_embed)
+    await asyncio.sleep(0.5)
+
+    # --- Achiever Embed ---
+    achiever_embed = discord.Embed(
+        title="Achiever - <:achiever:1426589654966210571>",
+        description="""
+✦ 500+ Collection Log slots
+✦ 5+ Ornament Kits (shown in log)
+✦ Music Cape
+✦ Achievement Diary Cape
+✦ 1 unique from each raid (CoX, ToB, ToA)
+✦ 5 Pets
+✦ Minor Scroll Case completed for all clue tiers
+        """,
+        color=discord.Color.from_rgb(160, 40, 40)
+    )
+    await interaction.channel.send(embed=achiever_embed)
+    await asyncio.sleep(0.5)
+
 
     await interaction.followup.send("✅ Rank message has been posted.", ephemeral=True)
 
