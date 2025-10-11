@@ -778,7 +778,6 @@ class CloseThreadView(View):
 
     @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, custom_id="close_support_thread")
     async def close_button(self, interaction: discord.Interaction, button: Button):
-        # Allow any staff member or admin to close the ticket
         staff_role = discord.utils.get(interaction.guild.roles, id=STAFF_ROLE_ID)
         admin_role = discord.utils.get(interaction.guild.roles, id=ADMINISTRATOR_ROLE_ID)
         user_roles = interaction.user.roles
@@ -792,7 +791,6 @@ class CloseThreadView(View):
                 await interaction.response.defer()
                 await interaction.channel.edit(archived=True, locked=True)
             except discord.Forbidden:
-                # Use followup if the initial response was deferred
                 await interaction.followup.send("I don't have permission to archive/lock this thread.", ephemeral=True)
         else:
             await interaction.response.send_message("This button can only be used in a thread.", ephemeral=True)
@@ -887,16 +885,13 @@ class SupportTicketButton(Button):
 
 
         try:
-            # Create a private thread for the ticket
             thread = await support_channel.create_thread(
                 name=thread_name,
                 type=discord.ChannelType.private_thread
             )
 
-            # Add the user to the thread
             await thread.add_user(user)
 
-            # Ping the administrators and send a detailed embed
             admin_role_mention = f"<@&{ADMINISTRATOR_ROLE_ID}>"
             
             embed = discord.Embed(
@@ -907,7 +902,6 @@ class SupportTicketButton(Button):
             embed.add_field(name="Requested By", value=user.mention, inline=False)
             embed.set_footer(text="Administrators will assist if designated support staff are unavailable.")
 
-            # Send the approval/denial view along with the ping and embed in a single message
             action_view = SupportTicketActionView(target_user=user, role_name=self.label)
             await thread.send(
                 content=f"{admin_role_mention}, a new role request has been submitted.",
@@ -916,7 +910,6 @@ class SupportTicketButton(Button):
                 allowed_mentions=discord.AllowedMentions(roles=True, users=True)
             )
 
-            # Give feedback to the user who clicked the button
             await interaction.followup.send(f"✅ A support ticket has been created for you in {thread.mention}.", ephemeral=True)
 
         except discord.Forbidden:
@@ -1722,7 +1715,7 @@ Please make sure you have reviewed the following guides and have your gear and p
 • **[ToB Resource Hub](https://discord.com/channels/1272629330115297330/1426262876699496598)**
 • **[Learner Setups](https://discord.com/channels/1272629330115297330/1426263868950450257)**
 • **[Rancour Meta Setups](https://discord.com/channels/1272629330115297330/1426272592452391012)**
-• **[Guides & Plugins](https://discord.com/channels/1272629330115297330/1388887895837773895)**
+• **[Guides & Plugins](https://discord.com/channels/1272629330115297330/1426263621440372768)**
 
 We look forward to seeing you there!
 """
@@ -2088,7 +2081,7 @@ async def justice_panel(interaction: discord.Interaction):
         title="🛡️ Justice Panel 🛡️",
         description=(
             "This panel serves as a server protection system. It allows Clan Staff to request the removal of a user, subject to approval.\n\n"
-            "**Instructions for Clan Staff:**\n"
+            "**Instructions for Trial Staff:**\n"
             "1. Click **Initiate Kick** or **Initiate Ban**.\n"
             "2. Fill out the user's **exact name or ID** and a **detailed reason**.\n"
             "3. A request will be sent to the Senior Staff channel for approval.\n\n"
@@ -2183,7 +2176,6 @@ async def on_ready():
         guild = role_channel.guild
         
         print("🔄 Purging and reposting role assignment panels...")
-        # A simple purge of bot's own messages is more reliable.
         async for msg in role_channel.history(limit=100):
             if msg.author == bot.user:
                 await msg.delete()
