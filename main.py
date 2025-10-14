@@ -587,16 +587,6 @@ class WelcomeView(View):
 
     @discord.ui.button(label="Approve & Close", style=discord.ButtonStyle.success, custom_id="approve_and_close")
     async def approve_and_close(self, interaction: discord.Interaction, button: Button):
-        # Permission Check
-        staff_role = discord.utils.get(interaction.guild.roles, id=STAFF_ROLE_ID)
-        if staff_role not in interaction.user.roles:
-            await interaction.response.send_message("❌ You do not have permission to use this button.", ephemeral=True)
-            return
-        
-        if not isinstance(interaction.channel, discord.Thread):
-            await interaction.response.send_message("❌ This button can only be used in a ticket thread.", ephemeral=True)
-            return
-
         await interaction.response.send_message(f"✅ Ticket approved and closed by {interaction.user.mention}.")
         
         # Lock and archive the thread
