@@ -47,6 +47,80 @@ RSN_SHEET_TAB_NAME = "Tracker"
 rsn_sheet = sheet_client.open_by_key("1ZwJiuVMp-3p8UH0NCVYTV9_UVI26jl5kWu2nvdspl9k").worksheet("Tracker")
 
 
+
+# ---------------------------
+# 🔹 Member Role Timestamp Storage (Google Sheets)
+# ---------------------------
+
+MEMBER_ROLE_SHEET_NAME = "MemberRoleDates"
+
+def _get_member_role_ws():
+    """Return (worksheet, created_bool). Creates the worksheet if missing."""
+    try:
+        ws = sheet_client.open_by_key(sheet_id).worksheet(MEMBER_ROLE_SHEET_NAME)
+        return ws, False
+    except Exception:
+        try:
+            book = sheet_client.open_by_key(sheet_id)
+            ws = book.add_worksheet(title=MEMBER_ROLE_SHEET_NAME, rows=1000, cols=5)
+            ws.update("A1:C1", [["Discord ID", "Recorded At (ISO)", "Display Name"]])
+            return ws, True
+        except Exception as e:
+            print(f"[member-role-ts] Failed to open/create worksheet: {e}")
+            return None, False
+
+def get_member_role_timestamp(member_id: int):
+    """Fetch the ISO timestamp string when the Member role was first recorded for this user."""
+    ws, _ = _get_member_role_ws()
+    if not ws:
+        return None
+    try:
+        cell = ws.find(str(member_id))
+        if cell:
+            iso = ws.cell(cell.row, 2).value
+            return iso
+    except Exception as e:
+        return None
+    return None
+
+def record_member_role_now(member):
+
+# ---------------------------
+# 🔹 Tenure Helpers
+# ---------------------------
+
+def _plural(n, word):
+    return f"{n} {word}{'' if n == 1 else 's'}"
+
+def _floored_age(from_dt: datetime, to_dt: datetime):
+    delta = to_dt - from_dt
+    days = max(int(delta.total_seconds() // 86400), 0)
+    weeks = days // 7
+    return days, weeks
+
+def _member_since_dt(member: discord.Member):
+    iso = get_member_role_timestamp(member.id)
+    if not iso:
+        return None
+    try:
+        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+    """Record current time as when Member role was granted (if not already present)."""
+    ws, _ = _get_member_role_ws()
+    if not ws:
+        return
+    try:
+        exists = get_member_role_timestamp(member.id)
+        if exists:
+            return
+        now_iso = datetime.now(timezone.utc).isoformat()
+        ws.append_row([str(member.id), now_iso, member.display_name])
+    except Exception as e:
+        print(f"[member-role-ts] Failed to record timestamp for {member}: {e}")
+
 # ---------------------------
 # 🔹 Coffer Sheets Setup
 # ---------------------------
@@ -96,6 +170,7 @@ tree = bot.tree
 # ---------------------------
 
 # Channel and Role IDs
+MEMBER_ROLE_ID = 1274062769620258867
 SUBMISSION_CHANNEL_ID = 1391921214909579336
 REVIEW_CHANNEL_ID = 1391921254034047066
 LOG_CHANNEL_ID = 1391921275332722749
@@ -2375,22 +2450,52 @@ async def _autorank_on_ready():
 # 🔸 /time command
 # ===========================
 
-@bot.tree.command(name="time", description="Show how long someone has been in the server (defaults to yourself).")
+@bot.tree.command(name="time", description="Show how long someone has been a Member (defaults to yourself).")
 @app_commands.describe(user="User to check (optional).")
 async def time_cmd(interaction: discord.Interaction, user: Optional[discord.Member] = None):
     member = user or interaction.user
     now = datetime.now(timezone.utc)
-    days, weeks = _membership_age(now, member.joined_at)
+    since = _member_since_dt(member)
+
+    if since is None:
+        join_str = member.joined_at.strftime('%Y-%m-%d') if member.joined_at else 'Unknown'
+        await interaction.response.send_message(
+            f"⚠️ I don't have a recorded time for when {member.mention} received the **Member** role yet.
+"
+            f"_Showing server join date for reference_: **{join_str}**.",
+            ephemeral=True
+        )
+        return
+
+    days, weeks = _floored_age(since, now)
 
     embed = discord.Embed(
-        title="⏱️ Time in Server",
+        title="⏱️ Time as Member",
         color=discord.Color.blurple()
     )
     embed.add_field(name="Member", value=f"{member.mention}", inline=True)
-    embed.add_field(name="Since", value=f"{member.joined_at.strftime('%Y-%m-%d') if member.joined_at else 'Unknown'}", inline=True)
+    embed.add_field(name="Since", value=since.strftime('%Y-%m-%d'), inline=True)
     embed.add_field(name="Duration", value=f"{_plural(weeks, 'week')} ({_plural(days, 'day')})", inline=True)
 
     await interaction.response.send_message(embed=embed, ephemeral=False)
+embed=embed, ephemeral=False)
+
+# ---------------------------
+# 🔹 Member Role Tracker
+# ---------------------------
+
+@bot.listen("on_member_update")
+async def track_member_role(before: discord.Member, after: discord.Member):
+    try:
+        member_role = after.guild.get_role(MEMBER_ROLE_ID)
+        if not member_role:
+            return
+        had = member_role in (before.roles if isinstance(before, discord.Member) else [])
+        has = member_role in (after.roles if isinstance(after, discord.Member) else [])
+        if not had and has:
+            record_member_role_now(after)
+    except Exception as e:
+        print(f"[member-role-ts] on_member_update error: {e}")
 
 # ===========================
 # 🔸 ready
@@ -2463,3 +2568,5 @@ async def on_ready():
 # ---------------------------
 
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
