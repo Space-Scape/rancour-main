@@ -84,7 +84,18 @@ def get_member_role_timestamp(member_id: int):
     return None
 
 def record_member_role_now(member):
-
+    """Record current time as when Member role was granted (if not already present)."""
+    ws, _ = _get_member_role_ws()
+    if not ws:
+        return
+    try:
+        exists = get_member_role_timestamp(member.id)
+        if exists:
+            return
+        now_iso = datetime.now(timezone.utc).isoformat()
+        ws.append_row([str(member.id), now_iso, member.display_name])
+    except Exception as e:
+        print(f"[member-role-ts] Failed to record timestamp for {member}: {e}")
 # ---------------------------
 # 🔹 Tenure Helpers
 # ---------------------------
@@ -593,71 +604,11 @@ For large-scale events, such as bingo or team competitions, winners will be able
 async def say(interaction: discord.Interaction, message: str):
     """Makes the bot say something."""
     await interaction.channel.send(message)
-    await interaction.response.send_message("✅ Message sent!", ephemeral=True, delete_after=5)
-
-# ---------------------------
-# 🔹 Help Command
-# ---------------------------
-
-@bot.tree.command(name="help", description="Shows a list of all available commands and what they do.")
-async def help(interaction: discord.Interaction):
-    """Displays a comprehensive help message with all bot commands."""
-    await interaction.response.defer(ephemeral=True, thinking=True)
-
-    embed = discord.Embed(
-        title="🤖 Rancour Bot Help",
-        description="Here is a list of all the commands you can use. Commands marked with 🔒 are for Staff only.",
-        color=discord.Color.blue()
-    )
-
-    embed.add_field(
-        name="👋 General Commands",
-        value="""
-        `/help` - Displays this help message.
-        `/rsn` - Checks your currently registered RuneScape Name.
-        `/submitdrop` - Opens a modal to submit a boss drop for events.
-        """,
-        inline=False
-    )
-
-    embed.add_field(
-        name="💰 Clan Coffer Commands",
-        value="""
-        `/bank` - Shows the current coffer total and who is holding or owed money.
-        `/deposit` - Opens a modal to deposit money into the clan coffer.
-        `/withdraw` - Opens a modal to withdraw money from the clan coffer.
-        `/holding [amount] [user]` - Sets or adds to the amount of money a user is holding.
-        `/owed [amount] [user]` - Sets the amount of money a user is owed.
-        `/clear_owed [user]` - Clears the owed amount for a specific user.
-        `/clear_holding [user]` - Clears the holding amount for a specific user.
-        """,
-        inline=False
-    )
-
-    embed.add_field(
-        name="🔒 Staff Commands",
-        value="""
-        `/info` - Posts the detailed clan information embeds in the current channel.
-        `/rules` - Posts the clan rules embeds in the current channel.
-        `/rank` - Posts the rank requirement embeds in the current channel.
-        `/say [message]` - Makes the bot send the specified message in the current channel.
-        `/welcome` - (Used in ticket threads) Welcomes a new member and assigns default roles.
-        `/rsn_panel` - Posts the interactive RSN registration panel.
-        `/time_panel` - Posts the interactive timezone selection panel.
-        `/sangsignup [variant] [channel]` - Manually posts the Sanguine Sunday signup or reminder message.
-        `/addevent` - Opens a modal to add a new event to the clan schedule.
-        `/schedule` - Manually posts the daily event schedule.
-        `/admin_panel` - Posts the interactive admin panel for moderation.
-        `/support_panel` - Posts the staff support specialty role selector.
-        """,
-        inline=False
-    )
-
-    embed.set_footer(text="Use the commands in the appropriate channels. Contact staff for any issues.")
-
-    await interaction.followup.send(embed=embed, ephemeral=True)
-
-# ---------------------------
+    await interaction.response.send_message(
+            f"⚠️ I don't have a recorded time for when {member.mention} received the **Member** role yet.\n"
+            f"_Showing server join date for reference_: **{join_str}**.",
+            ephemeral=True
+        )# ---------------------------
 # 🔹 Welcome
 # ---------------------------
 
@@ -2368,9 +2319,7 @@ async def on_message(message: discord.Message):
 CORPORAL_ROLE_ID = 1275008914248962048  # Corporal role ID
 RANKUP_CHANNEL_ID = 1428451407794802739  # Channel to post rank-up reminders
 
-def _plural(n, word):
-    return f"{n} {word}{'' if n == 1 else 's'}"
-
+# (deduped) removed duplicate _plural
 def _membership_age(now_utc, joined_at):
     """Return (days, weeks) since joined, floored to whole days/weeks."""
     if joined_at is None:
@@ -2460,8 +2409,7 @@ async def time_cmd(interaction: discord.Interaction, user: Optional[discord.Memb
     if since is None:
         join_str = member.joined_at.strftime('%Y-%m-%d') if member.joined_at else 'Unknown'
         await interaction.response.send_message(
-            f"⚠️ I don't have a recorded time for when {member.mention} received the **Member** role yet.
-"
+            f"⚠️ I don't have a recorded time for when {member.mention} received the **Member** role yet.\n"
             f"_Showing server join date for reference_: **{join_str}**.",
             ephemeral=True
         )
@@ -2478,7 +2426,6 @@ async def time_cmd(interaction: discord.Interaction, user: Optional[discord.Memb
     embed.add_field(name="Duration", value=f"{_plural(weeks, 'week')} ({_plural(days, 'day')})", inline=True)
 
     await interaction.response.send_message(embed=embed, ephemeral=False)
-embed=embed, ephemeral=False)
 
 # ---------------------------
 # 🔹 Member Role Tracker
@@ -2568,5 +2515,3 @@ async def on_ready():
 # ---------------------------
 
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
-
