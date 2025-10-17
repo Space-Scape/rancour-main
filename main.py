@@ -2384,6 +2384,11 @@ async def autorank_corporals():
 
     for guild in bot.guilds:
         corporal = guild.get_role(CORPORAL_ROLE_ID)
+        member_role = guild.get_role(MEMBER_ROLE_ID)
+        member_role_gate = member_role  # back-compat alias to prevent NameError
+        if not corporal or not member_role:
+            continue
+        corporal = guild.get_role(CORPORAL_ROLE_ID)
         if corporal is None:
             print(f"[autorank] CORPORAL_ROLE_ID not found in guild {guild.name}.")
             continue
@@ -2392,19 +2397,21 @@ async def autorank_corporals():
             if member.bot:
                 continue
 
-            days, weeks = _membership_age(now, member.joined_at)
+            since = _member_since_dt(member)
+            if not since:
+                continue
+            days, weeks = _floored_age(since, now)
             if weeks >= 2 and corporal not in member.roles:
                 try:
                     fresh = guild.get_member(member.id) or member
-                    if member_role_gate not in fresh.roles:
+                    if member_role not in fresh.roles or corporal in fresh.roles:
                         continue
-                    await fresh.add_roles(role, reason="Auto-rank after 2 weeks in server")
+                    await fresh.add_roles(corporal, reason="Auto-rank after 2 weeks as Member")
                     await _post_rankup_embed(guild, fresh, days, weeks)
                 except discord.Forbidden:
                     print(f"[autorank] Missing permissions to add role to {member} in {guild.name}.")
                 except Exception as e:
                     print(f"[autorank] Error ranking {member} in {guild.name}: {e}")
-
 @autorank_corporals.before_loop
 async def _before_autorank_loop():
     await bot.wait_until_ready()
@@ -2450,70 +2457,6 @@ async def time_cmd(interaction: discord.Interaction, user: Optional[discord.Memb
     embed.add_field(name="Duration", value=f"{_plural(weeks, 'week')} ({_plural(days, 'day')})", inline=True)
 
     await interaction.response.send_message(embed=embed, ephemeral=False)
-
-# ---------------------------
-# 🔹 /audit_corporal — remove Corporal from users without Member (announces per user)
-# ---------------------------
-@bot.tree.command(name="audit_corporal", description="Remove Corporal from users who don't have Member, announcing each removal.")
-@app_commands.checks.has_permissions(manage_roles=True)
-async def audit_corporal(interaction: discord.Interaction):
-    guild = interaction.guild
-    corporal = guild.get_role(CORPORAL_ROLE_ID)
-    member_role = guild.get_role(MEMBER_ROLE_ID)
-
-    if not guild or not corporal or not member_role:
-        await interaction.response.send_message("Roles missing; check IDs.", ephemeral=True)
-        return
-
-    await interaction.response.defer(ephemeral=True, thinking=True)
-    fixed, failed = 0, 0
-
-    for m in guild.members:
-        if m.bot:
-            continue
-        if corporal in m.roles and member_role not in m.roles:
-            try:
-                await m.remove_roles(corporal, reason="Correction: lacks Member role")
-                fixed += 1
-                lines = [
-                    f"**Nickname:** {m.display_name}",
-                    f"**Discord ID:** `{m.id}`",
-                    f"**Action:** Removed **Corporal** (missing Member role)",
-                ]
-                await _post_rank_action_embed(guild, m, "🛠️ Role Removed: Corporal", lines)
-            except Exception as e:
-                print(f"[audit_corporal] Failed to remove from {m}: {e}")
-                failed += 1
-
-    await interaction.followup.send(f"Audit complete. Removed from {len([1 for _ in range(fixed)])} users (failed: {failed}).", ephemeral=True)
-
-# ---------------------------
-# 🔹 Auto-correction: if Member is removed, also remove Corporal (announce)
-# ---------------------------
-@bot.listen("on_member_update")
-async def _member_role_correction(before: discord.Member, after: discord.Member):
-    try:
-        guild = after.guild
-        member_role = guild.get_role(MEMBER_ROLE_ID)
-        corporal = guild.get_role(CORPORAL_ROLE_ID)
-        if not member_role or not corporal:
-            return
-        had_member = member_role in (before.roles if isinstance(before, discord.Member) else [])
-        has_member = member_role in (after.roles if isinstance(after, discord.Member) else [])
-        # If Member was removed and user still has Corporal -> remove Corporal
-        if had_member and not has_member and corporal in after.roles:
-            try:
-                await after.remove_roles(corporal, reason="Member role removed; auto-correct Corporal")
-                lines = [
-                    f"**Nickname:** {after.display_name}",
-                    f"**Discord ID:** `{after.id}`",
-                    f"**Action:** Removed **Corporal** (Member role removed)",
-                ]
-                await _post_rank_action_embed(guild, after, "🛠️ Role Removed: Corporal", lines)
-            except Exception as e:
-                print(f"[auto-correct] Failed to remove Corporal from {after}: {e}")
-    except Exception as e:
-        print(f"[auto-correct] on_member_update error: {e}")
 
 # ===========================
 # 🔸 ready
@@ -2580,8 +2523,74 @@ async def on_ready():
     except Exception as e:
         print(f"❌ Command sync failed: {e}")
 
+
 # ---------------------------
 # 🔹 Run Bot
 # ---------------------------
+# ---------------------------
+# 🔹 /audit_corporal — remove Corporal from users without Member (announces per user)
+# ---------------------------
+from discord import app_commands
+
+@bot.tree.command(name="audit_corporal", description="Remove Corporal from users who don't have Member, announcing each removal.")
+@app_commands.checks.has_permissions(manage_roles=True)
+async def audit_corporal(interaction: discord.Interaction):
+    guild = interaction.guild
+    corporal = guild.get_role(CORPORAL_ROLE_ID)
+    member_role = guild.get_role(MEMBER_ROLE_ID)
+
+    if not guild or not corporal or not member_role:
+        await interaction.response.send_message("Roles missing; check IDs.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    fixed, failed = 0, 0
+
+    for m in guild.members:
+        if m.bot:
+            continue
+        if corporal in m.roles and member_role not in m.roles:
+            try:
+                await m.remove_roles(corporal, reason="Correction: lacks Member role")
+                fixed += 1
+                lines = [
+                    f"**Nickname:** {m.display_name}",
+                    f"**Discord ID:** `{m.id}`",
+                    f"**Action:** Removed **Corporal** (missing Member role)",
+                ]
+                await _post_rank_action_embed(guild, m, "🛠️ Role Removed: Corporal", lines)
+            except Exception as e:
+                print(f"[audit_corporal] Failed to remove from {m}: {e}")
+                failed += 1
+
+    await interaction.followup.send(f"Audit complete. Removed from {len([1 for _ in range(fixed)])} users (failed: {failed}).", ephemeral=True)
+# ---------------------------
+# 🔹 Auto-correction: if Member is removed, also remove Corporal (announce)
+# ---------------------------
+@bot.listen("on_member_update")
+async def _member_role_correction(before: discord.Member, after: discord.Member):
+    try:
+        guild = after.guild
+        member_role = guild.get_role(MEMBER_ROLE_ID)
+        corporal = guild.get_role(CORPORAL_ROLE_ID)
+        if not member_role or not corporal:
+            return
+        had_member = member_role in (before.roles if isinstance(before, discord.Member) else [])
+        has_member = member_role in (after.roles if isinstance(after, discord.Member) else [])
+        # If Member was removed and user still has Corporal -> remove Corporal
+        if had_member and not has_member and corporal in after.roles:
+            try:
+                await after.remove_roles(corporal, reason="Member role removed; auto-correct Corporal")
+                lines = [
+                    f"**Nickname:** {after.display_name}",
+                    f"**Discord ID:** `{after.id}`",
+                    f"**Action:** Removed **Corporal** (Member role removed)",
+                ]
+                await _post_rank_action_embed(guild, after, "🛠️ Role Removed: Corporal", lines)
+            except Exception as e:
+                print(f"[auto-correct] Failed to remove Corporal from {after}: {e}")
+    except Exception as e:
+        print(f"[auto-correct] on_member_update error: {e}")
+
 
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
