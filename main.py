@@ -1432,10 +1432,10 @@ async def holding(
         )
 
 
-@bot.tree.command(name="owed", description="Set a user's owed amount (defaults to yourself)")
+@bot.tree.command(name="owed", description="Add to a user's owed amount (defaults to yourself)")
 @app_commands.describe(
-    user="User to set owed amount for (default yourself)",
-    amount="Amount owed (e.g. 20m)"
+    user="User to add owed amount for (default yourself)",
+    amount="Amount to add (e.g. 20m)"
 )
 async def owed(
     interaction: discord.Interaction,
@@ -1454,17 +1454,21 @@ async def owed(
         )
         return
 
+    _, _, owed_map = get_current_total_and_holders_and_owed()
+    current_total = owed_map.get(name, 0)
+
     if amt > 0:
         log_coffer_entry(name, amt, "owed", 0)
-        formatted_amount = format_million(amt)
+        new_total = current_total + amt
         await interaction.response.send_message(
-            f"{CUSTOM_EMOJI} {name} is now owed {formatted_amount}.",
+            f"{CUSTOM_EMOJI} Added {format_million(amt)} to **{name}**'s owed. "
+            f"New total: **{format_million(new_total)}**.",
             ephemeral=False
         )
     else:
         log_coffer_entry(name, 0, "owed", 0)
         await interaction.response.send_message(
-            f"{CUSTOM_EMOJI} {name} is no longer owed any money.",
+            f"{CUSTOM_EMOJI} Cleared owed amount for **{name}**.",
             ephemeral=False
         )
 
