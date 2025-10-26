@@ -6,12 +6,13 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 import asyncio
 import re
-from discord import ui
-from discord import ui, ButtonStyle
-from discord.ui import View, Button, Modal, TextInput
+from discord import ui, ButtonStyle # <-- Added ButtonStyle here
+from discord.ui import View, Button, Modal, TextInput # This import fixes 'View', 'Button', etc. not defined
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta, timezone, time as dt_time
+from datetime import datetime, timedelta, timezone, time as dt_time # <-- Aliased dt_time
 from zoneinfo import ZoneInfo
+# --- UPDATED IMPORT ---
+from gspread.exceptions import APIError, GSpreadException, CellNotFound, WorksheetNotFound
 
 # ---------------------------
 # 🔹 Google Sheets Setup
@@ -117,6 +118,9 @@ tree = bot.tree
 # ---------------------------
 # 🔹 Main Configuration
 # ---------------------------
+
+# --- ADDED GUILD_ID ---
+GUILD_ID = 1272629330115297330 # <-- Added for on_ready view registration
 
 # Channel and Role IDs
 SUBMISSION_CHANNEL_ID = 1391921214909579336
@@ -1484,7 +1488,7 @@ We look forward to seeing you there!
 
 class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
     roles_known = TextInput(
-        label="What roles do you know? (Leave blank for None)",
+        label="Roles known? (Leave blank if None)", # <-- Shortened Label
         placeholder="e.g., All, Nfrz, Sfrz, Mdps, Rdps",
         style=discord.TextStyle.short,
         max_length=100,
