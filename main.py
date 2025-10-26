@@ -6,13 +6,11 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 import asyncio
 import re
-from discord import ui # This import fixes 'ui' not defined
-from discord.ui import View, Button, Modal, TextInput # This import fixes 'View', 'Button', etc. not defined
+from discord import ui
+from discord.ui import View, Button, Modal, TextInput
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta, timezone, time as dt_time # <-- Aliased dt_time
+from datetime import datetime, timedelta, timezone, time as dt_time
 from zoneinfo import ZoneInfo
-# --- UPDATED IMPORT ---
-from gspread.exceptions import APIError, GSpreadException, CellNotFound, WorksheetNotFound
 
 # ---------------------------
 # 🔹 Google Sheets Setup
