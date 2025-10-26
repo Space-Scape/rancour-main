@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone, time as dt_time # <-- Aliase
 from zoneinfo import ZoneInfo
 # --- Corrected gspread exception import ---
 import gspread.exceptions
+import math  # <-- Added for team sizing logic
 
 # ---------------------------
 # 🔹 Google Sheets Setup
@@ -1925,6 +1926,15 @@ class SignupView(View):
             await interaction.response.send_modal(MentorSignupForm(previous_data=previous_data))
 
 # --- Helper Functions ---
+
+PROF_ORDER = {"mentor": 0, "highly proficient": 1, "proficient": 2, "learner": 3, "new": 4}
+
+def prof_rank(p: dict) -> int:
+    return PROF_ORDER.get(p.get("proficiency", "").lower(), 99)
+
+def scythe_icon(p: dict) -> str:
+    return "✅" if p.get("has_scythe") else "❌"
+
 async def find_latest_signup_message(channel: discord.TextChannel) -> Optional[discord.Message]:
     """Finds the most recent Sanguine Sunday signup message in a channel."""
     async for message in channel.history(limit=100):
@@ -2146,184 +2156,140 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: Optional[di
         await interaction.followup.send(f"⚠️ None of the users in {voice_channel.mention} have signed up for the event.")
         return
 
-    # --- 4. Matchmaking Logic ---
-    teams = []
-    used_ids = set()
+    
+# --- 4. Matchmaking Logic (mentor-first, prefer teams of 5) ---
+guild = interaction.guild
 
-    # --- 4a. Create player pools ---
-    mentors_scythe = [r for r in available_raiders if r['proficiency'] == 'mentor' and r['has_scythe']]
-    mentors_no_scythe = [r for r in available_raiders if r['proficiency'] == 'mentor' and not r['has_scythe']]
-    highly_proficient_scythe = [r for r in available_raiders if r['proficiency'] == 'highly proficient' and r['has_scythe']]
-    highly_proficient_no_scythe = [r for r in available_raiders if r['proficiency'] == 'highly proficient' and not r['has_scythe']]
-    proficient_scythe = [r for r in available_raiders if r['proficiency'] == 'proficient' and r['has_scythe']]
-    proficient_no_scythe = [r for r in available_raiders if r['proficiency'] == 'proficient' and not r['has_scythe']]
+# 4a) Sort globally: Mentor → HP → Pro → Learner → New, then scythe, then KC desc
+available_raiders.sort(
+    key=lambda p: (prof_rank(p), not p.get("has_scythe"), -int(p.get("kc", 0)))
+)
 
-    # Combine HP and P pools for easier selection later, but keep HP prioritized by sorting
-    all_proficient_scythe = sorted(highly_proficient_scythe + proficient_scythe, key=lambda x: x['proficiency']=='highly proficient', reverse=True)
-    all_proficient_no_scythe = sorted(highly_proficient_no_scythe + proficient_no_scythe, key=lambda x: x['proficiency']=='highly proficient', reverse=True)
+mentors = [p for p in available_raiders if p["proficiency"] == "mentor"]
+high_pro = [p for p in available_raiders if p["proficiency"] == "highly proficient"]
+pro      = [p for p in available_raiders if p["proficiency"] == "proficient"]
+learners = [p for p in available_raiders if p["proficiency"] == "learner"]
+news     = [p for p in available_raiders if p["proficiency"] == "new"]
 
-    # Sort learners to prioritize range/melee and non-freeze
-    learners = sorted([r for r in available_raiders if r['proficiency'] in ['learner', 'new']],
-                      key=lambda x: (
-                          x['learning_freeze'], # False (non-freeze) comes first
-                          not (x['knows_range'] or x['knows_melee']), # False (knows a role) comes first
-                          x.get('kc', 0) # Then sort by KC
-                      ))
+# prefer 5-man teams; number of teams bounded by mentors (one per team if possible)
+total_players = len(available_raiders)
+ideal_size = 5
+min_teams_by_size = math.ceil(total_players / ideal_size) if total_players else 0
+num_teams = max(1, min(len(mentors) if mentors else min_teams_by_size, min_teams_by_size))
 
-    learners_freeze = [l for l in learners if l['learning_freeze']]
-    learners_normal = [l for l in learners if not l['learning_freeze']]
+# If not enough mentors for the minimum by size, ensure at least 1 team (or as many mentors as we have)
+if len(mentors) < num_teams:
+    num_teams = max(len(mentors), 1)
 
-    # --- 4b. Pass 1: Build Ideal (1M, 1L, 2HP/P) Teams ---
-    # Loop while we have the components for this ideal team
-    while (mentors_scythe or mentors_no_scythe) and (learners_normal or learners_freeze) and (len(all_proficient_scythe) + len(all_proficient_no_scythe) >= 2):
-        team = []
+# Create empty teams and put **one** mentor per team (no double mentor while another team has none)
+teams = [[] for _ in range(num_teams)]
+for i, mtr in enumerate(mentors[:num_teams]):
+    teams[i].append(mtr)
 
-        learner = learners_normal.pop(0) if learners_normal else learners_freeze.pop(0)
-        team.append(learner)
+# Pool of “strong” (HP first, then Pro) for backfilling
+strong = high_pro + pro
 
-        # 2. Add Mentor and Proficient players based on Scythe priority
-        # Goal: 2+ Scythes or 0 Scythes. Avoid 1 Scythe. Prioritize Highly Proficient.
+# 4b) Give each team at least 2 strong players if possible (balance scythes round-robin)
+def pop_with_scythe(prefer_scythe=True):
+    idx = next((i for i, p in enumerate(strong) if p.get("has_scythe")), None) if prefer_scythe else None
+    if idx is None:
+        return strong.pop(0) if strong else None
+    return strong.pop(idx)
 
-        # Try for 2+ Scythes (M-S + P-S + P-S/P-NS, prioritize HP)
-        if mentors_scythe and all_proficient_scythe:
-            team.append(mentors_scythe.pop(0))
-            team.append(all_proficient_scythe.pop(0)) # Add best available proficient w/ scythe
-            if all_proficient_scythe: team.append(all_proficient_scythe.pop(0)) # 3 scythes (prioritizes HP)
-            elif all_proficient_no_scythe: team.append(all_proficient_no_scythe.pop(0)) # 2 scythes (prioritizes HP)
-            else:
-                # Not enough proficient, put players back
-                mentors_scythe.insert(0, team.pop()) # Put mentor back
-                all_proficient_scythe.insert(0, team.pop()) # Put first proficient back
-                # Put learner back into appropriate list
-                if learner['learning_freeze']: learners_freeze.insert(0, team.pop())
-                else: learners_normal.insert(0, team.pop())
-                continue # Try next pass or exit loop
+# First pass: 1 strong per team
+for i in range(num_teams):
+    if not strong:
+        break
+    prefer_s = not any(member.get("has_scythe") for member in teams[i])
+    pick = pop_with_scythe(prefer_s)
+    if pick:
+        teams[i].append(pick)
 
-        # Try for 0 Scythes (M-NS + P-NS + P-NS, prioritize HP)
-        elif mentors_no_scythe and len(all_proficient_no_scythe) >= 2:
-            team.append(mentors_no_scythe.pop(0))
-            team.append(all_proficient_no_scythe.pop(0)) # Add best non-scythe
-            team.append(all_proficient_no_scythe.pop(0)) # Add second best non-scythe
+# Second pass: try to get each team to 2 strong
+for i in range(num_teams):
+    if not strong:
+        break
+    prefer_s = not any(member.get("has_scythe") for member in teams[i])
+    pick = pop_with_scythe(prefer_s)
+    if pick:
+        teams[i].append(pick)
 
-        # Try for 1 Scythe (Last resort, prioritize HP)
-        # (M-S + P-NS + P-NS)
-        elif mentors_scythe and len(all_proficient_no_scythe) >= 2:
-            team.append(mentors_scythe.pop(0))
-            team.append(all_proficient_no_scythe.pop(0))
-            team.append(all_proficient_no_scythe.pop(0))
-        # (M-NS + P-S + P-NS)
-        elif mentors_no_scythe and all_proficient_scythe and all_proficient_no_scythe:
-            team.append(mentors_no_scythe.pop(0))
-            team.append(all_proficient_scythe.pop(0))
-            team.append(all_proficient_no_scythe.pop(0))
-        else:
-            # Can't form a 4-man team with the remaining players
-            if learner['learning_freeze']: learners_freeze.insert(0, team.pop()) # Put learner back
-            else: learners_normal.insert(0, team.pop())
-            break # Exit Pass 1
+# 4c) Add learners next (place Learner before New; avoid making New-only teams)
+def add_role_bucket(bucket):
+    i = 0
+    while bucket:
+        placed = False
+        for _ in range(num_teams):
+            t = teams[i]
+            if len(t) < ideal_size:
+                has_strong = any(prof_rank(p) <= PROF_ORDER["proficient"] for p in t)
+                if has_strong or bucket is learners:
+                    t.append(bucket.pop(0))
+                    placed = True
+                    break
+            i = (i + 1) % num_teams
+        if not placed:
+            break
 
-        teams.append(team)
-        for member in team:
-            used_ids.add(member['user_id'])
+add_role_bucket(learners)
+add_role_bucket(news)
 
-    # --- 4c. Pass 2: Fallback (2M, 2L) Teams ---
-    # Re-sort remaining learners
-    remaining_learners = sorted(learners_normal + learners_freeze,
-                                key=lambda x: (not (x['knows_range'] or x['knows_melee']), x['learning_freeze'])) # Prioritize role known, then non-freeze
+# 4d) Fill remaining seats with leftover strong players
+while strong:
+    placed = False
+    for i in range(num_teams):
+        if len(teams[i]) < ideal_size:
+            teams[i].append(strong.pop(0))
+            placed = True
+            if not strong:
+                break
+    if not placed:
+        break
 
-    while (len(mentors_scythe) + len(mentors_no_scythe) >= 2) and len(remaining_learners) >= 2:
-        team = []
+# 4e) If people still left (rare), spill into 4-man teams
+leftover_pool = [p for p in available_raiders if p not in [m for team in teams for m in team]]
+while leftover_pool:
+    spill = leftover_pool[:4]
+    leftover_pool = leftover_pool[4:]
+    teams.append(spill)
 
-        l1, l2 = pop_complementary_learners(remaining_learners)
-        if not l1 or not l2: break # Not enough learners
-        team.extend([l1, l2])
+# --- 5. Output (mention + nickname + scythe icon) ---
+embed = discord.Embed(
+    title=f"Sanguine Sunday Teams - {channel_name}",
+    description=f"Created {len(teams)} team(s) from {len(available_raiders)} available signed-up users.",
+    color=discord.Color.red()
+)
 
-        # Add 2 Mentors (Prioritize 2+ or 0 Scythes)
-        if len(mentors_scythe) >= 2: team.extend([mentors_scythe.pop(0), mentors_scythe.pop(0)])
-        elif len(mentors_no_scythe) >= 2: team.extend([mentors_no_scythe.pop(0), mentors_no_scythe.pop(0)])
-        elif mentors_scythe and mentors_no_scythe:
-            team.append(mentors_scythe.pop(0))
-            team.append(mentors_no_scythe.pop(0))
-        else:
-            # Can't form 2M team
-            remaining_learners.insert(0, team.pop()) # Put learners back
-            remaining_learners.insert(0, team.pop())
-            break # Exit Pass 2
+def user_line(p: dict) -> str:
+    uid = int(p["user_id"])
+    member = guild.get_member(uid)
+    mention = member.mention if member else f"<@{uid}>"
+    nickname = member.display_name if member else p.get("user_name", f"User {uid}")
+    role_text = p.get("proficiency", "Unknown").replace(" ", "-").capitalize().replace("-", " ")
+    kc_raw = p.get("kc", 0)
+    kc_text = f"({kc_raw} KC)" if isinstance(kc_raw, int) and kc_raw > 0 and role_text != "Mentor" else ""
+    return f"{mention} — {nickname} • **{role_text}** {kc_text} • Scythe {scythe_icon(p)}"
 
-        teams.append(team)
-        for member in team: used_ids.add(member['user_id'])
+# Sort each team's display Mentor → HP → Pro → Learner → New
+for i, team in enumerate(teams, start=1):
+    team_sorted = sorted(team, key=prof_rank)
+    lines = [user_line(p) for p in team_sorted]
+    embed.add_field(name=f"Team {i}", value="\n".join(lines) if lines else "—", inline=False)
 
-    # --- 4d. Pass 3: Cleanup Leftovers ---
-    # Gather all remaining players, including Highly Proficient
-    all_remaining_proficient = all_proficient_scythe + all_proficient_no_scythe
-    all_pools = mentors_scythe + mentors_no_scythe + all_remaining_proficient + remaining_learners
-    leftovers = sorted([r for r in all_pools if r['user_id'] not in used_ids],
-                       key=lambda x: (
-                           x['proficiency'] == 'highly proficient', # Highest priority
-                           x['proficiency'] == 'proficient',
-                           x['proficiency'] == 'mentor',
-                           x.get('has_scythe', False)
-                       ), reverse=True) # Sort best players first
-
-    while len(leftovers) >= 3:
-        team_size = 4 # Default to 4
-        if len(leftovers) == 4: team_size = 4
-        elif len(leftovers) == 5:
-            # Check if making a 5-man team includes a 'New' player
-            has_new_player = any(p['proficiency'] == 'new' for p in leftovers[:5])
-            team_size = 4 if has_new_player else 5 # Make 4-man if 'New' player present
-        elif len(leftovers) == 6: team_size = 3 # Make two teams of 3
-        elif len(leftovers) > 5: team_size = 4 # Make a 4-man team first
-        else: team_size = 3 # Only 3 left
-
-        new_team = leftovers[:team_size]
-        teams.append(new_team)
-        for member in new_team: used_ids.add(member['user_id'])
-        leftovers = leftovers[team_size:]
-
-    # --- 5. Format and send output ---
-    embed = discord.Embed(
-        title=f"Sanguine Sunday Teams - {channel_name}",
-        description=f"Created {len(teams)} team(s) from {len(available_raiders)} available signed-up users.",
-        color=discord.Color.red()
+# If a VC was provided, show unassigned
+unassigned_users = set()
+if vc_member_ids:
+    assigned_ids = {p["user_id"] for t in teams for p in t}
+    unassigned_users = vc_member_ids - assigned_ids
+if unassigned_users:
+    mentions = " ".join([f"<@{uid}>" for uid in unassigned_users])
+    embed.add_field(
+        name="Unassigned Users in VC",
+        value=mentions,
+        inline=False
     )
 
-    if not teams:
-        embed.description = "Could not form any teams with the available players."
-
-    for i, team in enumerate(teams):
-        team_details = []
-        for member in team:
-            scythe_text = " (Scythe)" if member.get('has_scythe', False) else ""
-            # Display "Highly Proficient" correctly
-            role_text = member.get('proficiency', 'Unknown').replace(" ", "-").capitalize().replace("-"," ")
-            kc_raw = member.get('kc', 0)
-            # Only show KC if it's a number AND (not a Mentor OR Mentor KC > 0) OR if KC is the placeholder 9999
-            kc_text = f"({kc_raw} KC)" if str(kc_raw).isdigit() and ((role_text != "Mentor" or kc_raw > 0) or kc_raw == 9999) else ""
-            # Hide the fake KC for auto-signed mentors
-            if role_text == "Mentor" and kc_raw == 9999 : kc_text = ""
-
-
-            team_details.append(
-                f"<@{member['user_id']}> - **{role_text}** {kc_text}{scythe_text}"
-            )
-        embed.add_field(name=f"Team {i+1}", value="\n".join(team_details), inline=False)
-
-    unassigned_users = set()
-    if vc_member_ids: # Only show unassigned users if a VC was specified
-        unassigned_users = vc_member_ids - used_ids
-    
-    if unassigned_users:
-        mentions = " ".join([f"<@{uid}>" for uid in unassigned_users])
-        embed.add_field(
-            name="Unassigned Users in VC",
-            value=f"These users were in the VC but were not assigned (either not signed up or left over):\n{mentions}",
-            inline=False
-        )
-
-    await interaction.followup.send(embed=embed)
-
-
+await interaction.followup.send(embed=embed)
 @sangmatch.error
 async def sangmatch_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.MissingRole):
@@ -2492,11 +2458,3 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
-
-
-
-
-
-
-
