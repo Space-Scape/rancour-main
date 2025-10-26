@@ -3,17 +3,15 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 from oauth2client.service_account import ServiceAccountCredentials
-import gspread # <-- Keep this main import
+import gspread
 import asyncio
 import re
-from discord import ui, ButtonStyle, Member # <-- Added Member import
-from discord.ui import View, Button, Modal, TextInput # This import fixes 'View', 'Button', etc. not defined
-from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta, timezone, time as dt_time # <-- Aliased dt_time
+from discord.ui import Modal, TextInput, View, Button
+from discord import ButtonStyle
+from typing import Optional
+from datetime import datetime, timedelta, timezone, time
 from zoneinfo import ZoneInfo
-# --- Corrected gspread exception import ---
-import gspread.exceptions
-import math  # <-- Added for team sizing logic
+from gspread.exceptions import APIError, GSpreadException
 
 # ---------------------------
 # 🔹 Google Sheets Setup
@@ -81,45 +79,6 @@ coffer_sheet = sheet_client_coffer.open_by_key(coffer_sheet_id).worksheet(COFFER
 EVENTS_SHEET_ID = "1ycltDSLJeKTLAHzVeYZ6JKwIV5A7md8Lh7IetvVljEc"
 events_sheet = sheet_client_coffer.open_by_key(EVENTS_SHEET_ID).worksheet("Event Inputs")
 
-# ---------------------------
-# 🔹 Sang Sheet Setup
-# ---------------------------
-SANG_SHEET_ID = "1CCpDAJO7Cq581yF_-rz3vx7L_BTettVaKglSvOmvTOE" # <-- Specific ID for Sang Signups
-SANG_SHEET_TAB_NAME = "SangSignups"
-SANG_HISTORY_TAB_NAME = "History" # <-- ADDED
-
-try:
-    # Use the specific SANG_SHEET_ID and the main sheet_client
-    sang_google_sheet = sheet_client.open_by_key(SANG_SHEET_ID) # <-- Get the spreadsheet
-    
-    # Try to get SangSignups sheet
-    try:
-        sang_sheet = sang_google_sheet.worksheet(SANG_SHEET_TAB_NAME)
-    except gspread.exceptions.WorksheetNotFound:
-        print(f"'{SANG_SHEET_TAB_NAME}' not found. Creating...")
-        sang_sheet = sang_google_sheet.add_worksheet(title=SANG_SHEET_TAB_NAME, rows="100", cols="20")
-        sang_sheet.append_row(["Discord_ID", "Discord_Name", "Roles Known", "KC", "Has_Scythe", "Proficiency", "Learning Freeze", "Timestamp"])
-
-    # Try to get History sheet
-    try:
-        history_sheet = sang_google_sheet.worksheet(SANG_HISTORY_TAB_NAME)
-    except gspread.exceptions.WorksheetNotFound:
-        print(f"'{SANG_HISTORY_TAB_NAME}' not found. Creating...")
-        history_sheet = sang_google_sheet.add_worksheet(title=SANG_HISTORY_TAB_NAME, rows="1000", cols="20")
-        history_sheet.append_row(["Discord_ID", "Discord_Name", "Roles Known", "KC", "Has_Scythe", "Proficiency", "Learning Freeze", "Timestamp"])
-
-except (PermissionError, gspread.exceptions.APIError) as e: # <-- Use fully qualified name
-    # This block runs if the bot doesn't have permission to access the file at all.
-    print(f"🔥 CRITICAL ERROR: Bot does not have permission for Sang Sheet (ID: {SANG_SHEET_ID}).")
-    print(f"🔥 Please ensure the service account email ({os.getenv('GOOGLE_CLIENT_EMAIL')}) has 'Editor' permissions on this Google Sheet.")
-    print(f"🔥 Error details: {e}")
-    sang_sheet = None
-    history_sheet = None # <-- ADDED
-except Exception as e:
-    print(f"Error initializing Sang Sheet: {e}")
-    sang_sheet = None
-    history_sheet = None # <-- ADDED
-
 
 # ---------------------------
 # 🔹 Discord Bot Setup
@@ -136,9 +95,6 @@ tree = bot.tree
 # 🔹 Main Configuration
 # ---------------------------
 
-# --- ADDED GUILD_ID ---
-GUILD_ID = 1272629330115297330 # <-- Added for on_ready view registration
-
 # Channel and Role IDs
 SUBMISSION_CHANNEL_ID = 1391921214909579336
 REVIEW_CHANNEL_ID = 1391921254034047066
@@ -149,7 +105,6 @@ COLLAT_CHANNEL_ID = 1272648340940525648
 EVENT_SCHEDULE_CHANNEL_ID = 1274957572977197138
 SANG_CHANNEL_ID = 1338295765759688767
 STAFF_ROLE_ID = 1272635396991221824
-MEMBER_ROLE_ID = 1272633036814946324 # <-- Added MEMBER_ROLE_ID
 MENTOR_ROLE_ID = 1306021911830073414
 SANG_ROLE_ID = 1387153629072592916
 TOB_ROLE_ID = 1272694636921753701
@@ -558,7 +513,7 @@ For large-scale events, such as bingo or team competitions, winners will be able
 # ---------------------------
 @bot.tree.command(name="say", description="Makes the bot say something in the current channel.")
 @app_commands.describe(message="The message you want the bot to say.")
-@app_commands.checks.has_any_role("Clan Staff", "Administrators", "Senior Staff", "Staff", "Trial Staff")
+@app_commands.checks.has_any_role("Clan Staff")
 async def say(interaction: discord.Interaction, message: str):
     """Makes the bot say something."""
     await interaction.channel.send(message)
@@ -583,7 +538,6 @@ async def help(interaction: discord.Interaction):
         value="""
         `/help` - Displays this help message.
         `/rsn` - Checks your currently registered RuneScape Name.
-        `/timehere [member]` - Shows how long a member has been in the server.
         `/submitdrop` - Opens a modal to submit a boss drop for events.
         """,
         inline=False
@@ -614,8 +568,7 @@ async def help(interaction: discord.Interaction):
         `/rsn_panel` - Posts the interactive RSN registration panel.
         `/time_panel` - Posts the interactive timezone selection panel.
         `/sangsignup [variant] [channel]` - Manually posts the Sanguine Sunday signup or reminder message.
-        `/sangmatch [voice_channel]` - Creates ToB teams from signups in a VC.
-        `/justice_panel` - Posts the interactive admin panel for moderation.
+        `/admin_panel` - Posts the interactive admin panel for moderation.
         `/support_panel` - Posts the staff support specialty role selector.
         """,
         inline=False
@@ -626,72 +579,13 @@ async def help(interaction: discord.Interaction):
     await interaction.followup.send(embed=embed, ephemeral=True)
 
 # ---------------------------
-# 🔹 Time Command (Renamed to timehere)
-# ---------------------------
-@bot.tree.command(name="timehere", description="Shows how long a member has been in the server.")
-@app_commands.describe(member="The member to check.")
-async def timehere(interaction: discord.Interaction, member: discord.Member):
-    """Shows how long a member has been in the server, provided they have the 'Member' role."""
-    
-    # Look for the role by ID
-    member_role = discord.utils.get(interaction.guild.roles, id=MEMBER_ROLE_ID)
-    
-    if not member_role:
-        await interaction.response.send_message("⚠️ Error: 'Member' role not found on this server.", ephemeral=True)
-        return
-        
-    if member_role not in member.roles:
-        await interaction.response.send_message(f"⚠️ {member.display_name} does not have the 'Member' role.", ephemeral=True)
-        return
-
-    # Get the join timestamp (timezone-aware)
-    join_date = member.joined_at
-    if not join_date:
-        await interaction.response.send_message("⚠️ Could not retrieve join date for this member.", ephemeral=True)
-        return
-
-    # Calculate duration
-    now = datetime.now(timezone.utc)
-    duration = now - join_date
-
-    # Format duration into years, months, days
-    years = duration.days // 365
-    remaining_days = duration.days % 365
-    months = remaining_days // 30
-    days = remaining_days % 30
-
-    duration_parts = []
-    if years > 0:
-        duration_parts.append(f"{years} year{'s' if years > 1 else ''}")
-    if months > 0:
-        duration_parts.append(f"{months} month{'s' if months > 1 else ''}")
-    if days > 0 or not duration_parts: # Show days if 0, or if it's the only unit
-        duration_parts.append(f"{days} day{'s' if days > 1 else ''}")
-
-    duration_str = ", ".join(duration_parts)
-
-    # Format join date for display
-    join_date_str = join_date.strftime("%B %d, %Y at %I:%M %p UTC")
-
-    embed = discord.Embed(
-        title=f"Membership Time for {member.display_name}",
-        color=member.color
-    )
-    embed.set_thumbnail(url=member.display_avatar.url)
-    embed.add_field(name="Total Time in Server", value=duration_str, inline=False)
-    embed.add_field(name="Join Date", value=join_date_str, inline=False)
-    
-    await interaction.response.send_message(embed=embed)
-
-
-# ---------------------------
 # 🔹 Welcome
 # ---------------------------
 class WelcomeView(View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @ui.button(label="Approve & Close", style=ButtonStyle.success, custom_id="approve_and_close")
+    @discord.ui.button(label="Approve & Close", style=discord.ButtonStyle.success, custom_id="approve_and_close")
     async def approve_and_close(self, interaction: discord.Interaction, button: Button):
         # Permission Check
         staff_role = discord.utils.get(interaction.guild.roles, id=STAFF_ROLE_ID)
@@ -803,12 +697,12 @@ async def welcome(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, view=WelcomeView())
 
 # -----------------------------
-# Role Button & Views
+# Role Button
 # -----------------------------
 
 class RoleButton(Button):
     def __init__(self, role_name: str, emoji=None):
-        super().__init__(label=role_name, style=ButtonStyle.secondary, emoji=emoji, custom_id=role_name)
+        super().__init__(label=role_name, style=discord.ButtonStyle.secondary, emoji=emoji, custom_id=role_name)
 
     async def callback(self, interaction: discord.Interaction):
         role_name = self.custom_id
@@ -825,12 +719,16 @@ class RoleButton(Button):
             await interaction.user.add_roles(role)
             feedback = f"{interaction.user.mention}, role **{role_name}** added."
 
-        # Send a message to the channel, then send an ephemeral response, then delete the channel message.
-        # This makes the "Thinking..." go away and shows the user feedback.
-        msg = await interaction.channel.send(feedback)
-        await interaction.response.send_message("Role updated!", ephemeral=True, delete_after=1)
-        await asyncio.sleep(2)
-        await msg.delete()
+        await interaction.response.send_message(feedback, ephemeral=False)
+        await asyncio.sleep(1)
+        try:
+            await interaction.delete_original_response()
+        except Exception:
+            pass
+
+# -----------------------------
+# Views for each group
+# -----------------------------
 
 class RaidsView(View):
     def __init__(self, guild: discord.Guild):
@@ -843,6 +741,7 @@ class RaidsView(View):
         self.add_item(RoleButton("Theatre of Blood Hard Mode", get_emoji("hmt")))
         self.add_item(RoleButton("Chambers of Xeric Challenge Mode", get_emoji("cm")))
         self.add_item(RoleButton("Tombs of Amascut Expert", get_emoji("extoa")))
+
 
 class BossesView(View):
     def __init__(self, guild: discord.Guild):
@@ -869,8 +768,7 @@ class EventsView(View):
         self.add_item(RoleButton("Events", get_emoji("event")))
         self.add_item(RoleButton("Boss of the Week", get_emoji("botw")))
         self.add_item(RoleButton("Skill of the Week", get_emoji("sotw")))
-        # Updated "Sanguine Sunday" role name to match the button
-        self.add_item(RoleButton("Sanguine Sunday", get_emoji("sanguine_sunday")))
+        self.add_item(RoleButton("Sanguine Sunday - Learn ToB!", get_emoji("sanguine_sunday")))
         self.add_item(RoleButton("PvP", "💀"))
 
 class CloseThreadView(View):
@@ -878,7 +776,7 @@ class CloseThreadView(View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @ui.button(label="Close", style=ButtonStyle.danger, custom_id="close_support_thread")
+    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger, custom_id="close_support_thread")
     async def close_button(self, interaction: discord.Interaction, button: Button):
         staff_role = discord.utils.get(interaction.guild.roles, id=STAFF_ROLE_ID)
         admin_role = discord.utils.get(interaction.guild.roles, id=ADMINISTRATOR_ROLE_ID)
@@ -909,7 +807,7 @@ class SupportTicketActionView(View):
             item.disabled = True
         await interaction.message.edit(view=self)
 
-    @ui.button(label="Approve", style=ButtonStyle.success)
+    @discord.ui.button(label="Approve", style=discord.ButtonStyle.success)
     async def approve_button(self, interaction: discord.Interaction, button: Button):
         admin_role = discord.utils.get(interaction.guild.roles, id=ADMINISTRATOR_ROLE_ID)
         if not admin_role or admin_role not in interaction.user.roles:
@@ -940,7 +838,7 @@ class SupportTicketActionView(View):
         except Exception as e:
             await interaction.response.send_message(f"An unexpected error occurred: {e}", ephemeral=True)
 
-    @ui.button(label="Deny", style=ButtonStyle.danger)
+    @discord.ui.button(label="Deny", style=discord.ButtonStyle.danger)
     async def deny_button(self, interaction: discord.Interaction, button: Button):
         admin_role = discord.utils.get(interaction.guild.roles, id=ADMINISTRATOR_ROLE_ID)
         if not admin_role or admin_role not in interaction.user.roles:
@@ -963,7 +861,7 @@ class SupportTicketActionView(View):
 class SupportTicketButton(Button):
     """A custom button that creates a support ticket thread when clicked."""
     def __init__(self, role_name: str, emoji=None):
-        super().__init__(label=role_name, style=ButtonStyle.secondary, emoji=emoji, custom_id=f"support_ticket_{role_name.replace(' ', '_')}")
+        super().__init__(label=role_name, style=discord.ButtonStyle.secondary, emoji=emoji, custom_id=f"support_ticket_{role_name.replace(' ', '_')}")
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -1045,28 +943,22 @@ async def rsn_writer():
     while True:
         member, rsn_value = await rsn_write_queue.get()
         try:
-            # Try finding by ID first
-            try:
-                cell = rsn_sheet.find(str(member.id), in_column=2) # Column B is Discord ID
-            except gspread.CellNotFound:
-                cell = None # Not found by ID
-
+            cell = rsn_sheet.find(str(member.id))
             now = datetime.now(timezone.utc)
-            day = now.day
+            day = now.day  # integer day (no leading zero)
             timestamp = now.strftime(f"%B {day}, %Y at %I:%M%p")
 
             if cell is not None:
-                # User found by ID, update their RSN and timestamp
-                rsn_sheet.update_cell(cell.row, 4, rsn_value) # Column D is Current RSN
-                rsn_sheet.update_cell(cell.row, 5, timestamp) # Column E is Timestamp
-                rsn_sheet.update_cell(cell.row, 1, member.display_name) # Update display name too
+                old_rsn = rsn_sheet.cell(cell.row, 4).value or ""
+                rsn_sheet.update_cell(cell.row, 4, rsn_value)
+                rsn_sheet.update_cell(cell.row, 5, timestamp)
                 print(f"✅ Updated RSN for {member} ({member.id}) to {rsn_value}")
             else:
-                # User not found by ID, add as new row
+                old_rsn = ""
                 rsn_sheet.append_row([
-                    member.display_name,
+                    member.display_name,  # current Discord display name
                     str(member.id),
-                    "", # Old RSN is blank for new entries
+                    old_rsn,
                     rsn_value,
                     timestamp
                 ])
@@ -1077,21 +969,24 @@ async def rsn_writer():
         finally:
             rsn_write_queue.task_done()
 
-class RSNModal(Modal, title="Register RSN"):
-    rsn = TextInput(label="RuneScape Name", placeholder="Enter your RSN")
+class RSNModal(discord.ui.Modal, title="Register RSN"):
+    rsn = discord.ui.TextInput(label="RuneScape Name", placeholder="Enter your RSN")
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
         try:
+            # enqueue the update instead of writing directly
             await rsn_write_queue.put((interaction.user, str(self.rsn)))
 
+            # Quick acknowledgement
             await interaction.followup.send(
                 f"✅ Your RSN **{self.rsn}** has been submitted! "
                 "It will be saved in the records shortly.",
                 ephemeral=True
             )
 
+            # add role after successful registration
             guild = interaction.guild
             registered_role = discord.utils.get(guild.roles, name="Registered")
             if registered_role and registered_role not in interaction.user.roles:
@@ -1101,41 +996,34 @@ class RSNModal(Modal, title="Register RSN"):
                     ephemeral=True
                 )
 
+            # attempt nickname change
             try:
-                # Only change nickname if it doesn't already match the RSN
-                if interaction.user.display_name != str(self.rsn):
-                    await interaction.user.edit(nick=str(self.rsn))
+                await interaction.user.edit(nick=str(self.rsn))
             except discord.Forbidden:
                 await interaction.followup.send(
                     "⚠️ I don't have permission to change your nickname. "
-                    "Please update it manually if needed.",
-                    ephemeral=True
-                )
-            except discord.HTTPException as e:
-                 # Catch potential rate limits or other HTTP issues
-                 print(f"⚠️ Failed to change nickname for {interaction.user}: {e}")
-                 await interaction.followup.send(
-                    "⚠️ Couldn't change your nickname right now. Please update it manually if needed.",
+                    "Please update it manually.",
                     ephemeral=True
                 )
 
         except Exception as e:
             await interaction.followup.send(
-                f"❌ Failed to submit RSN: `{e}`",
+                f"❌ Failed to update RSN: `{e}`",
                 ephemeral=True
             )
 
-class RSNPanelView(View):
+
+class RSNPanelView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @ui.button(
+    @discord.ui.button(
         label="Register RSN",
-        style=ButtonStyle.success,
+        style=discord.ButtonStyle.success,
         emoji="📝",
         custom_id="register_rsn_button"
     )
-    async def register_rsn(self, interaction: discord.Interaction, button: Button):
+    async def register_rsn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(RSNModal())
 
 
@@ -1154,7 +1042,7 @@ async def rsn_panel(interaction: discord.Interaction):
     await interaction.response.send_message(
         embed=embed,
         view=RSNPanelView(),
-        ephemeral=False # Panel should be visible to everyone
+        ephemeral=False
     )
 
 
@@ -1163,15 +1051,15 @@ async def rsn(interaction: discord.Interaction):
     member_id = str(interaction.user.id)
 
     try:
-        cell = rsn_sheet.find(member_id, in_column=2) # Column B is Discord ID
-        rsn_value = rsn_sheet.cell(cell.row, 4).value # Column D is Current RSN
+        cell = rsn_sheet.find(member_id)
+        rsn_value = rsn_sheet.cell(cell.row, 4).value
         await interaction.response.send_message(
             f"✅ Your registered RSN is **{rsn_value}**.",
             ephemeral=True
         )
-    except gspread.CellNotFound: # Use correct exception name
+    except gspread.exceptions.CellNotFound:
         await interaction.response.send_message(
-            "⚠️ You have not registered an RSN yet. Use the RSN panel to register.",
+            "⚠️ You have not registered an RSN yet. Use /rsn_panel to register.",
             ephemeral=True
         )
 
@@ -1183,16 +1071,19 @@ async def rsn_panel_error(interaction: discord.Interaction, error):
             "⛔ You do not have permission to use this command.",
             ephemeral=True
         )
-    else: # Handle other potential errors
-        print(f"Error in rsn_panel command: {error}")
-        if not interaction.response.is_done():
-            await interaction.response.send_message("An unexpected error occurred.", ephemeral=True)
-        else:
-            await interaction.followup.send("An unexpected error occurred.", ephemeral=True)
 
 # ---------------------------
 # 🔹 TimeZones
 # ---------------------------
+
+class TimePanelView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(Button(label="Morning (8AM–12PM)", style=discord.ButtonStyle.primary, custom_id="time_morning"))
+        self.add_item(Button(label="Afternoon (12PM–4PM)", style=discord.ButtonStyle.primary, custom_id="time_afternoon"))
+        self.add_item(Button(label="Evening (4PM–10PM)", style=discord.ButtonStyle.primary, custom_id="time_evening"))
+        self.add_item(Button(label="Late Night (10PM–2AM)", style=discord.ButtonStyle.primary, custom_id="time_latenight"))
+
 
 TIMEZONE_DATA = {
     "PST": ("America/Los_Angeles", "🇺🇸"),
@@ -1210,6 +1101,12 @@ TIMEZONE_DATA = {
     "AEST": ("Australia/Sydney", "🇦🇺"),
 }
 
+# Define which timezones use the D/M/YYYY format
+INTERNATIONAL_TIMEZONES = {
+    "GMT", "CET", "EET", "BRT", "ART", "AWST", "ACST", "AEST"
+}
+
+
 TIME_OF_DAY_DATA = {
     "Morning": ("🌄", "6 AM - 12 PM"),
     "Day": ("🌇", "12 PM - 6 PM"),
@@ -1217,7 +1114,7 @@ TIME_OF_DAY_DATA = {
     "Night": ("🌃", "12 AM - 6 AM"),
 }
 
-class TimeOfDayView(View):
+class TimeOfDayView(discord.ui.View):
     def __init__(self, guild, timezone_role, tz_abbr):
         super().__init__(timeout=60)
         self.guild = guild
@@ -1229,9 +1126,9 @@ class TimeOfDayView(View):
             if role:
                 self.add_item(TimeOfDayButton(tod_label, role, emoji, self.timezone_role, self.tz_abbr))
 
-class TimeOfDayButton(Button):
+class TimeOfDayButton(discord.ui.Button):
     def __init__(self, label, role, emoji, timezone_role, tz_abbr):
-        super().__init__(label=label, style=ButtonStyle.secondary, emoji=emoji)
+        super().__init__(label=label, style=discord.ButtonStyle.secondary, emoji=emoji)
         self.role = role
         self.label = label
         self.timezone_role = timezone_role
@@ -1248,13 +1145,6 @@ class TimeOfDayButton(Button):
             )
             return
 
-        # Remove other time of day roles before adding the new one
-        tod_roles_to_remove = [discord.utils.get(interaction.guild.roles, name=lbl) for lbl in TIME_OF_DAY_DATA.keys()]
-        tod_roles_to_remove = [r for r in tod_roles_to_remove if r and r in member.roles and r != self.role]
-        if tod_roles_to_remove:
-            await member.remove_roles(*tod_roles_to_remove)
-
-
         await member.add_roles(self.role)
         time_range = TIME_OF_DAY_DATA[self.label][1]
         await interaction.response.send_message(
@@ -1262,7 +1152,7 @@ class TimeOfDayButton(Button):
             ephemeral=True
         )
 
-class TimezoneView(View):
+class TimezoneView(discord.ui.View):
     def __init__(self, guild):
         super().__init__(timeout=None)
         self.guild = guild
@@ -1271,10 +1161,10 @@ class TimezoneView(View):
             if role:
                 self.add_item(TimezoneButton(tz_abbr, role, tz_str, flag, guild))
 
-class TimezoneButton(Button):
+class TimezoneButton(discord.ui.Button):
     def __init__(self, tz_abbr, role, tz_str, emoji, guild):
-        custom_id = f"timezone-btn:{role.id}" # Use role ID for unique custom ID
-        super().__init__(label=tz_abbr, style=ButtonStyle.primary, custom_id=custom_id, emoji=emoji)
+        custom_id = f"timezone-btn:{role.id}"
+        super().__init__(label=tz_abbr, style=discord.ButtonStyle.primary, custom_id=custom_id, emoji=emoji)
         self.tz_abbr = tz_abbr
         self.role = role
         self.tz_str = tz_str
@@ -1306,7 +1196,6 @@ class TimezoneButton(Button):
         )
 
 @bot.tree.command(name="time_panel", description="Open the timezone selection panel.")
-@app_commands.checks.has_any_role("Administrators")
 async def time_panel(interaction: discord.Interaction):
     view = TimezoneView(interaction.guild)
     embed = discord.Embed(
@@ -1317,44 +1206,340 @@ async def time_panel(interaction: discord.Interaction):
         ),
         color=discord.Color.blurple()
     )
-    await interaction.response.send_message(embed=embed, view=view)
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 # ---------------------------
 # 🔹 Coffer
 # ---------------------------
-# (Coffer logic is assumed to be correct and unchanged)
+
+CUSTOM_EMOJI = "<:MaxCash:1347684049040183427>"
+
+def parse_amount(input_str: str) -> int:
+    """
+    Parse input like '20m', '20 m', '1.5m', '1,5m' as millions.
+    Also accept plain integers like '5000' (which are treated as millions).
+    Returns integer amount in full units (e.g. 1,500,000).
+    """
+    input_str = input_str.lower().replace(" ", "").replace(",", ".")
+    if input_str.endswith("m"):
+        try:
+            number_part = float(input_str[:-1])
+            return int(number_part * 1_000_000)
+        except ValueError:
+            raise ValueError("Invalid amount format")
+    else:
+        try:
+            number_part = float(input_str)
+            return int(number_part * 1_000_000)
+        except ValueError:
+            raise ValueError("Invalid amount format")
+
+
+def format_million(amount: int) -> str:
+    millions = amount / 1_000_000
+    if millions.is_integer():
+        return f"{int(millions):,}M"
+    else:
+        return f"{millions:,.2f}M".rstrip('0').rstrip('.')
+
+
+def log_coffer_entry(name: str, amount: int, entry_type: str, coffer_change: int = 0):
+    timestamp = datetime.now().strftime("%I:%M%p %m/%d/%Y").lstrip("0").replace(" 0", " ")
+    coffer_sheet.append_row([
+        name,
+        amount,
+        entry_type,
+        f"{'+' if coffer_change >= 0 else ''}{coffer_change}",
+        timestamp
+    ])
+
+
+def get_current_total_and_holders_and_owed():
+    records = coffer_sheet.get_all_records()
+    total = 0
+    inferred_holders = {}
+    inferred_owed = {}
+
+    for row in records:
+        name = row.get("Name")
+        amount = int(row.get("Amount", 0))
+        entry_type = row.get("Type", "").lower()
+
+        if entry_type == "deposit":
+            total += amount
+            inferred_holders[name] = inferred_holders.get(name, 0) + amount
+        elif entry_type == "withdraw":
+            total -= amount
+            inferred_holders[name] = inferred_holders.get(name, 0) - amount
+
+    for row in records:
+        name = row.get("Name")
+        amount = int(row.get("Amount", 0))
+        entry_type = row.get("Type", "").lower()
+
+        if entry_type == "holding":
+            inferred_holders[name] = amount
+        elif entry_type == "owed":
+            inferred_owed[name] = amount
+
+    holders = {k: v for k, v in inferred_holders.items() if v > 0}
+    owed = {k: v for k, v in inferred_owed.items() if v > 0}
+
+    return total, holders, owed
+
+
+def escape_markdown(text: str) -> str:
+    to_escape = r"\*_~`>|"
+    return re.sub(f"([{re.escape(to_escape)}])", r"\\\1", text)
+
+
+# ---------------------------
+# 🔹 Discord Modals and Commands
+# ---------------------------
+
+class DepositWithdrawModal(Modal, title="Deposit/Withdraw"):
+    amount_input = TextInput(label="Amount", placeholder="Enter amount (e.g. 20m)", required=True)
+
+    def __init__(self, action: str):
+        super().__init__()
+        self.action = action
+
+    async def on_submit(self, interaction: discord.Interaction):
+        raw_value = self.amount_input.value
+        try:
+            amount = parse_amount(raw_value)
+        except Exception:
+            await interaction.response.send_message(
+                "❌ Invalid amount format. Use numbers or numbers with 'm' (e.g. 20m).",
+                ephemeral=True
+            )
+            return
+
+        name = interaction.user.display_name
+
+        total, holders, owed = get_current_total_and_holders_and_owed()
+        current_holding = holders.get(name, 0)
+
+        if self.action == "Deposit":
+            log_coffer_entry(name, amount, "deposit", amount)
+
+            if current_holding > 0:
+                new_holding = max(current_holding - amount, 0)
+            else:
+                new_holding = 0
+
+            log_coffer_entry(name, new_holding, "holding", 0)
+
+            verb = "deposited"
+            formatted_amount = format_million(amount)
+
+            await interaction.response.send_message(
+                f"{CUSTOM_EMOJI} {name} {verb} {formatted_amount}!",
+                ephemeral=False
+            )
+
+        else:
+            log_coffer_entry(name, amount, "withdraw", -amount)
+
+            verb = "withdrew"
+            formatted_amount = format_million(amount)
+
+            await interaction.response.send_message(
+                f"{CUSTOM_EMOJI} {name} {verb} {formatted_amount}!",
+                ephemeral=False
+            )
+
+
+class HoldingModal(Modal, title="Set Holding Amount"):
+    amount_input = TextInput(label="Amount Held", placeholder="Enter amount held (e.g. 20m)", required=True)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        raw_value = self.amount_input.value
+        try:
+            amount = parse_amount(raw_value)
+        except Exception:
+            await interaction.response.send_message(
+                "❌ Invalid amount format. Use numbers or numbers with 'm' (e.g. 20m).",
+                ephemeral=True
+            )
+            return
+
+        name = interaction.user.display_name
+
+        if amount > 0:
+            log_coffer_entry(name, amount, "holding", 0)
+            formatted_amount = format_million(amount)
+            await interaction.response.send_message(
+                f"{CUSTOM_EMOJI} {name} is now holding {formatted_amount}.",
+                ephemeral=False
+            )
+        else:
+            log_coffer_entry(name, 0, "holding", 0)
+            await interaction.response.send_message(
+                f"{CUSTOM_EMOJI} {name} is no longer holding any money.",
+                ephemeral=False
+            )
+
+
+@bot.tree.command(name="deposit", description="Deposit money into the clan coffer")
+async def deposit(interaction: discord.Interaction):
+    await interaction.response.send_modal(DepositWithdrawModal("Deposit"))
+
+
+@bot.tree.command(name="withdraw", description="Withdraw money from the clan coffer")
+async def withdraw(interaction: discord.Interaction):
+    await interaction.response.send_modal(DepositWithdrawModal("Withdraw"))
+
+
+@bot.tree.command(name="holding", description="Add to a user's holding amount (defaults to yourself)")
+@app_commands.describe(
+    user="User to add holding for (default yourself)",
+    amount="Amount to add (e.g. 20m)"
+)
+async def holding(
+    interaction: discord.Interaction,
+    amount: str,
+    user: discord.User | None = None
+):
+    target = user or interaction.user
+    name = target.display_name
+
+    try:
+        amt = parse_amount(amount)
+    except Exception:
+        await interaction.response.send_message(
+            "❌ Invalid amount format. Use numbers or numbers with 'm' (e.g. 20m).",
+            ephemeral=True
+        )
+        return
+
+    _, holders, _ = get_current_total_and_holders_and_owed()
+    current_amt = holders.get(name, 0)
+
+    new_amt = current_amt + amt
+
+    if new_amt > 0:
+        log_coffer_entry(name, new_amt, "holding", amt)
+        await interaction.response.send_message(
+            f"{CUSTOM_EMOJI} **{name}** is now holding {format_million(new_amt)}.",
+            ephemeral=False
+        )
+    else:
+        log_coffer_entry(name, 0, "holding", -current_amt)
+        await interaction.response.send_message(
+            f"{CUSTOM_EMOJI} **{name}** is no longer holding any money.",
+            ephemeral=False
+        )
+
+
+@bot.tree.command(name="owed", description="Set a user's owed amount (defaults to yourself)")
+@app_commands.describe(
+    user="User to set owed amount for (default yourself)",
+    amount="Amount owed (e.g. 20m)"
+)
+async def owed(
+    interaction: discord.Interaction,
+    amount: str,
+    user: discord.User | None = None
+):
+    target = user or interaction.user
+    name = target.display_name
+
+    try:
+        amt = parse_amount(amount)
+    except Exception:
+        await interaction.response.send_message(
+            "❌ Invalid amount format. Use numbers or numbers with 'm' (e.g. 20m).",
+            ephemeral=True
+        )
+        return
+
+    if amt > 0:
+        log_coffer_entry(name, amt, "owed", 0)
+        formatted_amount = format_million(amt)
+        await interaction.response.send_message(
+            f"{CUSTOM_EMOJI} {name} is now owed {formatted_amount}.",
+            ephemeral=False
+        )
+    else:
+        log_coffer_entry(name, 0, "owed", 0)
+        await interaction.response.send_message(
+            f"{CUSTOM_EMOJI} {name} is no longer owed any money.",
+            ephemeral=False
+        )
+
+@bot.tree.command(name="clear_owed", description="Clear owed amount for a user")
+@app_commands.describe(user="User to clear owed amount for")
+async def clear_owed(interaction: discord.Interaction, user: discord.User):
+    name = user.display_name
+
+    log_coffer_entry(name, 0, "owed", 0)
+
+    await interaction.response.send_message(
+        f"{CUSTOM_EMOJI} Cleared owed amount for **{name}**.",
+        ephemeral=False
+    )
+
+@bot.tree.command(name="clear_holding", description="Clear holding amount for a user")
+@app_commands.describe(user="User to clear holding for")
+async def clear_holding(interaction: discord.Interaction, user: discord.User):
+    name = user.display_name
+
+    log_coffer_entry(name, 0, "holding", 0)
+
+    await interaction.response.send_message(
+        f"{CUSTOM_EMOJI} Cleared holding for **{name}**.",
+        ephemeral=False
+    )
+
+@bot.tree.command(name="bank", description="Show coffer total and who is holding or owed money")
+async def bank(interaction: discord.Interaction):
+    total, holders, owed = get_current_total_and_holders_and_owed()
+    guild = interaction.guild
+
+    total_holding = sum(holders.values())
+    clan_coffer_total = total + total_holding
+
+    filtered_holders = {name: amount for name, amount in holders.items() if amount > 0}
+    filtered_owed = {name: amount for name, amount in owed.items() if amount > 0}
+
+    holder_lines = []
+    for name, amount in filtered_holders.items():
+        member = discord.utils.get(guild.members, display_name=name) or discord.utils.get(guild.members, name=name)
+        display_name = member.nick if member and member.nick else name
+        display_name = escape_markdown(display_name)
+        formatted_amount = f"{CUSTOM_EMOJI} {format_million(amount)}"
+        holder_lines.append(f"🏦 **{display_name}** is holding {formatted_amount}")
+
+    owed_lines = []
+    for name, amount in filtered_owed.items():
+        member = discord.utils.get(guild.members, display_name=name) or discord.utils.get(guild.members, name=name)
+        display_name = member.nick if member and member.nick else name
+        display_name = escape_markdown(display_name)
+        formatted_amount = f"{CUSTOM_EMOJI} {format_million(amount)}"
+        owed_lines.append(f"💰 **{display_name}** is owed {formatted_amount}")
+
+    ceo_bank_line = f"{CUSTOM_EMOJI} CEO Bank: {format_million(total)}"
+    clan_coffer_line = f"💰 Clan Coffer Total: {format_million(clan_coffer_total)}"
+
+    holder_text = "\n".join(holder_lines) if holder_lines else "_Nobody is holding anything._"
+    owed_text = "\n".join(owed_lines) if owed_lines else "_Nobody is owed anything._"
+
+    await interaction.response.send_message(
+        f"**{ceo_bank_line}**\n**{clan_coffer_line}**\n\n{holder_text}\n\n{owed_text}",
+        ephemeral=False
+    )
 
 # ---------------------------
 # 🔹 Panel Init()
 # ---------------------------
 
 async def send_rsn_panel(channel: discord.TextChannel):
-    """Posts or updates the RSN panel."""
-    if not channel: return
-    embed = discord.Embed(
-        title="<:1gp:1347684047773499482> Register your RuneScape Name",
-        description=(
-            "Click the button below to register or update your RuneScape name in the clan records.\n\n"
-            "This helps event staff verify drops and track your achievements. 🪙"
-        ),
-        color=discord.Color.green()
-    )
-    async for message in channel.history(limit=5):
-        if message.author == bot.user and message.embeds and message.embeds[0].title == embed.title:
-            return # Panel already exists
-    try:
-        await channel.purge(limit=10)
-    except discord.Forbidden:
-        print(f"⚠️ Missing permissions to purge channel #{channel.name}")
-    except discord.HTTPException as e:
-        print(f"⚠️ Failed to purge channel #{channel.name}: {e}")
-
-    await channel.send(embed=embed, view=RSNPanelView())
-
+    await channel.purge(limit=10)
+    await channel.send(":identification_card: **Link your RSN by clicking below to join the server.\nUse /rsn here to check!**", view=RSNPanelView())
 
 async def send_time_panel(channel: discord.TextChannel):
-    """Posts or updates the Timezone panel."""
-    if not channel: return
+    await channel.purge(limit=10)
     view = TimezoneView(channel.guild)
     embed = discord.Embed(
         title="🕒 Select Your Usual Timezones",
@@ -1364,46 +1549,37 @@ async def send_time_panel(channel: discord.TextChannel):
         ),
         color=discord.Color.blurple()
     )
-    async for message in channel.history(limit=5):
-        if message.author == bot.user and message.embeds and message.embeds[0].title == embed.title:
-            return # Panel already exists
-    try:
-        await channel.purge(limit=10)
-    except discord.Forbidden:
-        print(f"⚠️ Missing permissions to purge channel #{channel.name}")
-    except discord.HTTPException as e:
-        print(f"⚠️ Failed to purge channel #{channel.name}: {e}")
-
     await channel.send(embed=embed, view=view)
+
+async def send_role_panel(channel: discord.TextChannel):
+    await channel.purge(limit=10)
+    await channel.send(":crossed_swords: **Choose your roles:**", view=RolePanelView(channel.guild))
 
 async def send_support_panel(channel: discord.TextChannel):
     """Posts or updates the support specialty role selection panel."""
     if not channel:
         return
-
+        
     embed = discord.Embed(
         title="🛠️ Staff Support Specialties",
         description="""Clan Staff: Select your area of specialty to assist members more effectively. This helps route member tickets to the most knowledgeable staff member.
 
 🔔 **Clan Support:** For general inquiries, questions, ideas/suggestions, and issues with rank-ups or other problems.
-
+        
 🔧 **Technical/Bot Support:** For reporting issues with the bot, spreadsheets, or server functions. Admins are looped in for code/server changes.
 
 🎓 **Mentor Support:** For staff members who are also official mentors and can assist with PvM/raid-related questions from Mentors, Mentor Ticket control, and assist with adding new Mentors.""",
         color=discord.Color.teal()
     )
-
+    
+    # Check if the panel already exists
     async for message in channel.history(limit=5):
         if message.author == bot.user and message.embeds and message.embeds[0].title == embed.title:
+            # It already exists, do nothing.
             return
 
-    try:
-        await channel.purge(limit=10)
-    except discord.Forbidden:
-        print(f"⚠️ Missing permissions to purge channel #{channel.name}")
-    except discord.HTTPException as e:
-        print(f"⚠️ Failed to purge channel #{channel.name}: {e}")
-
+    # If it doesn't exist, purge and post.
+    await channel.purge(limit=10)
     await channel.send(embed=embed, view=SupportRoleView())
 
 
@@ -1411,8 +1587,8 @@ async def send_support_panel(channel: discord.TextChannel):
 # 🔹 Collat Notifier
 # ---------------------------
 
-class CollatRequestModal(Modal, title="Request Item"):
-    target_username = TextInput(
+class CollatRequestModal(discord.ui.Modal, title="Request Item"):
+    target_username = discord.ui.TextInput(
         label="Enter the username to notify",
         placeholder="Exact username (case-sensitive)",
         style=discord.TextStyle.short,
@@ -1447,7 +1623,8 @@ class CollatRequestModal(Modal, title="Request Item"):
         )
         await interaction.response.send_message("Request sent ✅", ephemeral=True)
 
-class CollatButtons(View):
+
+class CollatButtons(discord.ui.View):
     def __init__(self, author: discord.User, mentioned: discord.User | None):
         super().__init__(timeout=None)
         self.author = author
@@ -1464,8 +1641,8 @@ class CollatButtons(View):
             child.disabled = True
         await interaction.message.edit(view=self)
 
-    @ui.button(label="Request Item", style=ButtonStyle.primary, emoji="🔔")
-    async def request_item(self, interaction: discord.Interaction, button: Button):
+    @discord.ui.button(label="Request Item", style=discord.ButtonStyle.primary, emoji="🔔")
+    async def request_item(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self.mentioned:
             await interaction.response.send_modal(CollatRequestModal(interaction.message, interaction.user))
             return
@@ -1478,957 +1655,227 @@ class CollatButtons(View):
             mention_author=True
         )
 
-    @ui.button(label="Item Returned", style=ButtonStyle.success, emoji="📥")
-    async def item_returned(self, interaction: discord.Interaction, button: Button):
+    @discord.ui.button(label="Item Returned", style=discord.ButtonStyle.success, emoji="📥")
+    async def item_returned(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.disable_all(interaction)
         await interaction.response.send_message("Item marked as returned. ✅", ephemeral=True)
 
-# --------------------------------------------------
-# 🔹 Sanguine Sunday Signup System (REFACTORED)
-# --------------------------------------------------
+# ---------------------------
+# 🔹 Justice Panel (Server Protection)
+# ---------------------------
 
-SANG_MESSAGE_IDENTIFIER = "Sanguine Sunday Sign Up"
-SANG_MESSAGE = f"""\
-# {SANG_MESSAGE_IDENTIFIER} – Hosted by Macflag <:sanguine_sunday:1388100187985154130>
+class FinalConfirmationView(View):
+    """An ephemeral view to provide a final warning before executing a kick or ban."""
+    def __init__(self, original_message: discord.Message, initiator: discord.Member, approver: discord.Member, target: discord.Member, action: str, reason: str):
+        super().__init__(timeout=60) # Short timeout for a quick decision
+        self.original_message = original_message
+        self.initiator = initiator
+        self.approver = approver
+        self.target = target
+        self.action = action
+        self.reason = reason
 
-Looking for a fun Sunday activity? Look no farther than **Sanguine Sunday!**
-Spend an afternoon or evening sending **Theatre of Blood** runs with clan members.
-The focus on this event is on **Learners** and general KC.
+    async def update_original_message(self, status: str, color: discord.Color):
+        """Updates the embed in the senior staff channel."""
+        embed = self.original_message.embeds[0]
+        embed.title = f"⚖️ Action {status}: {self.action.capitalize()}"
+        embed.color = color
+        embed.clear_fields() # Remove old fields
+        embed.add_field(name="Target User", value=self.target.mention, inline=False)
+        embed.add_field(name="Initiated By", value=self.initiator.mention, inline=True)
+        embed.add_field(name="Handled By", value=self.approver.mention, inline=True)
+        embed.add_field(name="Reason", value=self.reason, inline=False)
+        embed.set_footer(text=f"This request is now closed.")
+        await self.original_message.edit(embed=embed, view=None) # Remove buttons
 
-We plan to have mentors on hand to help out with the learners.
-A learner is someone who needs the mechanics explained for each room.
-
-───────────────────────────────
-**ToB Learner Resource Hub**
-
-All Theatre of Blood guides, setups, and related resources are organized here:
-➤ [**ToB Resource Hub**](https://discord.com/channels/1272629330115297330/1426262876699496598)
-
-───────────────────────────────
-
-LEARNERS – please review this thread, watch the xzact guides, and get your plugins set up before Sunday:
-➤ [**Guides & Plugins**](https://discord.com/channels/1272629330115297330/1388887895837773895)
-
-No matter if you're a learner or an experienced raider, we strongly encourage you to use one of the setups in this thread:
-
-⚪ [**Learner Setups**](https://discord.com/channels/1272629330115297330/1426263868950450257)
-🔵 [**Rancour Meta Setups**](https://discord.com/channels/1272629330115297330/1426272592452391012)
-
-───────────────────────────────
-**Sign-Up Here!**
-
-Click a button below to sign up for the event.
-- **Raider:** Fill out the form with your KC and gear.
-- **Mentor:** Fill out the form to sign up as a mentor.
-
-The form will remember your answers from past events! 
-You only need to edit Kc's and Roles.
-
-Event link: <https://discord.com/events/1272629330115297330/1386302870646816788>
-
-||<@&{MENTOR_ROLE_ID}> <@&{SANG_ROLE_ID}> <@&{TOB_ROLE_ID}>||
-"""
-
-LEARNER_REMINDER_IDENTIFIER = "Sanguine Sunday Learner Reminder"
-LEARNER_REMINDER_MESSAGE = f"""\
-# {LEARNER_REMINDER_IDENTIFIER} ⏰ <:sanguine_sunday:1388100187985154130>
-
-This is a reminder for all learners who signed up for Sanguine Sunday!
-
-Please make sure you have reviewed the following guides and have your gear and plugins ready to go:
-• **[ToB Resource Hub](https://discord.com/channels/1272629330115297330/1426262876699496598)**
-• **[Learner Setups](https://discord.com/channels/1272629330115297330/1426263868950450257)**
-• **[Rancour Meta Setups](https://discord.com/channels/1272629330115297330/1426272592452391012)**
-• **[Guides & Plugins](https://discord.com/channels/1272629330115297330/1426263621440372768)**
-
-We look forward to seeing you there!
-"""
-
-class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
-    roles_known = TextInput(
-        label="Roles known? (Leave blank if None)",
-        placeholder="Inputs: All, Nfrz, Sfrz, Mdps, Rdps",
-        style=discord.TextStyle.short,
-        max_length=4,
-        required=False
-    )
-    
-    kc = TextInput(
-        label="What is your N͟o͟r͟m͟a͟l͟ Mode ToB KC?",
-        placeholder="0-1 = New, 2-49 = Learner, 50-149 = Proficient, 150+ = Highly Proficient",
-        style=discord.TextStyle.short,
-        max_length=5,
-        required=True
-    )
-
-    has_scythe = TextInput(
-        label="Do you have a Scythe? (Yes/No)",
-        placeholder="Yes or No O͟N͟L͟Y͟", 
-        style=discord.TextStyle.short,
-        max_length=3,
-        required=True
-    )
-    
-    learning_freeze = TextInput(
-        label="Learn freeze role? (Yes or leave blank)", # <-- Shortened this label
-        placeholder="Yes or blank/No O͟N͟L͟Y͟",
-        style=discord.TextStyle.short,
-        max_length=3,
-        required=False
-    )
-
-    def __init__(self, previous_data: dict = None):
-        super().__init__(title="Sanguine Sunday Signup")
-        if previous_data:
-            self.roles_known.default = previous_data.get("Roles Known", "")
-            kc_val = previous_data.get("KC", "")
-            self.kc.default = str(kc_val) if kc_val not in ["", None, "X"] else ""
-            self.has_scythe.default = "Yes" if previous_data.get("Has_Scythe", False) else "No"
-            self.learning_freeze.default = "Yes" if previous_data.get("Learning Freeze", False) else ""
-
-    async def on_submit(self, interaction: discord.Interaction):
-        if not sang_sheet:
-            await interaction.response.send_message("⚠️ Error: The Sanguine Sunday signup sheet is not connected. Please contact staff.", ephemeral=True)
-            return
-
+    @discord.ui.button(label="YES, Execute Action", style=discord.ButtonStyle.danger)
+    async def confirm_button(self, interaction: discord.Interaction, button: Button):
+        log_channel = bot.get_channel(LOG_CHANNEL_ID)
         try:
-            kc_value = int(str(self.kc))
-            if kc_value < 0:
-                raise ValueError("KC cannot be negative.")
-        except ValueError:
-            await interaction.response.send_message("⚠️ Error: Kill Count must be a valid number.", ephemeral=True)
-            return
-            
-        scythe_value = str(self.has_scythe).strip().lower()
-        if scythe_value not in ["yes", "no", "y", "n"]:
-            await interaction.response.send_message("⚠️ Error: Scythe must be 'Yes' or 'No'.", ephemeral=True)
-            return
-        has_scythe_bool = scythe_value in ["yes", "y"]
+            if self.action == "kick":
+                await self.target.kick(reason=f"Action by {self.initiator.name}, approved by {self.approver.name}. Reason: {self.reason}")
+            elif self.action == "ban":
+                await self.target.ban(reason=f"Action by {self.initiator.name}, approved by {self.approver.name}. Reason: {self.reason}")
 
-        proficiency_value = ""
-        if kc_value <= 1:
-            proficiency_value = "New"
-        elif 1 < kc_value < 50:
-            proficiency_value = "Learner"
-        elif 50 <= kc_value < 150:
-            proficiency_value = "Proficient"
-        else:
-            proficiency_value = "Highly Proficient"
+            # Update the original message in senior staff chat
+            await self.update_original_message("Completed", discord.Color.green())
+            await interaction.response.edit_message(content=f"✅ Successfully **{self.action}ed** {self.target.name}.", view=None)
 
-        roles_known_value = str(self.roles_known).strip() or "None"
-        learning_freeze_value = str(self.learning_freeze).strip().lower()
-        learning_freeze_bool = learning_freeze_value in ["yes", "y"]
+            # Send log message
+            if log_channel:
+                log_embed = discord.Embed(
+                    title=f"Moderation Action: {self.action.capitalize()}",
+                    color=discord.Color.red() if self.action == "ban" else discord.Color.orange(),
+                    timestamp=datetime.now()
+                )
+                log_embed.add_field(name="Target User", value=f"{self.target.name} ({self.target.id})", inline=False)
+                log_embed.add_field(name="Initiated By", value=f"{self.initiator.name} ({self.initiator.id})", inline=True)
+                log_embed.add_field(name="Approved By", value=f"{self.approver.name} ({self.approver.id})", inline=True)
+                log_embed.add_field(name="Reason", value=self.reason, inline=False)
+                await log_channel.send(embed=log_embed)
 
-        user_id = str(interaction.user.id)
-        user_name = interaction.user.display_name
-        timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
-        
-        row_data = [
-            user_id, user_name, roles_known_value, kc_value, 
-            has_scythe_bool, proficiency_value, learning_freeze_bool, timestamp
-        ]
-        
-        try:
-            cell = sang_sheet.find(user_id, in_column=1)
-
-            # --- UPDATED CHECK ---
-            if cell is None:
-                sang_sheet.append_row(row_data)
-            else:
-                sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:H{cell.row}') # <-- FIXED
-
-            # --- MODIFIED HISTORY WRITE ---
-            if history_sheet:
-                try:
-                    history_cell = history_sheet.find(user_id, in_column=1)
-                    if history_cell is None:
-                        history_sheet.append_row(row_data)
-                    else:
-                        history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:H{history_cell.row}') # <-- FIXED
-                except Exception as e:
-                    print(f"🔥 GSpread error on HISTORY (User Form) write: {e}")
-            else:
-                print("🔥 History sheet not available, skipping history append.")
-            # --- END MODIFIED ---
-
-        except gspread.CellNotFound:
-             sang_sheet.append_row(row_data)
-
-             # --- MODIFIED HISTORY WRITE ---
-             if history_sheet:
-                try:
-                    history_cell = history_sheet.find(user_id, in_column=1)
-                    if history_cell is None:
-                        history_sheet.append_row(row_data)
-                    else:
-                        history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:H{history_cell.row}') # <-- FIXED
-                except Exception as e:
-                    print(f"🔥 GSpread error on HISTORY (User Form) write: {e}")
-             else:
-                 print("🔥 History sheet not available, skipping history append.")
-             # --- END MODIFIED ---
-
+        except discord.Forbidden:
+            await interaction.response.edit_message(content="❌ **Action Failed.** I don't have the necessary permissions to perform this action.", view=None)
+            await self.update_original_message("Failed (Permissions)", discord.Color.dark_grey())
         except Exception as e:
-            print(f"🔥 GSpread error on signup: {e}")
-            await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
-            return
+            await interaction.response.edit_message(content=f"An unexpected error occurred: {e}", view=None)
+            await self.update_original_message("Failed (Error)", discord.Color.dark_grey())
 
-        # --- Success message ---
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    async def cancel_button(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.edit_message(content="Action cancelled.", view=None)
+
+
+class ApprovalView(View):
+    """The view sent to Senior Staff with Approve/Deny buttons."""
+    def __init__(self, initiator: discord.Member, target: discord.Member, action: str, reason: str):
+        super().__init__(timeout=None) # Persists until manually handled
+        self.initiator = initiator
+        self.target = target
+        self.action = action
+        self.reason = reason
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Checks if the user has the required role to approve or deny."""
+        approver_roles = {role.id for role in interaction.user.roles}
+        if not {ADMINISTRATOR_ROLE_ID, SENIOR_STAFF_ROLE_ID}.intersection(approver_roles):
+            await interaction.response.send_message("❌ You do not have the required role to handle this request.", ephemeral=True)
+            return False
+        if interaction.user.id == self.initiator.id:
+            await interaction.response.send_message("❌ You cannot approve or deny your own request.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="Approve", style=discord.ButtonStyle.success)
+    async def approve_button(self, interaction: discord.Interaction, button: Button):
+        final_view = FinalConfirmationView(
+            original_message=interaction.message,
+            initiator=self.initiator,
+            approver=interaction.user,
+            target=self.target,
+            action=self.action,
+            reason=self.reason
+        )
         await interaction.response.send_message(
-            f"✅ **You are signed up as {proficiency_value}!**\n"
-            f"**KC:** {kc_value}\n"
-            f"**Scythe:** {'Yes' if has_scythe_bool else 'No'}\n"
-            f"**Roles Known:** {roles_known_value}\n"
-            f"**Learn Freeze:** {'Yes' if learning_freeze_bool else 'No'}",
+            f"⚠️ **Final Warning** ⚠️\nAre you sure you want to **{self.action.upper()}** the user {self.target.name}?",
+            view=final_view,
             ephemeral=True
         )
 
-class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
-    roles_known = TextInput(
-        label="Roles known? (Leave blank if None)",
-        placeholder="Inputs: All, Nfrz, Sfrz, Mdps, Rdps",
-        style=discord.TextStyle.short,
-        max_length=4,
-        required=True
-    )
+    @discord.ui.button(label="Deny", style=discord.ButtonStyle.danger)
+    async def deny_button(self, interaction: discord.Interaction, button: Button):
+        embed = interaction.message.embeds[0]
+        embed.title = f"⚖️ Action Denied: {self.action.capitalize()}"
+        embed.color = discord.Color.red()
+        embed.clear_fields()
+        embed.add_field(name="Target User", value=self.target.mention, inline=False)
+        embed.add_field(name="Initiated By", value=self.initiator.mention, inline=True)
+        embed.add_field(name="Denied By", value=interaction.user.mention, inline=True)
+        embed.add_field(name="Reason", value=self.reason, inline=False)
+        embed.set_footer(text="This request has been denied and is now closed.")
+
+        await interaction.response.edit_message(embed=embed, view=None)
+
+@bot.tree.command(name="support_panel", description="Posts the staff support specialty role selector.")
+@app_commands.checks.has_any_role("Administrators")
+async def support_panel(interaction: discord.Interaction):
+    channel = bot.get_channel(SUPPORT_PANEL_CHANNEL_ID)
+    if not channel:
+        await interaction.response.send_message("❌ Support panel channel not found. Please set it in the config.", ephemeral=True)
+        return
     
-    kc = TextInput(
-        label="What is your N͟o͟r͟m͟a͟l͟ Mode ToB KC?",
-        placeholder="150+",
-        style=discord.TextStyle.short,
-        max_length=5,
-        required=True
-    )
+    await send_support_panel(channel)
+    await interaction.response.send_message(f"✅ Support specialty panel posted in {channel.mention}.", ephemeral=True)
 
-    has_scythe = TextInput(
-        label="Do you have a Scythe? (Yes/No)",
-        placeholder="Yes or No",
-        style=discord.TextStyle.short,
-        max_length=3,
-        required=True
-    )
+class JusticeActionModal(Modal):
+    target_user = TextInput(label="User's Name or ID", placeholder="Enter the exact username or user ID.", required=True)
+    reason = TextInput(label="Reason", style=discord.TextStyle.paragraph, placeholder="Provide a detailed reason for this action.", required=True)
 
-    # --- Add __init__ for prefilling ---
-    def __init__(self, previous_data: dict = None):
-        super().__init__(title="Sanguine Sunday Mentor Signup")
-        if previous_data:
-             self.roles_known.default = previous_data.get("Roles Known", "")
-             kc_val = previous_data.get("KC", "")
-             self.kc.default = str(kc_val) if kc_val not in ["", None, "X"] else ""
-             self.has_scythe.default = "Yes" if previous_data.get("Has_Scythe", False) else "No"
+    def __init__(self, action: str):
+        super().__init__(title=f"Initiate User {action.capitalize()}")
+        self.action = action
 
     async def on_submit(self, interaction: discord.Interaction):
-        if not sang_sheet:
-            await interaction.response.send_message("⚠️ Error: The Sanguine Sunday signup sheet is not connected.", ephemeral=True)
-            return
+        await interaction.response.defer(ephemeral=True)
 
+        target_str = self.target_user.value
+        target = None
         try:
-            kc_value = int(str(self.kc))
-            if kc_value < 50:
-                await interaction.response.send_message("⚠️ Mentors should have 50+ KC to sign up via form.", ephemeral=True)
-                return
+            target_id = int(target_str)
+            target = interaction.guild.get_member(target_id)
         except ValueError:
-            await interaction.response.send_message("⚠️ Error: Kill Count must be a valid number.", ephemeral=True)
-            return
-            
-        scythe_value = str(self.has_scythe).strip().lower()
-        if scythe_value not in ["yes", "no", "y", "n"]:
-            await interaction.response.send_message("⚠️ Error: Scythe must be 'Yes' or 'No'.", ephemeral=True)
-            return
-        has_scythe_bool = scythe_value in ["yes", "y"]
+            target = discord.utils.get(interaction.guild.members, name=target_str)
 
-        proficiency_value = "Mentor"
-        roles_known_value = str(self.roles_known).strip()
-        learning_freeze_bool = False
-
-        user_id = str(interaction.user.id)
-        user_name = interaction.user.display_name
-        timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
-        
-        row_data = [
-            user_id, user_name, roles_known_value, kc_value, 
-            has_scythe_bool, proficiency_value, learning_freeze_bool, timestamp
-        ]
-        
-        try:
-            cell = sang_sheet.find(user_id, in_column=1)
-            if cell is None:
-                 sang_sheet.append_row(row_data)
-            else:
-                 sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:H{cell.row}') # <-- FIXED
-
-            # --- MODIFIED HISTORY WRITE ---
-            if history_sheet:
-                try:
-                    history_cell = history_sheet.find(user_id, in_column=1)
-                    if history_cell is None:
-                        history_sheet.append_row(row_data)
-                    else:
-                        history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:H{history_cell.row}') # <-- FIXED
-                except Exception as e:
-                    print(f"🔥 GSpread error on HISTORY (Mentor Form) write: {e}")
-            else:
-                print("🔥 History sheet not available, skipping history append.")
-            # --- END MODIFIED ---
-        except gspread.CellNotFound:
-            sang_sheet.append_row(row_data)
-
-            # --- MODIFIED HISTORY WRITE ---
-            if history_sheet:
-                try:
-                    history_cell = history_sheet.find(user_id, in_column=1)
-                    if history_cell is None:
-                        history_sheet.append_row(row_data)
-                    else:
-                        history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:H{history_cell.row}') # <-- FIXED
-                except Exception as e:
-                    print(f"🔥 GSpread error on HISTORY (Mentor Form) write: {e}")
-            else:
-                print("🔥 History sheet not available, skipping history append.")
-            # --- END MODIFIED ---
-        except Exception as e:
-            print(f"🔥 GSpread error on mentor signup: {e}")
-            await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
+        if not target:
+            await interaction.followup.send(f"❌ Could not find a user with the name or ID: {target_str}.", ephemeral=True)
             return
 
-        # --- Success message ---
-        await interaction.response.send_message(
-            f"✅ **You are signed up as a Mentor!**\n"
-            f"**KC:** {kc_value}\n"
-            f"**Scythe:** {'Yes' if has_scythe_bool else 'No'}\n"
-            f"**Roles Known:** {roles_known_value}",
-            ephemeral=True
+        # Post Confirmation Message to Senior Staff Channel
+        senior_staff_channel = bot.get_channel(SENIOR_STAFF_CHANNEL_ID)
+        if not senior_staff_channel:
+            await interaction.followup.send("❌ Senior Staff channel not found. Please configure the bot.", ephemeral=True)
+            return
+
+        emoji = "🥊" if self.action == "ban" else "🥾"
+        embed = discord.Embed(
+            title=f"{emoji} Moderation Request: {self.action.capitalize()}",
+            description="A staff member has requested to take action. This requires approval from Senior Staff or an Administrator.",
+            color=discord.Color.yellow()
         )
+        embed.add_field(name="Target User", value=target.mention, inline=False)
+        embed.add_field(name="Initiated By", value=interaction.user.mention, inline=False)
+        embed.add_field(name="Reason", value=self.reason.value, inline=False)
+        embed.set_footer(text="Please review carefully before taking action.")
         
-def get_previous_signup(user_id: str) -> Optional[Dict[str, Any]]:
-    """Fetches the latest signup data for a user from the HISTORY sheet."""
-    if not history_sheet: # <-- MODIFIED
-        print("History sheet not available in get_previous_signup.") # <-- MODIFIED & DEBUG removed
-        return None
-    try:
-        all_records = history_sheet.get_all_records() # <-- MODIFIED
-        if not all_records:
-             print("No records found in history_sheet.") # <-- MODIFIED & DEBUG removed
-             return None
+        view = ApprovalView(initiator=interaction.user, target=target, action=self.action, reason=self.reason.value)
+        
+        await senior_staff_channel.send(embed=embed, view=view)
+        await interaction.followup.send(f"✅ Your request to **{self.action} {target.name}** has been sent to Senior Staff for approval.", ephemeral=True)
 
-        for record in reversed(all_records):
-            sheet_discord_id = record.get("Discord_ID")
-            sheet_discord_id_str = str(sheet_discord_id) if sheet_discord_id is not None else None
 
-            if sheet_discord_id_str == user_id:
-                record["Has_Scythe"] = str(record.get("Has_Scythe", "FALSE")).upper() == "TRUE"
-                record["Learning Freeze"] = str(record.get("Learning Freeze", "FALSE")).upper() == "TRUE"
-                return record
-        print(f"No history match found for user_id: {user_id}") # <-- MODIFIED & DEBUG removed
-        return None
-    except Exception as e:
-        print(f"🔥 GSpread error fetching previous signup for {user_id}: {e}")
-        return None
-
-class SignupView(View):
+class JusticePanelView(View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @ui.button(label="Sign Up as Raider", style=ButtonStyle.success, custom_id="sang_signup_raider", emoji="📝")
-    async def user_signup_button(self, interaction: discord.Interaction, button: Button):
-        previous_data = get_previous_signup(str(interaction.user.id))
-        await interaction.response.send_modal(UserSignupForm(previous_data=previous_data))
+    @discord.ui.button(label="Initiate Kick", style=discord.ButtonStyle.secondary, custom_id="initiate_kick", emoji="🥾")
+    async def initiate_kick(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.send_modal(JusticeActionModal("kick"))
 
-    @ui.button(label="Sign Up as Mentor", style=ButtonStyle.danger, custom_id="sang_signup_mentor", emoji="🎓")
-    async def mentor_signup_button(self, interaction: discord.Interaction, button: Button):
-        user = interaction.user
-        member = interaction.guild.get_member(user.id)
-        if not member:
-             await interaction.response.send_message("⚠️ Could not verify your roles. Please try again.", ephemeral=True)
-             return
+    @discord.ui.button(label="Initiate Ban", style=discord.ButtonStyle.danger, custom_id="initiate_ban", emoji="🥊")
+    async def initiate_ban(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.send_modal(JusticeActionModal("ban"))
 
-        has_mentor_role = any(role.id == MENTOR_ROLE_ID for role in member.roles)
-        previous_data = get_previous_signup(str(user.id))
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Checks if the user has the Clan Staff role."""
+        staff_role = discord.utils.get(interaction.guild.roles, id=STAFF_ROLE_ID)
+        if staff_role and staff_role in interaction.user.roles:
+            return True
+        await interaction.response.send_message("❌ This panel is for Clan Staff members only.", ephemeral=True)
+        return False
 
-        if not has_mentor_role:
-            await interaction.response.send_modal(MentorSignupForm(previous_data=previous_data))
-            return
 
-        is_auto_signup = previous_data and previous_data.get("KC") == "X"
-
-        if not is_auto_signup:
-            await interaction.response.defer(ephemeral=True)
-            if not sang_sheet or not history_sheet: # <-- MODIFIED
-                await interaction.followup.send("⚠️ Error: The Sanguine Sunday signup or history sheet is not connected.", ephemeral=True) # <-- MODIFIED
-                return
-
-            user_id = str(user.id)
-            user_name = member.display_name
-            timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
-
-            row_data = [
-                user_id, user_name, "All", "X",
-                True, "Mentor", False, # <-- Changed from "Highly Proficient"
-                timestamp
-            ]
-
-            try:
-                cell = sang_sheet.find(user_id, in_column=1)
-                if cell is None:
-                    sang_sheet.append_row(row_data)
-                else:
-                    sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:H{cell.row}') # <-- FIXED
-
-                # --- MODIFIED HISTORY WRITE ---
-                if history_sheet:
-                    try:
-                        history_cell = history_sheet.find(user_id, in_column=1)
-                        if history_cell is None:
-                            history_sheet.append_row(row_data)
-                        else:
-                            history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:H{history_cell.row}') # <-- FIXED
-                    except Exception as e:
-                        print(f"🔥 GSpread error on HISTORY (Auto-Mentor) write: {e}")
-                else:
-                    print("🔥 History sheet not available, skipping history append.")
-                # --- END MODIFIED ---
-
-                await interaction.followup.send(
-                    "✅ **Auto-signed up as Mentor!** (Detected Mentor role).\n"
-                    "Your proficiency is set to Highly Proficient, Roles Known to All, and Scythe to Yes.\n"
-                    "**If this is incorrect, click the button again to fill out the form.**",
-                    ephemeral=True
-                )
-            except gspread.CellNotFound:
-                 sang_sheet.append_row(row_data)
-
-                 # --- MODIFIED HISTORY WRITE ---
-                 if history_sheet:
-                    try:
-                        history_cell = history_sheet.find(user_id, in_column=1)
-                        if history_cell is None:
-                            history_sheet.append_row(row_data)
-                        else:
-                            history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:H{history_cell.row}') # <-- FIXED
-                    except Exception as e:
-                        print(f"🔥 GSpread error on HISTORY (Auto-Mentor) write: {e}")
-                 else:
-                     print("🔥 History sheet not available, skipping history append.")
-                 # --- END MODIFIED ---
-
-                 await interaction.followup.send(
-                    "✅ **Auto-signed up as Mentor!** (Detected Mentor role).\n"
-                    "Your proficiency is set to Highly Proficient, Roles Known to All, and Scythe to Yes.\n"
-                    "**If this is incorrect, click the button again to fill out the form.**",
-                    ephemeral=True
-                )
-            except Exception as e:
-                print(f"🔥 GSpread error on auto mentor signup: {e}")
-                await interaction.followup.send("⚠️ An error occurred while auto-signing you up.", ephemeral=True)
-
-        else:
-            previous_data["KC"] = ""
-            await interaction.response.send_modal(MentorSignupForm(previous_data=previous_data))
-
-# --- Helper Functions ---
-
-PROF_ORDER = {"mentor": 0, "highly proficient": 1, "proficient": 2, "learner": 3, "new": 4}
-
-def prof_rank(p: dict) -> int:
-    return PROF_ORDER.get(p.get("proficiency", "").lower(), 99)
-
-def scythe_icon(p: dict) -> str:
-    return "✅" if p.get("has_scythe") else "❌"
-
-async def find_latest_signup_message(channel: discord.TextChannel) -> Optional[discord.Message]:
-    """Finds the most recent Sanguine Sunday signup message in a channel."""
-    async for message in channel.history(limit=100):
-        if message.author == bot.user and SANG_MESSAGE_IDENTIFIER in message.content:
-            return message
-    return None
-
-# --- Core Functions ---
-async def post_signup(channel: discord.TextChannel):
-    """Posts the main signup message with the signup buttons."""
-    await channel.send(SANG_MESSAGE, view=SignupView())
-    print(f"✅ Posted Sanguine Sunday signup in #{channel.name}")
-
-async def post_reminder(channel: discord.TextChannel):
-    """Finds learners (New or Learner proficiency) from GSheet and posts a reminder."""
-    if not sang_sheet:
-        print("⚠️ Cannot post reminder, Sang Sheet not connected.")
-        return False # Indicate failure
-
-    # Delete previous reminders from the bot
-    try:
-        async for message in channel.history(limit=50):
-            if message.author == bot.user and LEARNER_REMINDER_IDENTIFIER in message.content:
-                await message.delete()
-    except discord.Forbidden:
-        print(f"⚠️ Could not delete old reminders in #{channel.name} (Missing Permissions)")
-    except Exception as e:
-        print(f"🔥 Error cleaning up reminders: {e}")
-
-    learners = []
-    try:
-        all_signups = sang_sheet.get_all_records() # Fetch all signups
-        for signup in all_signups:
-            # Check the Proficiency column (case-insensitive)
-            proficiency = str(signup.get("Proficiency", "")).lower()
-            if proficiency in ["learner", "new"]:
-                user_id = signup.get('Discord_ID')
-                if user_id:
-                    learners.append(f"<@{user_id}>")
-
-        if not learners:
-            reminder_content = f"{LEARNER_REMINDER_MESSAGE}\n\n_No learners have signed up yet._"
-        else:
-            learner_pings = " ".join(learners)
-            reminder_content = f"{LEARNER_REMINDER_MESSAGE}\n\n**Learners:** {learner_pings}"
-
-        await channel.send(reminder_content, allowed_mentions=discord.AllowedMentions(users=True))
-        print(f"✅ Posted Sanguine Sunday learner reminder in #{channel.name}")
-        return True # Indicate success
-    except Exception as e:
-        print(f"🔥 GSpread error fetching/posting reminder: {e}")
-        await channel.send("⚠️ Error processing learner list from database.")
-        return False # Indicate failure
-
-# --- Slash Command Group ---
-@bot.tree.command(name="sangsignup", description="Manage Sanguine Sunday signups.")
-@app_commands.checks.has_role(STAFF_ROLE_ID)
-@app_commands.describe(
-    variant="Choose the action to perform.",
-    channel="Optional channel to post in (defaults to the configured event channel)."
-)
-@app_commands.choices(variant=[
-    app_commands.Choice(name="Post Signup Message", value=1),
-    app_commands.Choice(name="Post Learner Reminder", value=2),
-])
-async def sangsignup(interaction: discord.Interaction, variant: int, channel: Optional[discord.TextChannel] = None):
-    target_channel = channel or bot.get_channel(SANG_CHANNEL_ID)
-    if not target_channel:
-        await interaction.response.send_message("⚠️ Could not find the target channel.", ephemeral=True)
+@bot.tree.command(name="justice_panel", description="Posts the server protection panel.")
+@app_commands.checks.has_any_role("Administrators")
+async def justice_panel(interaction: discord.Interaction):
+    channel = bot.get_channel(JUSTICE_PANEL_CHANNEL_ID)
+    if not channel:
+        await interaction.response.send_message("❌ Justice panel channel not found. Please set it in the config.", ephemeral=True)
         return
 
-    await interaction.response.defer(ephemeral=True)
-
-    if variant == 1:
-        await post_signup(target_channel)
-        await interaction.followup.send(f"✅ Signup message posted in {target_channel.mention}.")
-    elif variant == 2:
-        result = await post_reminder(target_channel)
-        if result:
-            await interaction.followup.send(f"✅ Learner reminder posted in {target_channel.mention}.")
-        else:
-            await interaction.followup.send("⚠️ Could not post the reminder.")
-
-@sangsignup.error
-async def sangsignup_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-    if isinstance(error, app_commands.MissingRole):
-        await interaction.response.send_message("❌ You don't have permission.", ephemeral=True)
-    else:
-        print(f"Error in sangsignup command: {error}")
-        # Use followup if response already sent (due to defer)
-        if interaction.response.is_done():
-             await interaction.followup.send(f"An unexpected error occurred.", ephemeral=True)
-        else:
-             await interaction.response.send_message(f"An unexpected error occurred.", ephemeral=True)
-
-
-# --- Helper function for role parsing ---
-def parse_roles(roles_str: str) -> (bool, bool):
-    """Parses a roles string to check for range and melee keywords."""
-    if not roles_str or roles_str == "N/A":
-        return False, False
-
-    roles_str = roles_str.lower()
-    knows_range = any(s in roles_str for s in ["range", "ranger", "rdps"])
-    knows_melee = any(s in roles_str for s in ["melee", "mdps", "meleer"])
-    return knows_range, knows_melee
-
-# --- Helper function to get complementary learners ---
-def pop_complementary_learners(learners_list: list) -> (dict, dict):
-    """
-    Pops the first learner and tries to find a complementary
-    (range/melee) learner to pop and return as a pair.
-    """
-    if not learners_list or len(learners_list) < 2:
-        return None, None
-
-    l1 = learners_list.pop(0)
-    l1_range, l1_melee = l1.get('knows_range', False), l1.get('knows_melee', False)
-
-    # If l1 doesn't know a specific role, no complement is needed
-    if not (l1_range or l1_melee):
-        return l1, learners_list.pop(0)
-
-    # Try to find a complement
-    for i, l2 in enumerate(learners_list):
-        l2_range, l2_melee = l2.get('knows_range', False), l2.get('knows_melee', False)
-        # Check for complementary roles
-        if (l1_range and l2_melee) or (l1_melee and l2_range):
-            return l1, learners_list.pop(i)
-
-    # No complement found, just return the next in line
-    return l1, learners_list.pop(0)
-
-
-# --- Matchmaking Slash Command (REWORKED + Highly Proficient) ---
-@bot.tree.command(name="sangmatch", description="Create ToB teams from signups in a voice channel.")
-@app_commands.checks.has_role(STAFF_ROLE_ID)
-@app_commands.describe(voice_channel="Optional: The voice channel to pull users from. If omitted, uses all signups.")
-async def sangmatch(interaction: discord.Interaction, voice_channel: Optional[discord.VoiceChannel] = None):
-    if not sang_sheet:
-        await interaction.response.send_message("⚠️ Error: The Sanguine Sunday sheet is not connected.", ephemeral=True)
-        return
-
-    await interaction.response.defer(ephemeral=False) # Send to channel
-
-    # --- 1. Get users in the specified voice channel ---
-    vc_member_ids = None # <-- ADDED
-    channel_name = "All Signups" # <-- ADDED
-
-    if voice_channel: # <-- ADDED IF BLOCK
-        channel_name = voice_channel.name
-        if not voice_channel.members:
-            await interaction.followup.send(f"⚠️ No users are in {voice_channel.mention}.")
-            return
-
-        vc_member_ids = {str(member.id) for member in voice_channel.members if not member.bot}
-        if not vc_member_ids:
-            await interaction.followup.send(f"⚠️ No human users are in {voice_channel.mention}.")
-            return
-
-    # --- 2. Get all signups from GSheet ---
-    try:
-        all_signups_records = sang_sheet.get_all_records()
-        if not all_signups_records:
-            await interaction.followup.send("⚠️ There are no signups in the database.")
-            return
-    except Exception as e:
-        print(f"🔥 GSheet error fetching all signups: {e}")
-        await interaction.followup.send("⚠️ An error occurred fetching signups from the database.")
-        return
-
-    # --- 3. Filter signups to only users in the VC and parse roles ---
-    available_raiders = []
-    for signup in all_signups_records:
-        user_id = str(signup.get("Discord_ID"))
-        
-        # --- MODIFIED VC CHECK ---
-        # If vc_member_ids is set (a VC was provided), filter by it.
-        if vc_member_ids and user_id not in vc_member_ids:
-             continue # Skip this user, not in the specified VC
-        
-        roles_str = signup.get("Roles Known", "")
-        knows_range, knows_melee = parse_roles(roles_str)
-        kc_raw = signup.get("KC", 0) # Get KC value, default to 0
-        try:
-            # Convert KC to int, handle potential non-numeric values (like 'N/A' or 'X' for mentors)
-            kc_val = int(kc_raw)
-        except (ValueError, TypeError):
-            # For Mentors with 'X' or other non-numbers, treat KC as very high for sorting purposes
-            kc_val = 9999 if signup.get("Proficiency", "").lower() == 'mentor' else 0
-
-
-        # --- Determine Proficiency including Highly Proficient ---
-        # Use the value from the sheet if it's 'Mentor', otherwise calculate based on KC
-        proficiency_val = signup.get("Proficiency", "").lower()
-        if proficiency_val != 'mentor': # Recalculate if not mentor (in case KC changed)
-            if kc_val <= 1:
-                proficiency_val = "new"
-            elif 1 < kc_val < 50:
-                proficiency_val = "learner"
-            elif 50 <= kc_val < 150:
-                proficiency_val = "proficient"
-            else: # 150+ KC
-                proficiency_val = "highly proficient"
-
-        available_raiders.append({
-            "user_id": user_id,
-                "user_name": signup.get("Discord_Name"),
-                "proficiency": proficiency_val, # Use calculated/sheet proficiency
-                "kc": kc_val, # Use the integer KC value (or default)
-                "has_scythe": str(signup.get("Has_Scythe", "FALSE")).upper() == "TRUE",
-                "roles_known": roles_str,
-                "learning_freeze": str(signup.get("Learning Freeze", "FALSE")).upper() == "TRUE",
-                "knows_range": knows_range,
-                "knows_melee": knows_melee
-            })
-
-    if not available_raiders:
-        await interaction.followup.send(f"⚠️ None of the users in {voice_channel.mention} have signed up for the event.")
-        return
-
-    
-    # --- 4. Matchmaking Logic (mentor-first, prefer teams of 5) ---
-    guild = interaction.guild
-
-    # 4a) Sort globally: Mentor → HP → Pro → Learner → New, then scythe, then KC desc
-    available_raiders.sort(
-        key=lambda p: (prof_rank(p), not p.get("has_scythe"), -int(p.get("kc", 0)))
-    )
-
-    mentors = [p for p in available_raiders if p["proficiency"] == "mentor"]
-    high_pro = [p for p in available_raiders if p["proficiency"] == "highly proficient"]
-    pro      = [p for p in available_raiders if p["proficiency"] == "proficient"]
-    learners = [p for p in available_raiders if p["proficiency"] == "learner"]
-    news     = [p for p in available_raiders if p["proficiency"] == "new"]
-
-    # prefer 5-man teams; number of teams bounded by mentors (one per team if possible)
-    total_players = len(available_raiders)
-    ideal_size = 5
-    min_teams_by_size = math.ceil(total_players / ideal_size) if total_players else 0
-    num_teams = max(1, min(len(mentors) if mentors else min_teams_by_size, min_teams_by_size))
-
-    # If not enough mentors for the minimum by size, ensure at least 1 team (or as many mentors as we have)
-    if len(mentors) < num_teams:
-        num_teams = max(len(mentors), 1)
-
-    # Create empty teams and put **one** mentor per team (no double mentor while another team has none)
-    teams = [[] for _ in range(num_teams)]
-    for i, mtr in enumerate(mentors[:num_teams]):
-        teams[i].append(mtr)
-
-    # Pool of “strong” (HP first, then Pro) for backfilling
-    strong = high_pro + pro
-
-    # 4b) Give each team at least 2 strong players if possible (balance scythes round-robin)
-    def pop_with_scythe(prefer_scythe=True):
-        idx = next((i for i, p in enumerate(strong) if p.get("has_scythe")), None) if prefer_scythe else None
-        if idx is None:
-            return strong.pop(0) if strong else None
-        return strong.pop(idx)
-
-    # First pass: 1 strong per team
-    for i in range(num_teams):
-        if not strong:
-            break
-        prefer_s = not any(member.get("has_scythe") for member in teams[i])
-        pick = pop_with_scythe(prefer_s)
-        if pick:
-            teams[i].append(pick)
-
-    # Second pass: try to get each team to 2 strong
-    for i in range(num_teams):
-        if not strong:
-            break
-        prefer_s = not any(member.get("has_scythe") for member in teams[i])
-        pick = pop_with_scythe(prefer_s)
-        if pick:
-            teams[i].append(pick)
-
-    # 4c) Add learners next (place Learner before New; avoid making New-only teams)
-    def add_role_bucket(bucket):
-        i = 0
-        while bucket:
-            placed = False
-            for _ in range(num_teams):
-                t = teams[i]
-                if len(t) < ideal_size:
-                    has_strong = any(prof_rank(p) <= PROF_ORDER["proficient"] for p in t)
-                    if has_strong or bucket is learners:
-                        t.append(bucket.pop(0))
-                        placed = True
-                        break
-                i = (i + 1) % num_teams
-            if not placed:
-                break
-
-    add_role_bucket(learners)
-    add_role_bucket(news)
-
-    # 4d) Fill remaining seats with leftover strong players
-    while strong:
-        placed = False
-        for i in range(num_teams):
-            if len(teams[i]) < ideal_size:
-                teams[i].append(strong.pop(0))
-                placed = True
-                if not strong:
-                    break
-        if not placed:
-            break
-
-    # 4e) If people still left (rare), spill into 4-man teams
-    leftover_pool = [p for p in available_raiders if p not in [m for team in teams for m in team]]
-    while leftover_pool:
-        spill = leftover_pool[:4]
-        leftover_pool = leftover_pool[4:]
-        teams.append(spill)
-
-    # --- 4f) Post-process to enforce New-player constraints ---
-    def is_new(p): 
-        return p.get("proficiency") == "new"
-    def count_new(team): 
-        return sum(1 for p in team if is_new(p))
-
-    # Helper: try to swap a 'new' from team A with a non-new from team B
-    def swap_new_out(team_a_idx, team_b_idx):
-        A = teams[team_a_idx]; B = teams[team_b_idx]
-        a_new_idx = next((i for i,p in enumerate(A) if is_new(p)), None)
-        b_non_idx = next((i for i,p in enumerate(B) if not is_new(p)), None)
-        if a_new_idx is None or b_non_idx is None:
-            return False
-        A[a_new_idx], B[b_non_idx] = B[b_non_idx], A[a_new_idx]
-        return True
-
-    # Pass 1: No team of size 3 or 5 may include 'new'
-    for idx, t in enumerate(teams):
-        if len(t) in (3, 5) and count_new(t) > 0:
-            # find a team we can trade with (prefer size 4)
-            candidates = sorted(
-                [j for j in range(len(teams)) if j != idx],
-                key=lambda j: (abs(len(teams[j]) - 4), count_new(teams[j]))
-            )
-            for j in candidates:
-                if swap_new_out(idx, j) and not (len(teams[idx]) in (3,5) and count_new(teams[idx])>0):
-                    break  # fixed this team
-            # If still not fixed, just remove extra 'new' into a new 4-man spill team
-            while len(t) in (3,5) and count_new(t) > 0:
-                # move one 'new' to a new temporary bucket, will be appended later
-                rem_idx = next(i for i,p in enumerate(t) if is_new(p))
-                moved = t.pop(rem_idx)
-                placed = False
-                for j in range(len(teams)):
-                    if j == idx: 
-                        continue
-                    # place into a team that's not size 3/5, with <=1 new already
-                    if len(teams[j]) == 4 and count_new(teams[j]) <= 1:
-                        teams[j].append(moved); placed=True; break
-                if not placed:
-                    # create a new bucket of 4, will fill later if needed
-                    teams.append([moved])
-                    t = teams[idx]
-
-    # Pass 2: Cap 'new' per team to 2
-    overfull = True
-    while overfull:
-        overfull = False
-        for i in range(len(teams)):
-            while count_new(teams[i]) > 2:
-                overfull = True
-                # move one 'new' to a team with <2 new and not size 3/5
-                n_idx = next(k for k,p in enumerate(teams[i]) if is_new(p))
-                moved = teams[i].pop(n_idx)
-                placed = False
-                for j in range(len(teams)):
-                    if i==j: 
-                        continue
-                    if count_new(teams[j]) < 2 and len(teams[j]) == 4:
-                        teams[j].append(moved); placed=True; break
-                if not placed:
-                    # as a last resort, create a new team bucket (will become 4 later if possible)
-                    teams.append([moved])
-                    placed = True
-
-    # Optional tidy-up: try to merge tiny buckets into 4s without violating rules
-    # Fill any singleton/doubleton buckets by stealing non-new from large buckets
-    for i in range(len(teams)):
-        if len(teams[i]) < 4:
-            for j in range(len(teams)):
-                if i==j: continue
-                while len(teams[i]) < 4 and len(teams[j]) > 4:
-                    # move a non-new from j to i
-                    idx_non = next((k for k,p in enumerate(teams[j]) if not is_new(p)), None)
-                    if idx_non is None: break
-                    teams[i].append(teams[j].pop(idx_non))
-
-
-    # --- 5. Output (mention + nickname + scythe icon) ---
     embed = discord.Embed(
-        title=f"Sanguine Sunday Teams - {channel_name}",
-        description=f"Created {len(teams)} team(s) from {len(available_raiders)} available signed-up users.",
-        color=discord.Color.red()
+        title="🛡️ Justice Panel 🛡️",
+        description=(
+            "This panel serves as a server protection system. It allows Clan Staff to request the removal of a user, subject to approval.\n\n"
+            "**Instructions for Trial Staff:**\n"
+            "1. Click **Initiate Kick** or **Initiate Ban**.\n"
+            "2. Fill out the user's **exact name or ID** and a **detailed reason**.\n"
+            "3. A request will be sent to the Senior Staff channel for approval.\n\n"
+            "*All actions are logged for transparency.*"
+        ),
+        color=discord.Color.dark_blue()
     )
-
-    def user_line(p: dict) -> str:
-        uid = int(p["user_id"])
-        member = guild.get_member(uid)
-        mention = member.mention if member else f"<@{uid}>"
-        nickname = member.display_name if member else p.get("user_name", f"User {uid}")
-        role_text = p.get("proficiency", "Unknown").replace(" ", "-").capitalize().replace("-", " ")
-        kc_raw = p.get("kc", 0)
-        kc_text = f"({kc_raw} KC)" if isinstance(kc_raw, int) and kc_raw > 0 and role_text != "Mentor" else ""
-        return f"{mention} • **{role_text}** {kc_text} • {scythe_icon(p)} Scythe"
-
-    # Sort each team's display Mentor → HP → Pro → Learner → New
-    for i, team in enumerate(teams, start=1):
-        team_sorted = sorted(team, key=prof_rank)
-        lines = [user_line(p) for p in team_sorted]
-        embed.add_field(name=f"Team {i}", value="\n".join(lines) if lines else "—", inline=False)
-
-    # If a VC was provided, show unassigned
-    unassigned_users = set()
-    if vc_member_ids:
-        assigned_ids = {p["user_id"] for t in teams for p in t}
-        unassigned_users = vc_member_ids - assigned_ids
-    
-    if unassigned_users:
-        mentions = []
-        for uid in unassigned_users:
-            m = guild.get_member(int(uid))
-            mentions.append(m.mention if m else f"<@{uid}>")
-        embed.add_field(
-            name="Unassigned Users in VC",
-            value=" ".join(mentions),
-            inline=False
-        )
-
-
-    await interaction.followup.send(embed=embed)
-@sangmatch.error
-async def sangmatch_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-    if isinstance(error, app_commands.MissingRole):
-        await interaction.response.send_message("❌ You don't have permission.", ephemeral=True)
-    else:
-        print(f"Error in sangmatch command: {error}")
-        if not interaction.response.is_done():
-            await interaction.response.send_message(f"An unexpected error occurred.", ephemeral=True)
-        else:
-            await interaction.followup.send(f"An unexpected error occurred.", ephemeral=True)
-
-
-# --- Scheduled Tasks ---
-SANG_SHEET_HEADER = ["Discord_ID", "Discord_Name", "Roles Known", "KC", "Has_Scythe", "Proficiency", "Learning Freeze", "Timestamp"]
-
-@tasks.loop(time=dt_time(hour=11, minute=0, tzinfo=CST))
-async def scheduled_post_signup():
-    """Posts the signup message every Friday at 11:00 AM CST."""
-    if datetime.now(CST).weekday() == 4:  # 4 = Friday
-        channel = bot.get_channel(SANG_CHANNEL_ID)
-        if channel:
-            await post_signup(channel)
-
-@tasks.loop(time=dt_time(hour=14, minute=0, tzinfo=CST))
-async def scheduled_post_reminder():
-    """Posts the learner reminder every Saturday at 2:00 PM CST."""
-    if datetime.now(CST).weekday() == 5:  # 5 = Saturday
-        channel = bot.get_channel(SANG_CHANNEL_ID)
-        if channel:
-            await post_reminder(channel)
-
-@tasks.loop(time=dt_time(hour=4, minute=0, tzinfo=CST)) # 4 AM CST
-async def scheduled_clear_sang_sheet():
-    """Clears the SangSignups sheet every Monday at 4:00 AM CST."""
-    if datetime.now(CST).weekday() == 0:  # 0 = Monday
-        print("MONDAY DETECTED: Clearing SangSignups sheet...")
-        if sang_sheet:
-            try:
-                sang_sheet.clear()
-                sang_sheet.append_row(SANG_SHEET_HEADER)
-                print("✅ SangSignups sheet cleared and headers added.")
-            except Exception as e:
-                print(f"🔥 Failed to clear SangSignups sheet: {e}")
-        else:
-            print("⚠️ Cannot clear SangSignups sheet, not connected.")
-
-@scheduled_post_signup.before_loop
-@scheduled_post_reminder.before_loop
-@scheduled_clear_sang_sheet.before_loop # <-- ADDED
-async def before_scheduled_tasks():
-    await bot.wait_until_ready()
-
-# ---------------------------
-# 🔹 Justice Panel
-# ---------------------------
-# (Justice Panel logic is assumed to be correct and unchanged)
+    await channel.send(embed=embed, view=JusticePanelView())
+    await interaction.response.send_message(f"✅ Justice panel posted in {channel.mention}.", ephemeral=True)
 
 # ---------------------------
 # 🔹 Bot Events
@@ -2439,46 +1886,41 @@ async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
-    # This ensures that bot.commands (if any) are still processed
-    # await bot.process_commands(message) # Only needed if using prefix commands
+    await bot.process_commands(message)
 
+    parent_channel_id = None
+    if isinstance(message.channel, discord.Thread):
+        parent_channel_id = message.channel.parent.id
+    elif isinstance(message.channel, discord.TextChannel):
+        parent_channel_id = message.channel.id
+
+    # ---------------------------
+    # 📸 Collat handler
+    # ---------------------------
     if message.channel.id == COLLAT_CHANNEL_ID:
         has_pasted_image = any(embed.image for embed in message.embeds)
         is_reply = message.reference is not None
-        valid_mention = message.mentions[0] if message.mentions and not is_reply else None
+        valid_mention = None
+        if message.mentions and not is_reply:
+            valid_mention = message.mentions[0]
 
         if valid_mention or message.attachments or has_pasted_image:
             view = CollatButtons(message.author, valid_mention)
             await message.reply("Collat actions:", view=view, allowed_mentions=discord.AllowedMentions.none())
-
+        
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
-
+    
     # Add persistent views
-    # bot.add_view(JusticePanelView())  <-- This class is not defined in the provided file
+    bot.add_view(JusticePanelView()) 
     bot.add_view(SupportRoleView())
     bot.add_view(RSNPanelView())
     bot.add_view(CloseThreadView())
-    bot.add_view(SignupView()) # <-- Added for Sanguine Sunday
-    bot.add_view(WelcomeView()) # <-- Added for /welcome command
 
     # Start the RSN writer task
     asyncio.create_task(rsn_writer())
 
-    # Start the Sanguine Sunday tasks
-    if not scheduled_post_signup.is_running():
-        scheduled_post_signup.start()
-        print("✅ Started scheduled signup task.")
-    if not scheduled_post_reminder.is_running():
-        scheduled_post_reminder.start()
-        print("✅ Started scheduled reminder task.")
-    
-    if not scheduled_clear_sang_sheet.is_running(): # <-- ADDED
-        scheduled_clear_sang_sheet.start() # <-- ADDED
-        print("✅ Started scheduled sang sheet clear task.") # <-- ADDED
-    
-    # Removed maintain_reactions task as it's no longer used
 
     # Panel initializations
     rsn_channel_id = 1280532494139002912
@@ -2492,11 +1934,9 @@ async def on_ready():
     time_channel = bot.get_channel(time_channel_id)
     if time_channel:
         print("🔄 Checking and posting Timezone panel...")
-        guild = time_channel.guild # Get guild from channel
-        bot.add_view(TimezoneView(guild)) # Register view
         await send_time_panel(time_channel)
         print("✅ Timezone panel posted.")
-
+            
     support_channel_id = SUPPORT_PANEL_CHANNEL_ID
     support_channel = bot.get_channel(support_channel_id)
     if support_channel:
@@ -2508,29 +1948,24 @@ async def on_ready():
     role_channel = bot.get_channel(role_channel_id)
     if role_channel:
         guild = role_channel.guild
-
-        # Register views before posting them
-        bot.add_view(RaidsView(guild))
-        bot.add_view(BossesView(guild))
-        bot.add_view(EventsView(guild))
-
+        
         print("🔄 Purging and reposting role assignment panels...")
         async for msg in role_channel.history(limit=100):
             if msg.author == bot.user:
                 await msg.delete()
-
+        
         await role_channel.send("Select your roles below:")
-
+        
         raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="", color=0x00ff00)
         await role_channel.send(embed=raid_embed, view=RaidsView(guild))
-
+        
         boss_embed = discord.Embed(title="⚔︎ 𝔊𝔯𝔬𝔲p 𝔅𝔬𝔰𝔰𝔢𝔰 ⚔︎", description="", color=0x0000ff)
         await role_channel.send(embed=boss_embed, view=BossesView(guild))
-
+        
         events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢𝔫𝔱𝔰 ⚔︎", description="", color=0xffff00)
         await role_channel.send(embed=events_embed, view=EventsView(guild))
         print("✅ Role assignment panels reposted.")
-
+        
     try:
         synced = await bot.tree.sync()
         print(f"✅ Synced {len(synced)} commands.")
