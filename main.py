@@ -1569,7 +1569,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
     )
     
     learning_freeze = TextInput(
-        label="Learn freeze role? (Yes if so, leave blank for No)",
+        label="Learn freeze role? (Yes or leave blank)", # <-- Shortened this label
         placeholder="Yes or blank/No O͟N͟L͟Y͟",
         style=discord.TextStyle.short,
         max_length=3,
@@ -2445,4 +2445,3 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
