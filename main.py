@@ -1636,22 +1636,36 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
             else:
                 sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
 
-            # --- ADD HISTORY WRITE ---
+            # --- MODIFIED HISTORY WRITE ---
             if history_sheet:
-                history_sheet.append_row(row_data)
+                try:
+                    history_cell = history_sheet.find(user_id, in_column=1)
+                    if history_cell is None:
+                        history_sheet.append_row(row_data)
+                    else:
+                        history_sheet.update(f'A{history_cell.row}:H{history_cell.row}', [row_data])
+                except Exception as e:
+                    print(f"🔥 GSpread error on HISTORY (User Form) write: {e}")
             else:
                 print("🔥 History sheet not available, skipping history append.")
-            # --- END ADD ---
+            # --- END MODIFIED ---
 
         except gspread.CellNotFound:
              sang_sheet.append_row(row_data)
 
-             # --- ADD HISTORY WRITE ---
+             # --- MODIFIED HISTORY WRITE ---
              if history_sheet:
-                 history_sheet.append_row(row_data)
+                try:
+                    history_cell = history_sheet.find(user_id, in_column=1)
+                    if history_cell is None:
+                        history_sheet.append_row(row_data)
+                    else:
+                        history_sheet.update(f'A{history_cell.row}:H{history_cell.row}', [row_data])
+                except Exception as e:
+                    print(f"🔥 GSpread error on HISTORY (User Form) write: {e}")
              else:
                  print("🔥 History sheet not available, skipping history append.")
-             # --- END ADD ---
+             # --- END MODIFIED ---
 
         except Exception as e:
             print(f"🔥 GSpread error on signup: {e}")
@@ -1742,21 +1756,35 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
             else:
                  sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
 
-            # --- ADD HISTORY WRITE ---
+            # --- MODIFIED HISTORY WRITE ---
             if history_sheet:
-                history_sheet.append_row(row_data)
+                try:
+                    history_cell = history_sheet.find(user_id, in_column=1)
+                    if history_cell is None:
+                        history_sheet.append_row(row_data)
+                    else:
+                        history_sheet.update(f'A{history_cell.row}:H{history_cell.row}', [row_data])
+                except Exception as e:
+                    print(f"🔥 GSpread error on HISTORY (Mentor Form) write: {e}")
             else:
                 print("🔥 History sheet not available, skipping history append.")
-            # --- END ADD ---
+            # --- END MODIFIED ---
         except gspread.CellNotFound:
             sang_sheet.append_row(row_data)
 
-            # --- ADD HISTORY WRITE ---
+            # --- MODIFIED HISTORY WRITE ---
             if history_sheet:
-                history_sheet.append_row(row_data)
+                try:
+                    history_cell = history_sheet.find(user_id, in_column=1)
+                    if history_cell is None:
+                        history_sheet.append_row(row_data)
+                    else:
+                        history_sheet.update(f'A{history_cell.row}:H{history_cell.row}', [row_data])
+                except Exception as e:
+                    print(f"🔥 GSpread error on HISTORY (Mentor Form) write: {e}")
             else:
                 print("🔥 History sheet not available, skipping history append.")
-            # --- END ADD ---
+            # --- END MODIFIED ---
         except Exception as e:
             print(f"🔥 GSpread error on mentor signup: {e}")
             await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
@@ -1848,12 +1876,19 @@ class SignupView(View):
                 else:
                     sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
 
-                # --- ADD HISTORY WRITE ---
+                # --- MODIFIED HISTORY WRITE ---
                 if history_sheet:
-                    history_sheet.append_row(row_data)
+                    try:
+                        history_cell = history_sheet.find(user_id, in_column=1)
+                        if history_cell is None:
+                            history_sheet.append_row(row_data)
+                        else:
+                            history_sheet.update(f'A{history_cell.row}:H{history_cell.row}', [row_data])
+                    except Exception as e:
+                        print(f"🔥 GSpread error on HISTORY (Auto-Mentor) write: {e}")
                 else:
                     print("🔥 History sheet not available, skipping history append.")
-                # --- END ADD ---
+                # --- END MODIFIED ---
 
                 await interaction.followup.send(
                     "✅ **Auto-signed up as Mentor!** (Detected Mentor role).\n"
@@ -1864,12 +1899,19 @@ class SignupView(View):
             except gspread.CellNotFound:
                  sang_sheet.append_row(row_data)
 
-                 # --- ADD HISTORY WRITE ---
+                 # --- MODIFIED HISTORY WRITE ---
                  if history_sheet:
-                     history_sheet.append_row(row_data)
+                    try:
+                        history_cell = history_sheet.find(user_id, in_column=1)
+                        if history_cell is None:
+                            history_sheet.append_row(row_data)
+                        else:
+                            history_sheet.update(f'A{history_cell.row}:H{history_cell.row}', [row_data])
+                    except Exception as e:
+                        print(f"🔥 GSpread error on HISTORY (Auto-Mentor) write: {e}")
                  else:
                      print("🔥 History sheet not available, skipping history append.")
-                 # --- END ADD ---
+                 # --- END MODIFIED ---
 
                  await interaction.followup.send(
                     "✅ **Auto-signed up as Mentor!** (Detected Mentor role).\n"
