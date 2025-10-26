@@ -11,7 +11,6 @@ from discord import ButtonStyle
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone, time
 from zoneinfo import ZoneInfo
-from gspread.exceptions import APIError, GSpreadException, CellNotFound, WorksheetNotFound
 
 # ---------------------------
 # 🔹 Google Sheets Setup
