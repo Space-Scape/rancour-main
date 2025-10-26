@@ -554,7 +554,7 @@ async def help(interaction: discord.Interaction):
         value="""
         `/help` - Displays this help message.
         `/rsn` - Checks your currently registered RuneScape Name.
-        `/time [member]` - Shows how long a member has been in the server.
+        `/timehere [member]` - Shows how long a member has been in the server.
         `/submitdrop` - Opens a modal to submit a boss drop for events.
         """,
         inline=False
@@ -599,7 +599,7 @@ async def help(interaction: discord.Interaction):
 # ---------------------------
 # 🔹 Time Command
 # ---------------------------
-@bot.tree.command(name="time", description="Shows how long a member has been in the server.")
+@bot.tree.command(name="timehere", description="Shows how long a member has been in the server.")
 @app_commands.describe(member="The member to check.")
 async def time(interaction: discord.Interaction, member: discord.Member):
     """Shows how long a member has been in the server, provided they have the 'Member' role."""
