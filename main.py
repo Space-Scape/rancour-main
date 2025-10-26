@@ -11,8 +11,6 @@ from discord.ui import View, Button, Modal, TextInput # This import fixes 'View'
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone, time as dt_time # <-- Aliased dt_time
 from zoneinfo import ZoneInfo
-# --- UPDATED IMPORT ---
-from gspread.exceptions import APIError, GSpreadException, CellNotFound, WorksheetNotFound
 
 # ---------------------------
 # 🔹 Google Sheets Setup
