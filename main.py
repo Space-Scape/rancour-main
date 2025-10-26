@@ -3,14 +3,15 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 from oauth2client.service_account import ServiceAccountCredentials
-import gspread
+import gspread # <-- Keep this main import
 import asyncio
 import re
-from discord import ui, ButtonStyle, Member
-from discord.ui import View, Button, Modal, TextInput
+from discord import ui, ButtonStyle, Member # <-- Added Member import
+from discord.ui import View, Button, Modal, TextInput # This import fixes 'View', 'Button', etc. not defined
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta, timezone, time as dt_time
+from datetime import datetime, timedelta, timezone, time as dt_time # <-- Aliased dt_time
 from zoneinfo import ZoneInfo
+# --- Corrected gspread exception import ---
 import gspread.exceptions
 
 # ---------------------------
@@ -82,18 +83,23 @@ events_sheet = sheet_client_coffer.open_by_key(EVENTS_SHEET_ID).worksheet("Event
 # ---------------------------
 # 🔹 Sang Sheet Setup
 # ---------------------------
-SANG_SHEET_ID = "1CCpDAJO7Cq581yF_-rz3vx7L_BTettVaKglSvOmvTOE"
+SANG_SHEET_ID = "1CCpDAJO7Cq581yF_-rz3vx7L_BTettVaKglSvOmvTOE" # <-- Specific ID for Sang Signups
 SANG_SHEET_TAB_NAME = "SangSignups"
 SANG_HISTORY_TAB_NAME = "History" # <-- ADDED
 
 try:
-    sang_google_sheet = sheet_client.open_by_key(SANG_SHEET_ID)
+    # Use the specific SANG_SHEET_ID and the main sheet_client
+    sang_google_sheet = sheet_client.open_by_key(SANG_SHEET_ID) # <-- Get the spreadsheet
+    
+    # Try to get SangSignups sheet
     try:
         sang_sheet = sang_google_sheet.worksheet(SANG_SHEET_TAB_NAME)
     except gspread.exceptions.WorksheetNotFound:
         print(f"'{SANG_SHEET_TAB_NAME}' not found. Creating...")
         sang_sheet = sang_google_sheet.add_worksheet(title=SANG_SHEET_TAB_NAME, rows="100", cols="20")
         sang_sheet.append_row(["Discord_ID", "Discord_Name", "Roles Known", "KC", "Has_Scythe", "Proficiency", "Learning Freeze", "Timestamp"])
+
+    # Try to get History sheet
     try:
         history_sheet = sang_google_sheet.worksheet(SANG_HISTORY_TAB_NAME)
     except gspread.exceptions.WorksheetNotFound:
@@ -101,16 +107,17 @@ try:
         history_sheet = sang_google_sheet.add_worksheet(title=SANG_HISTORY_TAB_NAME, rows="1000", cols="20")
         history_sheet.append_row(["Discord_ID", "Discord_Name", "Roles Known", "KC", "Has_Scythe", "Proficiency", "Learning Freeze", "Timestamp"])
 
-except (PermissionError, gspread.exceptions.APIError) as e:
+except (PermissionError, gspread.exceptions.APIError) as e: # <-- Use fully qualified name
+    # This block runs if the bot doesn't have permission to access the file at all.
     print(f"🔥 CRITICAL ERROR: Bot does not have permission for Sang Sheet (ID: {SANG_SHEET_ID}).")
     print(f"🔥 Please ensure the service account email ({os.getenv('GOOGLE_CLIENT_EMAIL')}) has 'Editor' permissions on this Google Sheet.")
     print(f"🔥 Error details: {e}")
     sang_sheet = None
-    history_sheet = None
+    history_sheet = None # <-- ADDED
 except Exception as e:
     print(f"Error initializing Sang Sheet: {e}")
     sang_sheet = None
-    history_sheet = None
+    history_sheet = None # <-- ADDED
 
 
 # ---------------------------
@@ -119,8 +126,8 @@ except Exception as e:
 
 intents = discord.Intents.default()
 intents.members = True
-intents.message_content = True
-intents.reactions = True
+intents.message_content = True # Needed for on_message
+intents.reactions = True # Needed for reaction tasks
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
@@ -128,7 +135,10 @@ tree = bot.tree
 # 🔹 Main Configuration
 # ---------------------------
 
-GUILD_ID = 1272629330115297330
+# --- ADDED GUILD_ID ---
+GUILD_ID = 1272629330115297330 # <-- Added for on_ready view registration
+
+# Channel and Role IDs
 SUBMISSION_CHANNEL_ID = 1391921214909579336
 REVIEW_CHANNEL_ID = 1391921254034047066
 LOG_CHANNEL_ID = 1391921275332722749
@@ -138,7 +148,7 @@ COLLAT_CHANNEL_ID = 1272648340940525648
 EVENT_SCHEDULE_CHANNEL_ID = 1274957572977197138
 SANG_CHANNEL_ID = 1338295765759688767
 STAFF_ROLE_ID = 1272635396991221824
-MEMBER_ROLE_ID = 1272633036814946324
+MEMBER_ROLE_ID = 1272633036814946324 # <-- Added MEMBER_ROLE_ID
 MENTOR_ROLE_ID = 1306021911830073414
 SANG_ROLE_ID = 1387153629072592916
 TOB_ROLE_ID = 1272694636921753701
@@ -921,6 +931,7 @@ class SupportTicketActionView(View):
             )
             embed.set_footer(text=f"Approved by {interaction.user.display_name}")
             
+            # Edit the original message, replacing the view with the close button
             await interaction.response.edit_message(embed=embed, view=CloseThreadView())
 
         except discord.Forbidden:
@@ -2113,46 +2124,61 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
     learners_freeze = [l for l in learners if l['learning_freeze']]
     learners_normal = [l for l in learners if not l['learning_freeze']]
 
+    # --- 4b. Pass 1: Build Ideal (1M, 1L, 2HP/P) Teams ---
+    # Loop while we have the components for this ideal team
     while (mentors_scythe or mentors_no_scythe) and (learners_normal or learners_freeze) and (len(all_proficient_scythe) + len(all_proficient_no_scythe) >= 2):
         team = []
 
         learner = learners_normal.pop(0) if learners_normal else learners_freeze.pop(0)
         team.append(learner)
 
+        # 2. Add Mentor and Proficient players based on Scythe priority
+        # Goal: 2+ Scythes or 0 Scythes. Avoid 1 Scythe. Prioritize Highly Proficient.
+
+        # Try for 2+ Scythes (M-S + P-S + P-S/P-NS, prioritize HP)
         if mentors_scythe and all_proficient_scythe:
             team.append(mentors_scythe.pop(0))
-            team.append(all_proficient_scythe.pop(0))
-            if all_proficient_scythe: team.append(all_proficient_scythe.pop(0))
-            elif all_proficient_no_scythe: team.append(all_proficient_no_scythe.pop(0))
+            team.append(all_proficient_scythe.pop(0)) # Add best available proficient w/ scythe
+            if all_proficient_scythe: team.append(all_proficient_scythe.pop(0)) # 3 scythes (prioritizes HP)
+            elif all_proficient_no_scythe: team.append(all_proficient_no_scythe.pop(0)) # 2 scythes (prioritizes HP)
             else:
-                mentors_scythe.insert(0, team.pop())
-                all_proficient_scythe.insert(0, team.pop())
+                # Not enough proficient, put players back
+                mentors_scythe.insert(0, team.pop()) # Put mentor back
+                all_proficient_scythe.insert(0, team.pop()) # Put first proficient back
+                # Put learner back into appropriate list
                 if learner['learning_freeze']: learners_freeze.insert(0, team.pop())
                 else: learners_normal.insert(0, team.pop())
-                continue
+                continue # Try next pass or exit loop
 
+        # Try for 0 Scythes (M-NS + P-NS + P-NS, prioritize HP)
         elif mentors_no_scythe and len(all_proficient_no_scythe) >= 2:
             team.append(mentors_no_scythe.pop(0))
-            team.append(all_proficient_no_scythe.pop(0))
-            team.append(all_proficient_no_scythe.pop(0))
+            team.append(all_proficient_no_scythe.pop(0)) # Add best non-scythe
+            team.append(all_proficient_no_scythe.pop(0)) # Add second best non-scythe
 
+        # Try for 1 Scythe (Last resort, prioritize HP)
+        # (M-S + P-NS + P-NS)
         elif mentors_scythe and len(all_proficient_no_scythe) >= 2:
             team.append(mentors_scythe.pop(0))
             team.append(all_proficient_no_scythe.pop(0))
             team.append(all_proficient_no_scythe.pop(0))
+        # (M-NS + P-S + P-NS)
         elif mentors_no_scythe and all_proficient_scythe and all_proficient_no_scythe:
             team.append(mentors_no_scythe.pop(0))
             team.append(all_proficient_scythe.pop(0))
             team.append(all_proficient_no_scythe.pop(0))
         else:
-            if learner['learning_freeze']: learners_freeze.insert(0, team.pop())
+            # Can't form a 4-man team with the remaining players
+            if learner['learning_freeze']: learners_freeze.insert(0, team.pop()) # Put learner back
             else: learners_normal.insert(0, team.pop())
-            break
+            break # Exit Pass 1
 
         teams.append(team)
         for member in team:
             used_ids.add(member['user_id'])
 
+    # --- 4c. Pass 2: Fallback (2M, 2L) Teams ---
+    # Re-sort remaining learners
     remaining_learners = sorted(learners_normal + learners_freeze,
                                 key=lambda x: (not (x['knows_range'] or x['knows_melee']), x['learning_freeze'])) # Prioritize role known, then non-freeze
 
@@ -2160,7 +2186,7 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
         team = []
 
         l1, l2 = pop_complementary_learners(remaining_learners)
-        if not l1 or not l2: break
+        if not l1 or not l2: break # Not enough learners
         team.extend([l1, l2])
 
         # Add 2 Mentors (Prioritize 2+ or 0 Scythes)
@@ -2170,42 +2196,48 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
             team.append(mentors_scythe.pop(0))
             team.append(mentors_no_scythe.pop(0))
         else:
+            # Can't form 2M team
+            remaining_learners.insert(0, team.pop()) # Put learners back
             remaining_learners.insert(0, team.pop())
-            remaining_learners.insert(0, team.pop())
-            break
+            break # Exit Pass 2
 
         teams.append(team)
         for member in team: used_ids.add(member['user_id'])
 
+    # --- 4d. Pass 3: Cleanup Leftovers ---
+    # Gather all remaining players, including Highly Proficient
     all_remaining_proficient = all_proficient_scythe + all_proficient_no_scythe
     all_pools = mentors_scythe + mentors_no_scythe + all_remaining_proficient + remaining_learners
     leftovers = sorted([r for r in all_pools if r['user_id'] not in used_ids],
                        key=lambda x: (
-                           x['proficiency'] == 'highly proficient',
+                           x['proficiency'] == 'highly proficient', # Highest priority
                            x['proficiency'] == 'proficient',
                            x['proficiency'] == 'mentor',
                            x.get('has_scythe', False)
-                       ), reverse=True)
+                       ), reverse=True) # Sort best players first
 
     while len(leftovers) >= 3:
-        team_size = 4
+        team_size = 4 # Default to 4
         if len(leftovers) == 4: team_size = 4
         elif len(leftovers) == 5:
+            # Check if making a 5-man team includes a 'New' player
             has_new_player = any(p['proficiency'] == 'new' for p in leftovers[:5])
-            team_size = 4 if has_new_player else 5
-        elif len(leftovers) == 6: team_size = 3
-        elif len(leftovers) > 5: team_size = 4
-        else: team_size = 3
+            team_size = 4 if has_new_player else 5 # Make 4-man if 'New' player present
+        elif len(leftovers) == 6: team_size = 3 # Make two teams of 3
+        elif len(leftovers) > 5: team_size = 4 # Make a 4-man team first
+        else: team_size = 3 # Only 3 left
 
         new_team = leftovers[:team_size]
         teams.append(new_team)
         for member in new_team: used_ids.add(member['user_id'])
         leftovers = leftovers[team_size:]
 
+    # Add final 1 or 2 players if they exist
     if leftovers:
         teams.append(leftovers)
         for member in leftovers: used_ids.add(member['user_id'])
 
+    # --- 5. Format and send output ---
     embed = discord.Embed(
         title=f"Sanguine Sunday Teams - {voice_channel.name}",
         description=f"Created {len(teams)} team(s) from {len(available_raiders)} signed-up users in the VC.",
@@ -2219,9 +2251,12 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
         team_details = []
         for member in team:
             scythe_text = " (Scythe)" if member.get('has_scythe', False) else ""
+            # Display "Highly Proficient" correctly
             role_text = member.get('proficiency', 'Unknown').replace(" ", "-").capitalize().replace("-"," ")
             kc_raw = member.get('kc', 0)
+            # Only show KC if it's a number AND (not a Mentor OR Mentor KC > 0) OR if KC is the placeholder 9999
             kc_text = f"({kc_raw} KC)" if str(kc_raw).isdigit() and ((role_text != "Mentor" or kc_raw > 0) or kc_raw == 9999) else ""
+            # Hide the fake KC for auto-signed mentors
             if role_text == "Mentor" and kc_raw == 9999 : kc_text = ""
 
 
@@ -2290,7 +2325,7 @@ async def scheduled_clear_sang_sheet():
 
 @scheduled_post_signup.before_loop
 @scheduled_post_reminder.before_loop
-@scheduled_clear_sang_sheet.before_loop
+@scheduled_clear_sang_sheet.before_loop # <-- ADDED
 async def before_scheduled_tasks():
     await bot.wait_until_ready()
 
@@ -2308,6 +2343,9 @@ async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
+    # This ensures that bot.commands (if any) are still processed
+    # await bot.process_commands(message) # Only needed if using prefix commands
+
     if message.channel.id == COLLAT_CHANNEL_ID:
         has_pasted_image = any(embed.image for embed in message.embeds)
         is_reply = message.reference is not None
@@ -2321,15 +2359,18 @@ async def on_message(message: discord.Message):
 async def on_ready():
     print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
 
-    # bot.add_view(JusticePanelView())
+    # Add persistent views
+    # bot.add_view(JusticePanelView())  <-- This class is not defined in the provided file
     bot.add_view(SupportRoleView())
     bot.add_view(RSNPanelView())
     bot.add_view(CloseThreadView())
-    bot.add_view(SignupView())
-    bot.add_view(WelcomeView())
+    bot.add_view(SignupView()) # <-- Added for Sanguine Sunday
+    bot.add_view(WelcomeView()) # <-- Added for /welcome command
 
+    # Start the RSN writer task
     asyncio.create_task(rsn_writer())
 
+    # Start the Sanguine Sunday tasks
     if not scheduled_post_signup.is_running():
         scheduled_post_signup.start()
         print("✅ Started scheduled signup task.")
@@ -2337,10 +2378,13 @@ async def on_ready():
         scheduled_post_reminder.start()
         print("✅ Started scheduled reminder task.")
     
-    if not scheduled_clear_sang_sheet.is_running():
-        scheduled_clear_sang_sheet.start()
-        print("✅ Started scheduled sang sheet clear task.")
+    if not scheduled_clear_sang_sheet.is_running(): # <-- ADDED
+        scheduled_clear_sang_sheet.start() # <-- ADDED
+        print("✅ Started scheduled sang sheet clear task.") # <-- ADDED
     
+    # Removed maintain_reactions task as it's no longer used
+
+    # Panel initializations
     rsn_channel_id = 1280532494139002912
     rsn_channel = bot.get_channel(rsn_channel_id)
     if rsn_channel:
@@ -2352,8 +2396,8 @@ async def on_ready():
     time_channel = bot.get_channel(time_channel_id)
     if time_channel:
         print("🔄 Checking and posting Timezone panel...")
-        guild = time_channel.guild
-        bot.add_view(TimezoneView(guild))
+        guild = time_channel.guild # Get guild from channel
+        bot.add_view(TimezoneView(guild)) # Register view
         await send_time_panel(time_channel)
         print("✅ Timezone panel posted.")
 
@@ -2369,6 +2413,7 @@ async def on_ready():
     if role_channel:
         guild = role_channel.guild
 
+        # Register views before posting them
         bot.add_view(RaidsView(guild))
         bot.add_view(BossesView(guild))
         bot.add_view(EventsView(guild))
@@ -2400,5 +2445,4 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
-
 
