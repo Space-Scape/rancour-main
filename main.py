@@ -6,7 +6,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 import asyncio
 import re
-from discord.ui import Modal, TextInput, View, Button
+from discord import ui
 from discord import ButtonStyle
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone, time
