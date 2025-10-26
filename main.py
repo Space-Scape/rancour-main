@@ -2123,7 +2123,7 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
             team.append(mentors_scythe.pop(0))
             team.append(all_proficient_scythe.pop(0))
             if all_proficient_scythe: team.append(all_proficient_scythe.pop(0))
-            elif all_proficient_no_scythe: team.append(all_proficient_no_scythe.pop(0)
+            elif all_proficient_no_scythe: team.append(all_proficient_no_scythe.pop(0))
             else:
                 mentors_scythe.insert(0, team.pop())
                 all_proficient_scythe.insert(0, team.pop())
