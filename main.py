@@ -2802,8 +2802,8 @@ async def on_ready():
     # --- Register Persistent Views ---
     bot.add_view(SignupView())
     bot.add_view(RSNPanelView())
-    bot.add_view(TimezoneView(bot.get_guild(int(os.getenv("GUILD_ID", GUILD_ID)))))
-    bot.add_view(RolePanelView(bot.get_guild(int(os.getenv("GUILD_ID", GUILD_ID)))))
+    bot.add_view(TimezoneView(bot.get_guild(int(1272629330115297330))))
+    bot.add_view(RolePanelView(bot.get_guild(int(1272629330115297330))))
     bot.add_view(WelcomeView())
     bot.add_view(CollatButtons(author=None, mentioned=None)) # Register with placeholders
     bot.add_view(JusticePanelView())
