@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 from oauth2client.service_account import ServiceAccountCredentials
-import gspread
+import gspread # <-- Keep this main import
 import asyncio
 import re
 from discord import ui, ButtonStyle # <-- Added ButtonStyle here
@@ -11,6 +11,8 @@ from discord.ui import View, Button, Modal, TextInput # This import fixes 'View'
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone, time as dt_time # <-- Aliased dt_time
 from zoneinfo import ZoneInfo
+# --- Corrected gspread exception import ---
+import gspread.exceptions
 
 # ---------------------------
 # 🔹 Google Sheets Setup
@@ -86,12 +88,12 @@ SANG_SHEET_TAB_NAME = "SangSignups"
 try:
     # Use the specific SANG_SHEET_ID and the main sheet_client
     sang_sheet = sheet_client.open_by_key(SANG_SHEET_ID).worksheet(SANG_SHEET_TAB_NAME)
-except WorksheetNotFound:
+except gspread.exceptions.WorksheetNotFound: # <-- Use fully qualified name
     # This block runs if the *sheet* (tab) doesn't exist.
     sang_sheet = sheet_client.open_by_key(SANG_SHEET_ID).add_worksheet(title=SANG_SHEET_TAB_NAME, rows="100", cols="20")
     # Add Discord_ID as the first column, which is essential for the bot to find users.
     sang_sheet.append_row(["Discord_ID", "Discord_Name", "Roles Known", "KC", "Has_Scythe", "Proficiency", "Learning Freeze", "Timestamp"])
-except (PermissionError, gspread.exceptions.APIError) as e:
+except (PermissionError, gspread.exceptions.APIError) as e: # <-- Use fully qualified name
     # This block runs if the bot doesn't have permission to access the file at all.
     print(f"🔥 CRITICAL ERROR: Bot does not have permission for Sang Sheet (ID: {SANG_SHEET_ID}).")
     print(f"🔥 Please ensure the service account email ({os.getenv('GOOGLE_CLIENT_EMAIL')}) has 'Editor' permissions on this Google Sheet.")
@@ -1140,7 +1142,7 @@ async def rsn(interaction: discord.Interaction):
             f"✅ Your registered RSN is **{rsn_value}**.",
             ephemeral=True
         )
-    except CellNotFound:
+    except gspread.CellNotFound: # <-- Use correct exception name
         await interaction.response.send_message(
             "⚠️ You have not registered an RSN yet. Use the RSN panel to register.",
             ephemeral=True
@@ -1492,7 +1494,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         max_length=100,
         required=False
     )
-
+    
     kc = TextInput(
         label="What is your Normal Mode ToB KC?",
         placeholder="Enter your kill count (e.g., 0, 25, 150)",
@@ -1508,7 +1510,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         max_length=5,
         required=True
     )
-
+    
     learning_freeze = TextInput(
         label="Learn freeze role? (Yes/No, blank for No)",
         placeholder="Yes or No",
@@ -1529,7 +1531,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         except ValueError:
             await interaction.response.send_message("⚠️ Error: Kill Count must be a valid number.", ephemeral=True)
             return
-
+            
         scythe_value = str(self.has_scythe).strip().lower()
         if scythe_value not in ["yes", "no", "y", "n"]:
             await interaction.response.send_message("⚠️ Error: Scythe must be 'Yes' or 'No'.", ephemeral=True)
@@ -1551,26 +1553,33 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         user_id = str(interaction.user.id)
         user_name = interaction.user.display_name
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
-
+        
         row_data = [
-            user_id, user_name, roles_known_value, kc_value,
+            user_id, user_name, roles_known_value, kc_value, 
             has_scythe_bool, proficiency_value, learning_freeze_bool, timestamp
         ]
-
+        
         try:
             # Try to find the user ID in the first column
             cell = sang_sheet.find(user_id, in_column=1)
-            # If find returns a cell (user exists), update that row
-            sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
-        except gspread.exceptions.CellNotFound: # <-- Use fully qualified name
-            # If find raises CellNotFound (user is new), append a new row
-            sang_sheet.append_row(row_data)
+
+            # --- UPDATED CHECK ---
+            if cell is None:
+                # User not found, append a new row
+                sang_sheet.append_row(row_data)
+            else:
+                # User found, update the existing row
+                sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
+        # Keep the original exception handler just in case find *can* raise it, and correct the name
+        except gspread.CellNotFound:
+             sang_sheet.append_row(row_data)
         except Exception as e:
             # Handle other potential errors during sheet interaction
             print(f"🔥 GSpread error on signup: {e}")
             await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
             return
 
+        # --- Success message (was previously placeholder) ---
         await interaction.response.send_message(
             f"✅ **You are signed up as {proficiency_value}!**\n"
             f"**KC:** {kc_value}\n"
@@ -1588,7 +1597,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         max_length=100,
         required=True
     )
-
+    
     kc = TextInput(
         label="What is your Normal Mode ToB KC?",
         placeholder="Enter your kill count (e.g., 250)",
@@ -1618,7 +1627,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         except ValueError:
             await interaction.response.send_message("⚠️ Error: Kill Count must be a valid number.", ephemeral=True)
             return
-
+            
         scythe_value = str(self.has_scythe).strip().lower()
         if scythe_value not in ["yes", "no", "y", "n"]:
             await interaction.response.send_message("⚠️ Error: Scythe must be 'Yes' or 'No'.", ephemeral=True)
@@ -1632,19 +1641,25 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         user_id = str(interaction.user.id)
         user_name = interaction.user.display_name
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
-
+        
         row_data = [
-            user_id, user_name, roles_known_value, kc_value,
+            user_id, user_name, roles_known_value, kc_value, 
             has_scythe_bool, proficiency_value, learning_freeze_bool, timestamp
         ]
-
+        
         try:
             # Try to find the user ID in the first column
             cell = sang_sheet.find(user_id, in_column=1)
-            # If find returns a cell (user exists), update that row
-            sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
-        except gspread.exceptions.CellNotFound: # <-- Use fully qualified name
-            # If find raises CellNotFound (user is new), append a new row
+
+            # --- UPDATED CHECK ---
+            if cell is None:
+                 # User not found, append a new row
+                 sang_sheet.append_row(row_data)
+            else:
+                 # User found, update the existing row
+                 sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
+        # Keep the original exception handler and correct the name
+        except gspread.CellNotFound:
             sang_sheet.append_row(row_data)
         except Exception as e:
             # Handle other potential errors during sheet interaction
@@ -1652,6 +1667,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
             await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
             return
 
+        # --- Success message (was previously placeholder) ---
         await interaction.response.send_message(
             f"✅ **You are signed up as a Mentor!**\n"
             f"**KC:** {kc_value}\n"
@@ -1668,7 +1684,7 @@ class SignupView(View):
     @ui.button(label="Sign Up as Raider", style=ButtonStyle.success, custom_id="sang_signup_raider", emoji="📝")
     async def user_signup_button(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_modal(UserSignupForm())
-
+        
     @ui.button(label="Sign Up as Mentor", style=ButtonStyle.primary, custom_id="sang_signup_mentor", emoji="🎓")
     async def mentor_signup_button(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_modal(MentorSignupForm())
@@ -1808,7 +1824,7 @@ def pop_complementary_learners(learners_list: list) -> (dict, dict):
     return l1, learners_list.pop(0)
 
 
-# --- Matchmaking Slash Command (REWORKED) ---
+# --- Matchmaking Slash Command (REWORKED + Highly Proficient) ---
 @bot.tree.command(name="sangmatch", description="Create ToB teams from signups in a voice channel.")
 @app_commands.checks.has_role(STAFF_ROLE_ID)
 @app_commands.describe(voice_channel="The voice channel to pull active users from.")
@@ -1854,10 +1870,23 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
             except (ValueError, TypeError):
                 kc_val = 0 # Default non-numeric KC to 0 for sorting/logic
 
+            # --- Determine Proficiency including Highly Proficient ---
+            proficiency_val = ""
+            if signup.get("Proficiency", "").lower() == 'mentor':
+                proficiency_val = 'mentor'
+            elif kc_val <= 1:
+                proficiency_val = "new"
+            elif 1 < kc_val < 50:
+                proficiency_val = "learner"
+            elif 50 <= kc_val < 150:
+                proficiency_val = "proficient"
+            else: # 150+ KC
+                proficiency_val = "highly proficient"
+
             available_raiders.append({
                 "user_id": user_id,
                 "user_name": signup.get("Discord_Name"),
-                "proficiency": str(signup.get("Proficiency", "unknown")).lower(), # Use Proficiency column
+                "proficiency": proficiency_val, # Use calculated proficiency
                 "kc": kc_val, # Use the integer KC value
                 "has_scythe": str(signup.get("Has_Scythe", "FALSE")).upper() == "TRUE",
                 "roles_known": roles_str,
@@ -1877,8 +1906,14 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
     # --- 4a. Create player pools ---
     mentors_scythe = [r for r in available_raiders if r['proficiency'] == 'mentor' and r['has_scythe']]
     mentors_no_scythe = [r for r in available_raiders if r['proficiency'] == 'mentor' and not r['has_scythe']]
+    highly_proficient_scythe = [r for r in available_raiders if r['proficiency'] == 'highly proficient' and r['has_scythe']]
+    highly_proficient_no_scythe = [r for r in available_raiders if r['proficiency'] == 'highly proficient' and not r['has_scythe']]
     proficient_scythe = [r for r in available_raiders if r['proficiency'] == 'proficient' and r['has_scythe']]
     proficient_no_scythe = [r for r in available_raiders if r['proficiency'] == 'proficient' and not r['has_scythe']]
+
+    # Combine HP and P pools for easier selection later, but keep HP prioritized by sorting
+    all_proficient_scythe = sorted(highly_proficient_scythe + proficient_scythe, key=lambda x: x['proficiency']=='highly proficient', reverse=True)
+    all_proficient_no_scythe = sorted(highly_proficient_no_scythe + proficient_no_scythe, key=lambda x: x['proficiency']=='highly proficient', reverse=True)
 
     # Sort learners to prioritize range/melee and non-freeze
     learners = sorted([r for r in available_raiders if r['proficiency'] in ['learner', 'new']],
@@ -1891,45 +1926,49 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
     learners_freeze = [l for l in learners if l['learning_freeze']]
     learners_normal = [l for l in learners if not l['learning_freeze']]
 
-    # --- 4b. Pass 1: Build Ideal (1M, 1L, 2P) Teams ---
-    while (mentors_scythe or mentors_no_scythe) and (learners_normal or learners_freeze) and (len(proficient_scythe) + len(proficient_no_scythe) >= 2):
+    # --- 4b. Pass 1: Build Ideal (1M, 1L, 2HP/P) Teams ---
+    # Loop while we have the components for this ideal team
+    while (mentors_scythe or mentors_no_scythe) and (learners_normal or learners_freeze) and (len(all_proficient_scythe) + len(all_proficient_no_scythe) >= 2):
         team = []
 
         learner = learners_normal.pop(0) if learners_normal else learners_freeze.pop(0)
         team.append(learner)
 
-        # Try for 2+ Scythes (M-S, P-S, P-S) or (M-S, P-S, P-NS)
-        if mentors_scythe and proficient_scythe:
+        # 2. Add Mentor and Proficient players based on Scythe priority
+        # Goal: 2+ Scythes or 0 Scythes. Avoid 1 Scythe. Prioritize Highly Proficient.
+
+        # Try for 2+ Scythes (M-S + P-S + P-S/P-NS, prioritize HP)
+        if mentors_scythe and all_proficient_scythe:
             team.append(mentors_scythe.pop(0))
-            team.append(proficient_scythe.pop(0))
-            if proficient_scythe: team.append(proficient_scythe.pop(0)) # 3 scythes
-            elif proficient_no_scythe: team.append(proficient_no_scythe.pop(0)) # 2 scythes
+            team.append(all_proficient_scythe.pop(0)) # Add best available proficient w/ scythe
+            if all_proficient_scythe: team.append(all_proficient_scythe.pop(0)) # 3 scythes (prioritizes HP)
+            elif all_proficient_no_scythe: team.append(all_proficient_no_scythe.pop(0)) # 2 scythes (prioritizes HP)
             else:
                 # Not enough proficient, put players back
                 mentors_scythe.insert(0, team.pop()) # Put mentor back
-                proficient_scythe.insert(0, team.pop()) # Put prof back
+                all_proficient_scythe.insert(0, team.pop()) # Put first proficient back
                 # Put learner back into appropriate list
                 if learner['learning_freeze']: learners_freeze.insert(0, team.pop())
                 else: learners_normal.insert(0, team.pop())
                 continue # Try next pass or exit loop
 
-        # Try for 0 Scythes (M-NS, P-NS, P-NS)
-        elif mentors_no_scythe and len(proficient_no_scythe) >= 2:
+        # Try for 0 Scythes (M-NS + P-NS + P-NS, prioritize HP)
+        elif mentors_no_scythe and len(all_proficient_no_scythe) >= 2:
             team.append(mentors_no_scythe.pop(0))
-            team.append(proficient_no_scythe.pop(0))
-            team.append(proficient_no_scythe.pop(0))
+            team.append(all_proficient_no_scythe.pop(0)) # Add best non-scythe
+            team.append(all_proficient_no_scythe.pop(0)) # Add second best non-scythe
 
-        # Try for 1 Scythe (Last resort)
-        # (M-S, P-NS, P-NS)
-        elif mentors_scythe and len(proficient_no_scythe) >= 2:
+        # Try for 1 Scythe (Last resort, prioritize HP)
+        # (M-S + P-NS + P-NS)
+        elif mentors_scythe and len(all_proficient_no_scythe) >= 2:
             team.append(mentors_scythe.pop(0))
-            team.append(proficient_no_scythe.pop(0))
-            team.append(proficient_no_scythe.pop(0))
-        # (M-NS, P-S, P-NS)
-        elif mentors_no_scythe and proficient_scythe and proficient_no_scythe:
+            team.append(all_proficient_no_scythe.pop(0))
+            team.append(all_proficient_no_scythe.pop(0))
+        # (M-NS + P-S + P-NS)
+        elif mentors_no_scythe and all_proficient_scythe and all_proficient_no_scythe:
             team.append(mentors_no_scythe.pop(0))
-            team.append(proficient_scythe.pop(0))
-            team.append(proficient_no_scythe.pop(0))
+            team.append(all_proficient_scythe.pop(0))
+            team.append(all_proficient_no_scythe.pop(0))
         else:
             # Can't form a 4-man team with the remaining players
             if learner['learning_freeze']: learners_freeze.insert(0, team.pop()) # Put learner back
@@ -1941,6 +1980,7 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
             used_ids.add(member['user_id'])
 
     # --- 4c. Pass 2: Fallback (2M, 2L) Teams ---
+    # Re-sort remaining learners
     remaining_learners = sorted(learners_normal + learners_freeze,
                                 key=lambda x: (not (x['knows_range'] or x['knows_melee']), x['learning_freeze'])) # Prioritize role known, then non-freeze
 
@@ -1967,9 +2007,12 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
         for member in team: used_ids.add(member['user_id'])
 
     # --- 4d. Pass 3: Cleanup Leftovers ---
-    all_pools = mentors_scythe + mentors_no_scythe + proficient_scythe + proficient_no_scythe + remaining_learners
+    # Gather all remaining players, including Highly Proficient
+    all_remaining_proficient = all_proficient_scythe + all_proficient_no_scythe
+    all_pools = mentors_scythe + mentors_no_scythe + all_remaining_proficient + remaining_learners
     leftovers = sorted([r for r in all_pools if r['user_id'] not in used_ids],
                        key=lambda x: (
+                           x['proficiency'] == 'highly proficient', # Highest priority
                            x['proficiency'] == 'proficient',
                            x['proficiency'] == 'mentor',
                            x.get('has_scythe', False)
@@ -2010,7 +2053,8 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
         team_details = []
         for member in team:
             scythe_text = " (Scythe)" if member.get('has_scythe', False) else ""
-            role_text = member.get('proficiency', 'Unknown').capitalize()
+            # Display "Highly Proficient" correctly
+            role_text = member.get('proficiency', 'Unknown').replace(" ", "-").capitalize().replace("-"," ")
             kc_raw = member.get('kc', 0)
             # Only show KC if it's a number AND (not a Mentor OR Mentor KC > 0)
             kc_text = f"({kc_raw} KC)" if str(kc_raw).isdigit() and (role_text != "Mentor" or kc_raw > 0) else ""
@@ -2081,7 +2125,7 @@ async def on_message(message: discord.Message):
         return
 
     # This ensures that bot.commands (if any) are still processed
-    # await bot.process_commands(message)
+    # await bot.process_commands(message) # Only needed if using prefix commands
 
     if message.channel.id == COLLAT_CHANNEL_ID:
         has_pasted_image = any(embed.image for embed in message.embeds)
@@ -2091,11 +2135,11 @@ async def on_message(message: discord.Message):
         if valid_mention or message.attachments or has_pasted_image:
             view = CollatButtons(message.author, valid_mention)
             await message.reply("Collat actions:", view=view, allowed_mentions=discord.AllowedMentions.none())
-        
+
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
-    
+
     # Add persistent views
     # bot.add_view(JusticePanelView())  <-- This class is not defined in the provided file
     bot.add_view(SupportRoleView())
@@ -2106,7 +2150,7 @@ async def on_ready():
 
     # Start the RSN writer task
     asyncio.create_task(rsn_writer())
-    
+
     # Start the Sanguine Sunday tasks
     if not scheduled_post_signup.is_running():
         scheduled_post_signup.start()
@@ -2132,7 +2176,7 @@ async def on_ready():
         bot.add_view(TimezoneView(guild)) # Register view
         await send_time_panel(time_channel)
         print("✅ Timezone panel posted.")
-            
+
     support_channel_id = SUPPORT_PANEL_CHANNEL_ID
     support_channel = bot.get_channel(support_channel_id)
     if support_channel:
@@ -2144,29 +2188,29 @@ async def on_ready():
     role_channel = bot.get_channel(role_channel_id)
     if role_channel:
         guild = role_channel.guild
-        
+
         # Register views before posting them
         bot.add_view(RaidsView(guild))
         bot.add_view(BossesView(guild))
         bot.add_view(EventsView(guild))
-        
+
         print("🔄 Purging and reposting role assignment panels...")
         async for msg in role_channel.history(limit=100):
             if msg.author == bot.user:
                 await msg.delete()
-        
+
         await role_channel.send("Select your roles below:")
-        
+
         raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="", color=0x00ff00)
         await role_channel.send(embed=raid_embed, view=RaidsView(guild))
-        
+
         boss_embed = discord.Embed(title="⚔︎ 𝔊𝔯𝔬𝔲p 𝔅𝔬𝔰𝔰𝔢𝔰 ⚔︎", description="", color=0x0000ff)
         await role_channel.send(embed=boss_embed, view=BossesView(guild))
-        
+
         events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢𝔫𝔱𝔰 ⚔︎", description="", color=0xffff00)
         await role_channel.send(embed=events_embed, view=EventsView(guild))
         print("✅ Role assignment panels reposted.")
-        
+
     try:
         synced = await bot.tree.sync()
         print(f"✅ Synced {len(synced)} commands.")
@@ -2177,3 +2221,5 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
