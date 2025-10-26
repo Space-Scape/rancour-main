@@ -2253,6 +2253,84 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: Optional[di
         leftover_pool = leftover_pool[4:]
         teams.append(spill)
 
+    # --- 4f) Post-process to enforce New-player constraints ---
+    def is_new(p): 
+        return p.get("proficiency") == "new"
+    def count_new(team): 
+        return sum(1 for p in team if is_new(p))
+
+    # Helper: try to swap a 'new' from team A with a non-new from team B
+    def swap_new_out(team_a_idx, team_b_idx):
+        A = teams[team_a_idx]; B = teams[team_b_idx]
+        a_new_idx = next((i for i,p in enumerate(A) if is_new(p)), None)
+        b_non_idx = next((i for i,p in enumerate(B) if not is_new(p)), None)
+        if a_new_idx is None or b_non_idx is None:
+            return False
+        A[a_new_idx], B[b_non_idx] = B[b_non_idx], A[a_new_idx]
+        return True
+
+    # Pass 1: No team of size 3 or 5 may include 'new'
+    for idx, t in enumerate(teams):
+        if len(t) in (3, 5) and count_new(t) > 0:
+            # find a team we can trade with (prefer size 4)
+            candidates = sorted(
+                [j for j in range(len(teams)) if j != idx],
+                key=lambda j: (abs(len(teams[j]) - 4), count_new(teams[j]))
+            )
+            for j in candidates:
+                if swap_new_out(idx, j) and not (len(teams[idx]) in (3,5) and count_new(teams[idx])>0):
+                    break  # fixed this team
+            # If still not fixed, just remove extra 'new' into a new 4-man spill team
+            while len(t) in (3,5) and count_new(t) > 0:
+                # move one 'new' to a new temporary bucket, will be appended later
+                rem_idx = next(i for i,p in enumerate(t) if is_new(p))
+                moved = t.pop(rem_idx)
+                placed = False
+                for j in range(len(teams)):
+                    if j == idx: 
+                        continue
+                    # place into a team that's not size 3/5, with <=1 new already
+                    if len(teams[j]) == 4 and count_new(teams[j]) <= 1:
+                        teams[j].append(moved); placed=True; break
+                if not placed:
+                    # create a new bucket of 4, will fill later if needed
+                    teams.append([moved])
+                    t = teams[idx]
+
+    # Pass 2: Cap 'new' per team to 2
+    overfull = True
+    while overfull:
+        overfull = False
+        for i in range(len(teams)):
+            while count_new(teams[i]) > 2:
+                overfull = True
+                # move one 'new' to a team with <2 new and not size 3/5
+                n_idx = next(k for k,p in enumerate(teams[i]) if is_new(p))
+                moved = teams[i].pop(n_idx)
+                placed = False
+                for j in range(len(teams)):
+                    if i==j: 
+                        continue
+                    if count_new(teams[j]) < 2 and len(teams[j]) == 4:
+                        teams[j].append(moved); placed=True; break
+                if not placed:
+                    # as a last resort, create a new team bucket (will become 4 later if possible)
+                    teams.append([moved])
+                    placed = True
+
+    # Optional tidy-up: try to merge tiny buckets into 4s without violating rules
+    # Fill any singleton/doubleton buckets by stealing non-new from large buckets
+    for i in range(len(teams)):
+        if len(teams[i]) < 4:
+            for j in range(len(teams)):
+                if i==j: continue
+                while len(teams[i]) < 4 and len(teams[j]) > 4:
+                    # move a non-new from j to i
+                    idx_non = next((k for k,p in enumerate(teams[j]) if not is_new(p)), None)
+                    if idx_non is None: break
+                    teams[i].append(teams[j].pop(idx_non))
+
+
     # --- 5. Output (mention + nickname + scythe icon) ---
     embed = discord.Embed(
         title=f"Sanguine Sunday Teams - {channel_name}",
@@ -2268,7 +2346,7 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: Optional[di
         role_text = p.get("proficiency", "Unknown").replace(" ", "-").capitalize().replace("-", " ")
         kc_raw = p.get("kc", 0)
         kc_text = f"({kc_raw} KC)" if isinstance(kc_raw, int) and kc_raw > 0 and role_text != "Mentor" else ""
-        return f"{mention} — {nickname} • **{role_text}** {kc_text} • Scythe {scythe_icon(p)}"
+        return f"{mention} • **{role_text}** {kc_text} • {scythe_icon(p)} Scythe"
 
     # Sort each team's display Mentor → HP → Pro → Learner → New
     for i, team in enumerate(teams, start=1):
@@ -2281,13 +2359,18 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: Optional[di
     if vc_member_ids:
         assigned_ids = {p["user_id"] for t in teams for p in t}
         unassigned_users = vc_member_ids - assigned_ids
+    
     if unassigned_users:
-        mentions = " ".join([f"<@{uid}>" for uid in unassigned_users])
+        mentions = []
+        for uid in unassigned_users:
+            m = guild.get_member(int(uid))
+            mentions.append(m.mention if m else f"<@{uid}>")
         embed.add_field(
             name="Unassigned Users in VC",
-            value=mentions,
+            value=" ".join(mentions),
             inline=False
         )
+
 
     await interaction.followup.send(embed=embed)
 @sangmatch.error
