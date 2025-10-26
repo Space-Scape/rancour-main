@@ -85,23 +85,39 @@ events_sheet = sheet_client_coffer.open_by_key(EVENTS_SHEET_ID).worksheet("Event
 # ---------------------------
 SANG_SHEET_ID = "1CCpDAJO7Cq581yF_-rz3vx7L_BTettVaKglSvOmvTOE" # <-- Specific ID for Sang Signups
 SANG_SHEET_TAB_NAME = "SangSignups"
+SANG_HISTORY_TAB_NAME = "History" # <-- ADDED
+
 try:
     # Use the specific SANG_SHEET_ID and the main sheet_client
-    sang_sheet = sheet_client.open_by_key(SANG_SHEET_ID).worksheet(SANG_SHEET_TAB_NAME)
-except gspread.exceptions.WorksheetNotFound: # <-- Use fully qualified name
-    # This block runs if the *sheet* (tab) doesn't exist.
-    sang_sheet = sheet_client.open_by_key(SANG_SHEET_ID).add_worksheet(title=SANG_SHEET_TAB_NAME, rows="100", cols="20")
-    # Add Discord_ID as the first column, which is essential for the bot to find users.
-    sang_sheet.append_row(["Discord_ID", "Discord_Name", "Roles Known", "KC", "Has_Scythe", "Proficiency", "Learning Freeze", "Timestamp"])
+    sang_google_sheet = sheet_client.open_by_key(SANG_SHEET_ID) # <-- Get the spreadsheet
+    
+    # Try to get SangSignups sheet
+    try:
+        sang_sheet = sang_google_sheet.worksheet(SANG_SHEET_TAB_NAME)
+    except gspread.exceptions.WorksheetNotFound:
+        print(f"'{SANG_SHEET_TAB_NAME}' not found. Creating...")
+        sang_sheet = sang_google_sheet.add_worksheet(title=SANG_SHEET_TAB_NAME, rows="100", cols="20")
+        sang_sheet.append_row(["Discord_ID", "Discord_Name", "Roles Known", "KC", "Has_Scythe", "Proficiency", "Learning Freeze", "Timestamp"])
+
+    # Try to get History sheet
+    try:
+        history_sheet = sang_google_sheet.worksheet(SANG_HISTORY_TAB_NAME)
+    except gspread.exceptions.WorksheetNotFound:
+        print(f"'{SANG_HISTORY_TAB_NAME}' not found. Creating...")
+        history_sheet = sang_google_sheet.add_worksheet(title=SANG_HISTORY_TAB_NAME, rows="1000", cols="20")
+        history_sheet.append_row(["Discord_ID", "Discord_Name", "Roles Known", "KC", "Has_Scythe", "Proficiency", "Learning Freeze", "Timestamp"])
+
 except (PermissionError, gspread.exceptions.APIError) as e: # <-- Use fully qualified name
     # This block runs if the bot doesn't have permission to access the file at all.
     print(f"🔥 CRITICAL ERROR: Bot does not have permission for Sang Sheet (ID: {SANG_SHEET_ID}).")
     print(f"🔥 Please ensure the service account email ({os.getenv('GOOGLE_CLIENT_EMAIL')}) has 'Editor' permissions on this Google Sheet.")
     print(f"🔥 Error details: {e}")
     sang_sheet = None
+    history_sheet = None # <-- ADDED
 except Exception as e:
     print(f"Error initializing Sang Sheet: {e}")
     sang_sheet = None
+    history_sheet = None # <-- ADDED
 
 
 # ---------------------------
@@ -1619,8 +1635,24 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
                 sang_sheet.append_row(row_data)
             else:
                 sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
+
+            # --- ADD HISTORY WRITE ---
+            if history_sheet:
+                history_sheet.append_row(row_data)
+            else:
+                print("🔥 History sheet not available, skipping history append.")
+            # --- END ADD ---
+
         except gspread.CellNotFound:
              sang_sheet.append_row(row_data)
+
+             # --- ADD HISTORY WRITE ---
+             if history_sheet:
+                 history_sheet.append_row(row_data)
+             else:
+                 print("🔥 History sheet not available, skipping history append.")
+             # --- END ADD ---
+
         except Exception as e:
             print(f"🔥 GSpread error on signup: {e}")
             await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
@@ -1709,8 +1741,22 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
                  sang_sheet.append_row(row_data)
             else:
                  sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
+
+            # --- ADD HISTORY WRITE ---
+            if history_sheet:
+                history_sheet.append_row(row_data)
+            else:
+                print("🔥 History sheet not available, skipping history append.")
+            # --- END ADD ---
         except gspread.CellNotFound:
             sang_sheet.append_row(row_data)
+
+            # --- ADD HISTORY WRITE ---
+            if history_sheet:
+                history_sheet.append_row(row_data)
+            else:
+                print("🔥 History sheet not available, skipping history append.")
+            # --- END ADD ---
         except Exception as e:
             print(f"🔥 GSpread error on mentor signup: {e}")
             await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
@@ -1726,15 +1772,15 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         )
         
 def get_previous_signup(user_id: str) -> Optional[Dict[str, Any]]:
-    """Fetches the latest signup data for a user from the sheet."""
+    """Fetches the latest signup data for a user from the HISTORY sheet."""
     print(f"DEBUG: get_previous_signup called for user_id: {user_id}")
-    if not sang_sheet:
-        print("DEBUG: sang_sheet not available in get_previous_signup.")
+    if not history_sheet: # <-- MODIFIED
+        print("DEBUG: history_sheet not available in get_previous_signup.") # <-- MODIFIED
         return None
     try:
-        all_records = sang_sheet.get_all_records()
+        all_records = history_sheet.get_all_records() # <-- MODIFIED
         if not all_records:
-             print("DEBUG: No records found in sang_sheet.")
+             print("DEBUG: No records found in history_sheet.") # <-- MODIFIED
              return None
 
         for record in reversed(all_records):
@@ -1781,8 +1827,8 @@ class SignupView(View):
 
         if not is_auto_signup:
             await interaction.response.defer(ephemeral=True)
-            if not sang_sheet:
-                await interaction.followup.send("⚠️ Error: The Sanguine Sunday signup sheet is not connected.", ephemeral=True)
+            if not sang_sheet or not history_sheet: # <-- MODIFIED
+                await interaction.followup.send("⚠️ Error: The Sanguine Sunday signup or history sheet is not connected.", ephemeral=True) # <-- MODIFIED
                 return
 
             user_id = str(user.id)
@@ -1802,6 +1848,13 @@ class SignupView(View):
                 else:
                     sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
 
+                # --- ADD HISTORY WRITE ---
+                if history_sheet:
+                    history_sheet.append_row(row_data)
+                else:
+                    print("🔥 History sheet not available, skipping history append.")
+                # --- END ADD ---
+
                 await interaction.followup.send(
                     "✅ **Auto-signed up as Mentor!** (Detected Mentor role).\n"
                     "Your proficiency is set to Highly Proficient, Roles Known to All, and Scythe to Yes.\n"
@@ -1810,6 +1863,14 @@ class SignupView(View):
                 )
             except gspread.CellNotFound:
                  sang_sheet.append_row(row_data)
+
+                 # --- ADD HISTORY WRITE ---
+                 if history_sheet:
+                     history_sheet.append_row(row_data)
+                 else:
+                     print("🔥 History sheet not available, skipping history append.")
+                 # --- END ADD ---
+
                  await interaction.followup.send(
                     "✅ **Auto-signed up as Mentor!** (Detected Mentor role).\n"
                     "Your proficiency is set to Highly Proficient, Roles Known to All, and Scythe to Yes.\n"
@@ -2229,6 +2290,8 @@ async def sangmatch_error(interaction: discord.Interaction, error: app_commands.
 
 
 # --- Scheduled Tasks ---
+SANG_SHEET_HEADER = ["Discord_ID", "Discord_Name", "Roles Known", "KC", "Has_Scythe", "Proficiency", "Learning Freeze", "Timestamp"]
+
 @tasks.loop(time=dt_time(hour=11, minute=0, tzinfo=CST))
 async def scheduled_post_signup():
     """Posts the signup message every Friday at 11:00 AM CST."""
@@ -2245,8 +2308,24 @@ async def scheduled_post_reminder():
         if channel:
             await post_reminder(channel)
 
+@tasks.loop(time=dt_time(hour=4, minute=0, tzinfo=CST)) # 4 AM CST
+async def scheduled_clear_sang_sheet():
+    """Clears the SangSignups sheet every Monday at 4:00 AM CST."""
+    if datetime.now(CST).weekday() == 0:  # 0 = Monday
+        print("MONDAY DETECTED: Clearing SangSignups sheet...")
+        if sang_sheet:
+            try:
+                sang_sheet.clear()
+                sang_sheet.append_row(SANG_SHEET_HEADER)
+                print("✅ SangSignups sheet cleared and headers added.")
+            except Exception as e:
+                print(f"🔥 Failed to clear SangSignups sheet: {e}")
+        else:
+            print("⚠️ Cannot clear SangSignups sheet, not connected.")
+
 @scheduled_post_signup.before_loop
 @scheduled_post_reminder.before_loop
+@scheduled_clear_sang_sheet.before_loop # <-- ADDED
 async def before_scheduled_tasks():
     await bot.wait_until_ready()
 
@@ -2298,6 +2377,11 @@ async def on_ready():
     if not scheduled_post_reminder.is_running():
         scheduled_post_reminder.start()
         print("✅ Started scheduled reminder task.")
+    
+    if not scheduled_clear_sang_sheet.is_running(): # <-- ADDED
+        scheduled_clear_sang_sheet.start() # <-- ADDED
+        print("✅ Started scheduled sang sheet clear task.") # <-- ADDED
+    
     # Removed maintain_reactions task as it's no longer used
 
     # Panel initializations
