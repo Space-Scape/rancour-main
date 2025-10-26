@@ -2108,30 +2108,30 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: Optional[di
         
         roles_str = signup.get("Roles Known", "")
         knows_range, knows_melee = parse_roles(roles_str)
-            kc_raw = signup.get("KC", 0) # Get KC value, default to 0
-            try:
-                # Convert KC to int, handle potential non-numeric values (like 'N/A' or 'X' for mentors)
-                kc_val = int(kc_raw)
-            except (ValueError, TypeError):
-                # For Mentors with 'X' or other non-numbers, treat KC as very high for sorting purposes
-                kc_val = 9999 if signup.get("Proficiency", "").lower() == 'mentor' else 0
+        kc_raw = signup.get("KC", 0) # Get KC value, default to 0
+        try:
+            # Convert KC to int, handle potential non-numeric values (like 'N/A' or 'X' for mentors)
+            kc_val = int(kc_raw)
+        except (ValueError, TypeError):
+            # For Mentors with 'X' or other non-numbers, treat KC as very high for sorting purposes
+            kc_val = 9999 if signup.get("Proficiency", "").lower() == 'mentor' else 0
 
 
-            # --- Determine Proficiency including Highly Proficient ---
-            # Use the value from the sheet if it's 'Mentor', otherwise calculate based on KC
-            proficiency_val = signup.get("Proficiency", "").lower()
-            if proficiency_val != 'mentor': # Recalculate if not mentor (in case KC changed)
-                if kc_val <= 1:
-                    proficiency_val = "new"
-                elif 1 < kc_val < 50:
-                    proficiency_val = "learner"
-                elif 50 <= kc_val < 150:
-                    proficiency_val = "proficient"
-                else: # 150+ KC
-                    proficiency_val = "highly proficient"
+        # --- Determine Proficiency including Highly Proficient ---
+        # Use the value from the sheet if it's 'Mentor', otherwise calculate based on KC
+        proficiency_val = signup.get("Proficiency", "").lower()
+        if proficiency_val != 'mentor': # Recalculate if not mentor (in case KC changed)
+            if kc_val <= 1:
+                proficiency_val = "new"
+            elif 1 < kc_val < 50:
+                proficiency_val = "learner"
+            elif 50 <= kc_val < 150:
+                proficiency_val = "proficient"
+            else: # 150+ KC
+                proficiency_val = "highly proficient"
 
-            available_raiders.append({
-                "user_id": user_id,
+        available_raiders.append({
+            "user_id": user_id,
                 "user_name": signup.get("Discord_Name"),
                 "proficiency": proficiency_val, # Use calculated/sheet proficiency
                 "kc": kc_val, # Use the integer KC value (or default)
@@ -2492,3 +2492,11 @@ async def on_ready():
 # 🔹 Run Bot
 # ---------------------------
 bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+
+
+
+
+
+
+
