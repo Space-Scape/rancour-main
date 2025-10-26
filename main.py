@@ -1634,7 +1634,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
             if cell is None:
                 sang_sheet.append_row(row_data)
             else:
-                sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
+                sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:H{cell.row}') # <-- FIXED
 
             # --- MODIFIED HISTORY WRITE ---
             if history_sheet:
@@ -1643,7 +1643,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
                     if history_cell is None:
                         history_sheet.append_row(row_data)
                     else:
-                        history_sheet.update(f'A{history_cell.row}:H{history_cell.row}', [row_data])
+                        history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:H{history_cell.row}') # <-- FIXED
                 except Exception as e:
                     print(f"🔥 GSpread error on HISTORY (User Form) write: {e}")
             else:
@@ -1660,7 +1660,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
                     if history_cell is None:
                         history_sheet.append_row(row_data)
                     else:
-                        history_sheet.update(f'A{history_cell.row}:H{history_cell.row}', [row_data])
+                        history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:H{history_cell.row}') # <-- FIXED
                 except Exception as e:
                     print(f"🔥 GSpread error on HISTORY (User Form) write: {e}")
              else:
@@ -1754,7 +1754,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
             if cell is None:
                  sang_sheet.append_row(row_data)
             else:
-                 sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
+                 sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:H{cell.row}') # <-- FIXED
 
             # --- MODIFIED HISTORY WRITE ---
             if history_sheet:
@@ -1763,7 +1763,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
                     if history_cell is None:
                         history_sheet.append_row(row_data)
                     else:
-                        history_sheet.update(f'A{history_cell.row}:H{history_cell.row}', [row_data])
+                        history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:H{history_cell.row}') # <-- FIXED
                 except Exception as e:
                     print(f"🔥 GSpread error on HISTORY (Mentor Form) write: {e}")
             else:
@@ -1779,7 +1779,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
                     if history_cell is None:
                         history_sheet.append_row(row_data)
                     else:
-                        history_sheet.update(f'A{history_cell.row}:H{history_cell.row}', [row_data])
+                        history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:H{history_cell.row}') # <-- FIXED
                 except Exception as e:
                     print(f"🔥 GSpread error on HISTORY (Mentor Form) write: {e}")
             else:
@@ -1801,14 +1801,13 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         
 def get_previous_signup(user_id: str) -> Optional[Dict[str, Any]]:
     """Fetches the latest signup data for a user from the HISTORY sheet."""
-    print(f"DEBUG: get_previous_signup called for user_id: {user_id}")
     if not history_sheet: # <-- MODIFIED
-        print("DEBUG: history_sheet not available in get_previous_signup.") # <-- MODIFIED
+        print("History sheet not available in get_previous_signup.") # <-- MODIFIED & DEBUG removed
         return None
     try:
         all_records = history_sheet.get_all_records() # <-- MODIFIED
         if not all_records:
-             print("DEBUG: No records found in history_sheet.") # <-- MODIFIED
+             print("No records found in history_sheet.") # <-- MODIFIED & DEBUG removed
              return None
 
         for record in reversed(all_records):
@@ -1816,12 +1815,10 @@ def get_previous_signup(user_id: str) -> Optional[Dict[str, Any]]:
             sheet_discord_id_str = str(sheet_discord_id) if sheet_discord_id is not None else None
 
             if sheet_discord_id_str == user_id:
-                print(f"DEBUG: Match found for user_id: {user_id}")
                 record["Has_Scythe"] = str(record.get("Has_Scythe", "FALSE")).upper() == "TRUE"
                 record["Learning Freeze"] = str(record.get("Learning Freeze", "FALSE")).upper() == "TRUE"
-                print(f"DEBUG: Returning record: {record}")
                 return record
-        print(f"DEBUG: No match found for user_id: {user_id}")
+        print(f"No history match found for user_id: {user_id}") # <-- MODIFIED & DEBUG removed
         return None
     except Exception as e:
         print(f"🔥 GSpread error fetching previous signup for {user_id}: {e}")
@@ -1874,7 +1871,7 @@ class SignupView(View):
                 if cell is None:
                     sang_sheet.append_row(row_data)
                 else:
-                    sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
+                    sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:H{cell.row}') # <-- FIXED
 
                 # --- MODIFIED HISTORY WRITE ---
                 if history_sheet:
@@ -1883,7 +1880,7 @@ class SignupView(View):
                         if history_cell is None:
                             history_sheet.append_row(row_data)
                         else:
-                            history_sheet.update(f'A{history_cell.row}:H{history_cell.row}', [row_data])
+                            history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:H{history_cell.row}') # <-- FIXED
                     except Exception as e:
                         print(f"🔥 GSpread error on HISTORY (Auto-Mentor) write: {e}")
                 else:
@@ -1906,7 +1903,7 @@ class SignupView(View):
                         if history_cell is None:
                             history_sheet.append_row(row_data)
                         else:
-                            history_sheet.update(f'A{history_cell.row}:H{history_cell.row}', [row_data])
+                            history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:H{history_cell.row}') # <-- FIXED
                     except Exception as e:
                         print(f"🔥 GSpread error on HISTORY (Auto-Mentor) write: {e}")
                  else:
