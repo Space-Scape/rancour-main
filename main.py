@@ -1538,13 +1538,16 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
             return
         has_scythe_bool = scythe_value in ["yes", "y"]
 
+        # --- Updated Proficiency Calculation ---
         proficiency_value = ""
         if kc_value <= 1:
             proficiency_value = "New"
         elif 1 < kc_value < 50:
             proficiency_value = "Learner"
-        else:
+        elif 50 <= kc_value < 150: # Check for 50-149 KC
             proficiency_value = "Proficient"
+        else: # 150+ KC
+            proficiency_value = "Highly Proficient" # Assign Highly Proficient
 
         roles_known_value = str(self.roles_known).strip() or "None"
         learning_freeze_value = str(self.learning_freeze).strip().lower()
@@ -1570,7 +1573,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
             else:
                 # User found, update the existing row
                 sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
-        # Keep the original exception handler just in case find *can* raise it, and correct the name
+        # Use correct exception name
         except gspread.CellNotFound:
              sang_sheet.append_row(row_data)
         except Exception as e:
@@ -1579,9 +1582,9 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
             await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
             return
 
-        # --- Success message (was previously placeholder) ---
+        # --- Success message ---
         await interaction.response.send_message(
-            f"✅ **You are signed up as {proficiency_value}!**\n"
+            f"✅ **You are signed up as {proficiency_value}!**\n" # Now correctly shows Highly Proficient
             f"**KC:** {kc_value}\n"
             f"**Scythe:** {'Yes' if has_scythe_bool else 'No'}\n"
             f"**Roles Known:** {roles_known_value}\n"
@@ -1658,7 +1661,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
             else:
                  # User found, update the existing row
                  sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
-        # Keep the original exception handler and correct the name
+        # Use correct exception name
         except gspread.CellNotFound:
             sang_sheet.append_row(row_data)
         except Exception as e:
@@ -1667,7 +1670,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
             await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
             return
 
-        # --- Success message (was previously placeholder) ---
+        # --- Success message ---
         await interaction.response.send_message(
             f"✅ **You are signed up as a Mentor!**\n"
             f"**KC:** {kc_value}\n"
@@ -2109,11 +2112,6 @@ async def scheduled_post_reminder():
 @scheduled_post_reminder.before_loop
 async def before_scheduled_tasks():
     await bot.wait_until_ready()
-
-# ---------------------------
-# 🔹 Justice Panel
-# ---------------------------
-# (Justice Panel logic is assumed to be correct and unchanged)
 
 # ---------------------------
 # 🔹 Bot Events
