@@ -2062,8 +2062,8 @@ def pop_complementary_learners(learners_list: list) -> (dict, dict):
 # --- Matchmaking Slash Command (REWORKED + Highly Proficient) ---
 @bot.tree.command(name="sangmatch", description="Create ToB teams from signups in a voice channel.")
 @app_commands.checks.has_role(STAFF_ROLE_ID)
-@app_commands.describe(voice_channel="The voice channel to pull active users from.")
-async def sangmatch(interaction: discord.Interaction, voice_channel: discord.VoiceChannel):
+@app_commands.describe(voice_channel="Optional: The voice channel to pull users from. If omitted, uses all signups.")
+async def sangmatch(interaction: discord.Interaction, voice_channel: Optional[discord.VoiceChannel] = None):
     if not sang_sheet:
         await interaction.response.send_message("⚠️ Error: The Sanguine Sunday sheet is not connected.", ephemeral=True)
         return
@@ -2071,14 +2071,19 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
     await interaction.response.defer(ephemeral=False) # Send to channel
 
     # --- 1. Get users in the specified voice channel ---
-    if not voice_channel.members:
-        await interaction.followup.send(f"⚠️ No users are in {voice_channel.mention}.")
-        return
+    vc_member_ids = None # <-- ADDED
+    channel_name = "All Signups" # <-- ADDED
 
-    vc_member_ids = {str(member.id) for member in voice_channel.members if not member.bot}
-    if not vc_member_ids:
-        await interaction.followup.send(f"⚠️ No human users are in {voice_channel.mention}.")
-        return
+    if voice_channel: # <-- ADDED IF BLOCK
+        channel_name = voice_channel.name
+        if not voice_channel.members:
+            await interaction.followup.send(f"⚠️ No users are in {voice_channel.mention}.")
+            return
+
+        vc_member_ids = {str(member.id) for member in voice_channel.members if not member.bot}
+        if not vc_member_ids:
+            await interaction.followup.send(f"⚠️ No human users are in {voice_channel.mention}.")
+            return
 
     # --- 2. Get all signups from GSheet ---
     try:
@@ -2095,9 +2100,14 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
     available_raiders = []
     for signup in all_signups_records:
         user_id = str(signup.get("Discord_ID"))
-        if user_id in vc_member_ids:
-            roles_str = signup.get("Roles Known", "")
-            knows_range, knows_melee = parse_roles(roles_str)
+        
+        # --- MODIFIED VC CHECK ---
+        # If vc_member_ids is set (a VC was provided), filter by it.
+        if vc_member_ids and user_id not in vc_member_ids:
+             continue # Skip this user, not in the specified VC
+        
+        roles_str = signup.get("Roles Known", "")
+        knows_range, knows_melee = parse_roles(roles_str)
             kc_raw = signup.get("KC", 0) # Get KC value, default to 0
             try:
                 # Convert KC to int, handle potential non-numeric values (like 'N/A' or 'X' for mentors)
@@ -2271,15 +2281,10 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
         for member in new_team: used_ids.add(member['user_id'])
         leftovers = leftovers[team_size:]
 
-    # Add final 1 or 2 players if they exist
-    if leftovers:
-        teams.append(leftovers)
-        for member in leftovers: used_ids.add(member['user_id'])
-
     # --- 5. Format and send output ---
     embed = discord.Embed(
-        title=f"Sanguine Sunday Teams - {voice_channel.name}",
-        description=f"Created {len(teams)} team(s) from {len(available_raiders)} signed-up users in the VC.",
+        title=f"Sanguine Sunday Teams - {channel_name}",
+        description=f"Created {len(teams)} team(s) from {len(available_raiders)} available signed-up users.",
         color=discord.Color.red()
     )
 
@@ -2304,7 +2309,10 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
             )
         embed.add_field(name=f"Team {i+1}", value="\n".join(team_details), inline=False)
 
-    unassigned_users = vc_member_ids - used_ids
+    unassigned_users = set()
+    if vc_member_ids: # Only show unassigned users if a VC was specified
+        unassigned_users = vc_member_ids - used_ids
+    
     if unassigned_users:
         mentions = " ".join([f"<@{uid}>" for uid in unassigned_users])
         embed.add_field(
