@@ -1492,7 +1492,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         max_length=100,
         required=False
     )
-    
+
     kc = TextInput(
         label="What is your Normal Mode ToB KC?",
         placeholder="Enter your kill count (e.g., 0, 25, 150)",
@@ -1508,7 +1508,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         max_length=5,
         required=True
     )
-    
+
     learning_freeze = TextInput(
         label="Learn freeze role? (Yes/No, blank for No)",
         placeholder="Yes or No",
@@ -1529,7 +1529,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         except ValueError:
             await interaction.response.send_message("⚠️ Error: Kill Count must be a valid number.", ephemeral=True)
             return
-            
+
         scythe_value = str(self.has_scythe).strip().lower()
         if scythe_value not in ["yes", "no", "y", "n"]:
             await interaction.response.send_message("⚠️ Error: Scythe must be 'Yes' or 'No'.", ephemeral=True)
@@ -1551,18 +1551,22 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         user_id = str(interaction.user.id)
         user_name = interaction.user.display_name
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
-        
+
         row_data = [
-            user_id, user_name, roles_known_value, kc_value, 
+            user_id, user_name, roles_known_value, kc_value,
             has_scythe_bool, proficiency_value, learning_freeze_bool, timestamp
         ]
-        
+
         try:
+            # Try to find the user ID in the first column
             cell = sang_sheet.find(user_id, in_column=1)
+            # If find returns a cell (user exists), update that row
             sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
-        except CellNotFound:
+        except gspread.exceptions.CellNotFound: # <-- Use fully qualified name
+            # If find raises CellNotFound (user is new), append a new row
             sang_sheet.append_row(row_data)
         except Exception as e:
+            # Handle other potential errors during sheet interaction
             print(f"🔥 GSpread error on signup: {e}")
             await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
             return
@@ -1584,7 +1588,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         max_length=100,
         required=True
     )
-    
+
     kc = TextInput(
         label="What is your Normal Mode ToB KC?",
         placeholder="Enter your kill count (e.g., 250)",
@@ -1614,7 +1618,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         except ValueError:
             await interaction.response.send_message("⚠️ Error: Kill Count must be a valid number.", ephemeral=True)
             return
-            
+
         scythe_value = str(self.has_scythe).strip().lower()
         if scythe_value not in ["yes", "no", "y", "n"]:
             await interaction.response.send_message("⚠️ Error: Scythe must be 'Yes' or 'No'.", ephemeral=True)
@@ -1628,18 +1632,22 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         user_id = str(interaction.user.id)
         user_name = interaction.user.display_name
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
-        
+
         row_data = [
-            user_id, user_name, roles_known_value, kc_value, 
+            user_id, user_name, roles_known_value, kc_value,
             has_scythe_bool, proficiency_value, learning_freeze_bool, timestamp
         ]
-        
+
         try:
+            # Try to find the user ID in the first column
             cell = sang_sheet.find(user_id, in_column=1)
+            # If find returns a cell (user exists), update that row
             sang_sheet.update(f'A{cell.row}:H{cell.row}', [row_data])
-        except CellNotFound:
+        except gspread.exceptions.CellNotFound: # <-- Use fully qualified name
+            # If find raises CellNotFound (user is new), append a new row
             sang_sheet.append_row(row_data)
         except Exception as e:
+            # Handle other potential errors during sheet interaction
             print(f"🔥 GSpread error on mentor signup: {e}")
             await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
             return
@@ -1652,6 +1660,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
             ephemeral=True
         )
 
+# --- Persistent View for Signup Buttons ---
 class SignupView(View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -1659,34 +1668,46 @@ class SignupView(View):
     @ui.button(label="Sign Up as Raider", style=ButtonStyle.success, custom_id="sang_signup_raider", emoji="📝")
     async def user_signup_button(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_modal(UserSignupForm())
-        
+
     @ui.button(label="Sign Up as Mentor", style=ButtonStyle.primary, custom_id="sang_signup_mentor", emoji="🎓")
     async def mentor_signup_button(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_modal(MentorSignupForm())
 
+# --- Helper Functions ---
 async def find_latest_signup_message(channel: discord.TextChannel) -> Optional[discord.Message]:
+    """Finds the most recent Sanguine Sunday signup message in a channel."""
     async for message in channel.history(limit=100):
         if message.author == bot.user and SANG_MESSAGE_IDENTIFIER in message.content:
             return message
     return None
 
+# --- Core Functions ---
 async def post_signup(channel: discord.TextChannel):
+    """Posts the main signup message with the signup buttons."""
     await channel.send(SANG_MESSAGE, view=SignupView())
     print(f"✅ Posted Sanguine Sunday signup in #{channel.name}")
 
 async def post_reminder(channel: discord.TextChannel):
+    """Finds learners (New or Learner proficiency) from GSheet and posts a reminder."""
     if not sang_sheet:
         print("⚠️ Cannot post reminder, Sang Sheet not connected.")
-        return False
+        return False # Indicate failure
 
-    async for message in channel.history(limit=50):
-        if message.author == bot.user and LEARNER_REMINDER_IDENTIFIER in message.content:
-            await message.delete()
+    # Delete previous reminders from the bot
+    try:
+        async for message in channel.history(limit=50):
+            if message.author == bot.user and LEARNER_REMINDER_IDENTIFIER in message.content:
+                await message.delete()
+    except discord.Forbidden:
+        print(f"⚠️ Could not delete old reminders in #{channel.name} (Missing Permissions)")
+    except Exception as e:
+        print(f"🔥 Error cleaning up reminders: {e}")
 
     learners = []
     try:
-        all_signups = sang_sheet.get_all_records()
+        all_signups = sang_sheet.get_all_records() # Fetch all signups
         for signup in all_signups:
+            # Check the Proficiency column (case-insensitive)
             proficiency = str(signup.get("Proficiency", "")).lower()
             if proficiency in ["learner", "new"]:
                 user_id = signup.get('Discord_ID')
@@ -1701,12 +1722,13 @@ async def post_reminder(channel: discord.TextChannel):
 
         await channel.send(reminder_content, allowed_mentions=discord.AllowedMentions(users=True))
         print(f"✅ Posted Sanguine Sunday learner reminder in #{channel.name}")
-        return True
+        return True # Indicate success
     except Exception as e:
-        print(f"🔥 GSpread error fetching learners: {e}")
-        await channel.send("⚠️ Error fetching learner list from database.")
-        return False
+        print(f"🔥 GSpread error fetching/posting reminder: {e}")
+        await channel.send("⚠️ Error processing learner list from database.")
+        return False # Indicate failure
 
+# --- Slash Command Group ---
 @bot.tree.command(name="sangsignup", description="Manage Sanguine Sunday signups.")
 @app_commands.checks.has_role(STAFF_ROLE_ID)
 @app_commands.describe(
@@ -1741,29 +1763,52 @@ async def sangsignup_error(interaction: discord.Interaction, error: app_commands
         await interaction.response.send_message("❌ You don't have permission.", ephemeral=True)
     else:
         print(f"Error in sangsignup command: {error}")
-        await interaction.followup.send(f"An unexpected error occurred.", ephemeral=True)
+        # Use followup if response already sent (due to defer)
+        if interaction.response.is_done():
+             await interaction.followup.send(f"An unexpected error occurred.", ephemeral=True)
+        else:
+             await interaction.response.send_message(f"An unexpected error occurred.", ephemeral=True)
 
+
+# --- Helper function for role parsing ---
 def parse_roles(roles_str: str) -> (bool, bool):
+    """Parses a roles string to check for range and melee keywords."""
     if not roles_str or roles_str == "N/A":
         return False, False
+
     roles_str = roles_str.lower()
     knows_range = any(s in roles_str for s in ["range", "ranger", "rdps"])
     knows_melee = any(s in roles_str for s in ["melee", "mdps", "meleer"])
     return knows_range, knows_melee
 
+# --- Helper function to get complementary learners ---
 def pop_complementary_learners(learners_list: list) -> (dict, dict):
+    """
+    Pops the first learner and tries to find a complementary
+    (range/melee) learner to pop and return as a pair.
+    """
     if not learners_list or len(learners_list) < 2:
         return None, None
+
     l1 = learners_list.pop(0)
     l1_range, l1_melee = l1.get('knows_range', False), l1.get('knows_melee', False)
+
+    # If l1 doesn't know a specific role, no complement is needed
     if not (l1_range or l1_melee):
         return l1, learners_list.pop(0)
+
+    # Try to find a complement
     for i, l2 in enumerate(learners_list):
         l2_range, l2_melee = l2.get('knows_range', False), l2.get('knows_melee', False)
+        # Check for complementary roles
         if (l1_range and l2_melee) or (l1_melee and l2_range):
             return l1, learners_list.pop(i)
+
+    # No complement found, just return the next in line
     return l1, learners_list.pop(0)
 
+
+# --- Matchmaking Slash Command (REWORKED) ---
 @bot.tree.command(name="sangmatch", description="Create ToB teams from signups in a voice channel.")
 @app_commands.checks.has_role(STAFF_ROLE_ID)
 @app_commands.describe(voice_channel="The voice channel to pull active users from.")
@@ -1772,8 +1817,9 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
         await interaction.response.send_message("⚠️ Error: The Sanguine Sunday sheet is not connected.", ephemeral=True)
         return
 
-    await interaction.response.defer(ephemeral=False)
+    await interaction.response.defer(ephemeral=False) # Send to channel
 
+    # --- 1. Get users in the specified voice channel ---
     if not voice_channel.members:
         await interaction.followup.send(f"⚠️ No users are in {voice_channel.mention}.")
         return
@@ -1783,6 +1829,7 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
         await interaction.followup.send(f"⚠️ No human users are in {voice_channel.mention}.")
         return
 
+    # --- 2. Get all signups from GSheet ---
     try:
         all_signups_records = sang_sheet.get_all_records()
         if not all_signups_records:
@@ -1793,129 +1840,163 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
         await interaction.followup.send("⚠️ An error occurred fetching signups from the database.")
         return
 
+    # --- 3. Filter signups to only users in the VC and parse roles ---
     available_raiders = []
     for signup in all_signups_records:
         user_id = str(signup.get("Discord_ID"))
         if user_id in vc_member_ids:
             roles_str = signup.get("Roles Known", "")
             knows_range, knows_melee = parse_roles(roles_str)
-            kc_raw = signup.get("KC", 0)
+            kc_raw = signup.get("KC", 0) # Get KC value, default to 0
             try:
+                # Convert KC to int, handle potential non-numeric values (like 'N/A' for mentors)
                 kc_val = int(kc_raw)
             except (ValueError, TypeError):
-                kc_val = 0
-            
+                kc_val = 0 # Default non-numeric KC to 0 for sorting/logic
+
             available_raiders.append({
                 "user_id": user_id,
                 "user_name": signup.get("Discord_Name"),
-                "proficiency": str(signup.get("Proficiency", "unknown")).lower(),
-                "kc": kc_val,
+                "proficiency": str(signup.get("Proficiency", "unknown")).lower(), # Use Proficiency column
+                "kc": kc_val, # Use the integer KC value
                 "has_scythe": str(signup.get("Has_Scythe", "FALSE")).upper() == "TRUE",
                 "roles_known": roles_str,
                 "learning_freeze": str(signup.get("Learning Freeze", "FALSE")).upper() == "TRUE",
                 "knows_range": knows_range,
                 "knows_melee": knows_melee
             })
-    
+
     if not available_raiders:
-        await interaction.followup.send(f"⚠️ None of the users in {voice_channel.mention} have signed up.")
+        await interaction.followup.send(f"⚠️ None of the users in {voice_channel.mention} have signed up for the event.")
         return
 
+    # --- 4. Matchmaking Logic ---
     teams = []
     used_ids = set()
 
+    # --- 4a. Create player pools ---
     mentors_scythe = [r for r in available_raiders if r['proficiency'] == 'mentor' and r['has_scythe']]
     mentors_no_scythe = [r for r in available_raiders if r['proficiency'] == 'mentor' and not r['has_scythe']]
     proficient_scythe = [r for r in available_raiders if r['proficiency'] == 'proficient' and r['has_scythe']]
     proficient_no_scythe = [r for r in available_raiders if r['proficiency'] == 'proficient' and not r['has_scythe']]
-    
+
+    # Sort learners to prioritize range/melee and non-freeze
     learners = sorted([r for r in available_raiders if r['proficiency'] in ['learner', 'new']],
-                      key=lambda x: (x['learning_freeze'], not (x['knows_range'] or x['knows_melee']), x.get('kc', 0)))
-    
+                      key=lambda x: (
+                          x['learning_freeze'], # False (non-freeze) comes first
+                          not (x['knows_range'] or x['knows_melee']), # False (knows a role) comes first
+                          x.get('kc', 0) # Then sort by KC
+                      ))
+
     learners_freeze = [l for l in learners if l['learning_freeze']]
     learners_normal = [l for l in learners if not l['learning_freeze']]
 
+    # --- 4b. Pass 1: Build Ideal (1M, 1L, 2P) Teams ---
     while (mentors_scythe or mentors_no_scythe) and (learners_normal or learners_freeze) and (len(proficient_scythe) + len(proficient_no_scythe) >= 2):
         team = []
+
         learner = learners_normal.pop(0) if learners_normal else learners_freeze.pop(0)
         team.append(learner)
 
+        # Try for 2+ Scythes (M-S, P-S, P-S) or (M-S, P-S, P-NS)
         if mentors_scythe and proficient_scythe:
             team.append(mentors_scythe.pop(0))
             team.append(proficient_scythe.pop(0))
-            if proficient_scythe: team.append(proficient_scythe.pop(0))
-            elif proficient_no_scythe: team.append(proficient_no_scythe.pop(0))
+            if proficient_scythe: team.append(proficient_scythe.pop(0)) # 3 scythes
+            elif proficient_no_scythe: team.append(proficient_no_scythe.pop(0)) # 2 scythes
             else:
-                mentors_scythe.insert(0, team.pop())
-                proficient_scythe.insert(0, team.pop())
+                # Not enough proficient, put players back
+                mentors_scythe.insert(0, team.pop()) # Put mentor back
+                proficient_scythe.insert(0, team.pop()) # Put prof back
+                # Put learner back into appropriate list
                 if learner['learning_freeze']: learners_freeze.insert(0, team.pop())
                 else: learners_normal.insert(0, team.pop())
-                continue
+                continue # Try next pass or exit loop
+
+        # Try for 0 Scythes (M-NS, P-NS, P-NS)
         elif mentors_no_scythe and len(proficient_no_scythe) >= 2:
             team.append(mentors_no_scythe.pop(0))
             team.append(proficient_no_scythe.pop(0))
             team.append(proficient_no_scythe.pop(0))
+
+        # Try for 1 Scythe (Last resort)
+        # (M-S, P-NS, P-NS)
         elif mentors_scythe and len(proficient_no_scythe) >= 2:
             team.append(mentors_scythe.pop(0))
             team.append(proficient_no_scythe.pop(0))
             team.append(proficient_no_scythe.pop(0))
+        # (M-NS, P-S, P-NS)
         elif mentors_no_scythe and proficient_scythe and proficient_no_scythe:
             team.append(mentors_no_scythe.pop(0))
             team.append(proficient_scythe.pop(0))
             team.append(proficient_no_scythe.pop(0))
         else:
-            if learner['learning_freeze']: learners_freeze.insert(0, team.pop())
+            # Can't form a 4-man team with the remaining players
+            if learner['learning_freeze']: learners_freeze.insert(0, team.pop()) # Put learner back
             else: learners_normal.insert(0, team.pop())
-            break
+            break # Exit Pass 1
 
         teams.append(team)
-        for member in team: used_ids.add(member['user_id'])
+        for member in team:
+            used_ids.add(member['user_id'])
 
+    # --- 4c. Pass 2: Fallback (2M, 2L) Teams ---
     remaining_learners = sorted(learners_normal + learners_freeze,
-                                key=lambda x: (not (x['knows_range'] or x['knows_melee']), x['learning_freeze']))
-    
+                                key=lambda x: (not (x['knows_range'] or x['knows_melee']), x['learning_freeze'])) # Prioritize role known, then non-freeze
+
     while (len(mentors_scythe) + len(mentors_no_scythe) >= 2) and len(remaining_learners) >= 2:
         team = []
+
         l1, l2 = pop_complementary_learners(remaining_learners)
-        if not l1 or not l2: break
+        if not l1 or not l2: break # Not enough learners
         team.extend([l1, l2])
-        
-        if len(mentors_scythe) >= 2: team.extend(mentors_scythe.pop(0) for _ in range(2))
-        elif len(mentors_no_scythe) >= 2: team.extend(mentors_no_scythe.pop(0) for _ in range(2))
+
+        # Add 2 Mentors (Prioritize 2+ or 0 Scythes)
+        if len(mentors_scythe) >= 2: team.extend([mentors_scythe.pop(0), mentors_scythe.pop(0)])
+        elif len(mentors_no_scythe) >= 2: team.extend([mentors_no_scythe.pop(0), mentors_no_scythe.pop(0)])
         elif mentors_scythe and mentors_no_scythe:
             team.append(mentors_scythe.pop(0))
             team.append(mentors_no_scythe.pop(0))
         else:
+            # Can't form 2M team
+            remaining_learners.insert(0, team.pop()) # Put learners back
             remaining_learners.insert(0, team.pop())
-            remaining_learners.insert(0, team.pop())
-            break
-            
+            break # Exit Pass 2
+
         teams.append(team)
         for member in team: used_ids.add(member['user_id'])
 
+    # --- 4d. Pass 3: Cleanup Leftovers ---
     all_pools = mentors_scythe + mentors_no_scythe + proficient_scythe + proficient_no_scythe + remaining_learners
     leftovers = sorted([r for r in all_pools if r['user_id'] not in used_ids],
-                       key=lambda x: (x['proficiency'] == 'proficient', x['proficiency'] == 'mentor', x.get('has_scythe', False)), reverse=True)
+                       key=lambda x: (
+                           x['proficiency'] == 'proficient',
+                           x['proficiency'] == 'mentor',
+                           x.get('has_scythe', False)
+                       ), reverse=True) # Sort best players first
 
     while len(leftovers) >= 3:
-        team_size = 4
+        team_size = 4 # Default to 4
         if len(leftovers) == 4: team_size = 4
         elif len(leftovers) == 5:
+            # Check if making a 5-man team includes a 'New' player
             has_new_player = any(p['proficiency'] == 'new' for p in leftovers[:5])
-            team_size = 4 if has_new_player else 5
-        elif len(leftovers) == 6: team_size = 3
-        elif len(leftovers) > 5: team_size = 4
-        else: team_size = 3
-            
+            team_size = 4 if has_new_player else 5 # Make 4-man if 'New' player present
+        elif len(leftovers) == 6: team_size = 3 # Make two teams of 3
+        elif len(leftovers) > 5: team_size = 4 # Make a 4-man team first
+        else: team_size = 3 # Only 3 left
+
         new_team = leftovers[:team_size]
         teams.append(new_team)
         for member in new_team: used_ids.add(member['user_id'])
         leftovers = leftovers[team_size:]
 
+    # Add final 1 or 2 players if they exist
     if leftovers:
         teams.append(leftovers)
         for member in leftovers: used_ids.add(member['user_id'])
-            
+
+    # --- 5. Format and send output ---
     embed = discord.Embed(
         title=f"Sanguine Sunday Teams - {voice_channel.name}",
         description=f"Created {len(teams)} team(s) from {len(available_raiders)} signed-up users in the VC.",
@@ -1923,28 +2004,33 @@ async def sangmatch(interaction: discord.Interaction, voice_channel: discord.Voi
     )
 
     if not teams:
-        embed.description = "Could not form any teams."
-    
+        embed.description = "Could not form any teams with the available players."
+
     for i, team in enumerate(teams):
         team_details = []
         for member in team:
             scythe_text = " (Scythe)" if member.get('has_scythe', False) else ""
             role_text = member.get('proficiency', 'Unknown').capitalize()
             kc_raw = member.get('kc', 0)
+            # Only show KC if it's a number AND (not a Mentor OR Mentor KC > 0)
             kc_text = f"({kc_raw} KC)" if str(kc_raw).isdigit() and (role_text != "Mentor" or kc_raw > 0) else ""
-            team_details.append(f"<@{member['user_id']}> - **{role_text}** {kc_text}{scythe_text}")
+
+            team_details.append(
+                f"<@{member['user_id']}> - **{role_text}** {kc_text}{scythe_text}"
+            )
         embed.add_field(name=f"Team {i+1}", value="\n".join(team_details), inline=False)
-        
+
     unassigned_users = vc_member_ids - used_ids
     if unassigned_users:
         mentions = " ".join([f"<@{uid}>" for uid in unassigned_users])
         embed.add_field(
             name="Unassigned Users in VC",
-            value=f"These users were in the VC but were not assigned:\n{mentions}",
+            value=f"These users were in the VC but were not assigned (either not signed up or left over):\n{mentions}",
             inline=False
         )
 
     await interaction.followup.send(embed=embed)
+
 
 @sangmatch.error
 async def sangmatch_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
@@ -1957,16 +2043,20 @@ async def sangmatch_error(interaction: discord.Interaction, error: app_commands.
         else:
             await interaction.followup.send(f"An unexpected error occurred.", ephemeral=True)
 
+
+# --- Scheduled Tasks ---
 @tasks.loop(time=dt_time(hour=11, minute=0, tzinfo=CST))
 async def scheduled_post_signup():
-    if datetime.now(CST).weekday() == 4:
+    """Posts the signup message every Friday at 11:00 AM CST."""
+    if datetime.now(CST).weekday() == 4:  # 4 = Friday
         channel = bot.get_channel(SANG_CHANNEL_ID)
         if channel:
             await post_signup(channel)
 
 @tasks.loop(time=dt_time(hour=14, minute=0, tzinfo=CST))
 async def scheduled_post_reminder():
-    if datetime.now(CST).weekday() == 5:
+    """Posts the learner reminder every Saturday at 2:00 PM CST."""
+    if datetime.now(CST).weekday() == 5:  # 5 = Saturday
         channel = bot.get_channel(SANG_CHANNEL_ID)
         if channel:
             await post_reminder(channel)
