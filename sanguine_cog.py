@@ -358,7 +358,7 @@ def format_player_line_plain(guild: discord.Guild, p: dict) -> str:
     kc_text = f"({kc_raw} KC)" if isinstance(kc_raw, int) and kc_raw > 0 and role_text != "Mentor" and kc_raw != 9999 else ""
     scythe = scythe_icon(p)
     freeze = freeze_icon(p)
-    return f"{nickname} • **{role_text}** {kc_text} • {scythe} Scythe {freeze}"
+    return f"{nickname} • **{role_text}** {kc_text} • {scythe} <:tob:1272864087105208364> {freeze}"
 
 def format_player_line_mention(guild: discord.Guild, p: dict) -> str:
     """Formats a player's info for the /sangmatch command with pings."""
@@ -374,7 +374,7 @@ def format_player_line_mention(guild: discord.Guild, p: dict) -> str:
     kc_text = f"({kc_raw} KC)" if isinstance(kc_raw, int) and kc_raw > 0 and role_text != "Mentor" and kc_raw != 9999 else ""
     scythe = scythe_icon(p)
     freeze = freeze_icon(p)
-    return f"{mention} • **{role_text}** {kc_text} • {scythe} Scythe {freeze}"
+    return f"{mention} • **{role_text}** {kc_text} • {scythe} <:tob:1272864087105208364> {freeze}"
 
 # ---------------------------
 # 🔹 UI Modals & Views
@@ -386,6 +386,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
     kc = TextInput(label="What is your N͟o͟r͟m͟a͟l͟ Mode ToB KC?", placeholder="0-10 = New, 11-25 = Learner, 26-100 = Proficient, 100+ = Highly Proficient", style=discord.TextStyle.short, max_length=5, required=True)
     has_scythe = TextInput(label="Do you have a Scythe? (Yes/No)", placeholder="Yes or No O͟N͟L͟Y͟", style=discord.TextStyle.short, max_length=3, required=True)
     learning_freeze = TextInput(label="Learn freeze role? (Yes or leave blank)", placeholder="Yes or blank/No O͟N͟L͟Y͟", style=discord.TextStyle.short, max_length=3, required=False)
+    wants_mentor = TextInput(label="Do you want assistance from a Mentor?", placeholder="Yes or No/Blank", style=discord.TextStyle.short, max_length=3, required=False)
 
     def __init__(self, cog: 'SanguineCog', previous_data: dict = None):
         super().__init__(title="Sanguine Sunday Signup")
@@ -397,6 +398,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
             self.kc.default = str(kc_val) if kc_val not in ["", None, "X"] else ""
             self.has_scythe.default = "Yes" if previous_data.get("Has_Scythe", False) else "No"
             self.learning_freeze.default = "Yes" if previous_data.get("Learning Freeze", False) else ""
+            self.wants_mentor.default = "Yes" if previous_data.get("Mentor_Request", False) else ""
 
     async def on_submit(self, interaction: discord.Interaction):
         # Use self.cog.sang_sheet and self.cog.history_sheet
@@ -428,13 +430,15 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         roles_known_value = str(self.roles_known).strip() or "None"
         learning_freeze_value = str(self.learning_freeze).strip().lower()
         learning_freeze_bool = learning_freeze_value in ["yes", "y"]
+        wants_mentor_value = str(self.wants_mentor).strip().lower()
+        wants_mentor_bool = wants_mentor_value in ["yes", "y"]
 
         user_id = str(interaction.user.id)
         user_name = sanitize_nickname(interaction.user.display_name)
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
         
         # Prepare the row based on the sheet header order
-        row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, False, timestamp]
+        row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, wants_mentor_bool, timestamp]
         
         try:
             # --- Write to SangSignups sheet ---
@@ -478,7 +482,8 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
             f"**KC:** {kc_value}\n"
             f"**Scythe:** {'Yes' if has_scythe_bool else 'No'}\n"
             f"**Favorite Roles:** {roles_known_value}\n"
-            f"**Learn Freeze:** {'Yes' if learning_freeze_bool else 'No'}",
+            f"**Learn Freeze:** {'Yes' if learning_freeze_bool else 'No'}\n"
+            f"**Mentor Request:** {'Yes' if wants_mentor_bool else 'No'}",
             ephemeral=True
         )
 
@@ -774,43 +779,20 @@ class SanguineCog(commands.Cog):
     # --- Cog Methods (from helper functions) ---
 
     async def _create_team_embeds(
-        self,
-        teams: List[List[Dict[str, Any]]],
-        title: str,
-        description: str,
-        color: discord.Color,
-        guild: discord.Guild,
-        format_func
-    ) -> List[discord.Embed]:
-        """
-        Creates a list of embeds, paginating teams to respect the 25-field limit.
-        """
-        embeds = []
-        
-        if not teams:
-            embed = discord.Embed(title=title, description="Could not form any valid teams with the available players.", color=color)
-            embeds.append(embed)
-            return embeds
-
+...
         current_embed = discord.Embed(title=title, description=description, color=color)
         embeds.append(current_embed)
         field_count = 0
         
+        # Define a safe limit for fields per embed. 25 is the max count,
+        # but 10 is safer to avoid the 6000-character total embed limit.
+        FIELDS_PER_EMBED = 10
+        
         for i, team in enumerate(teams, start=1):
-            if field_count >= 25:
+            if field_count >= FIELDS_PER_EMBED:
                 # Current embed is full, create a new one
                 current_embed = discord.Embed(title=f"{title} (Page {len(embeds) + 1})", color=color)
-                embeds.append(current_embed)
-                field_count = 0
-                
-            team_sorted = sorted(team, key=prof_rank)
-            lines = [format_func(guild, p) for p in team_sorted]
-            
-            current_embed.add_field(
-                name=f"Team {i} (Size: {len(team)})",
-                value="\n".join(lines) if lines else "—",
-                inline=False
-            )
+...
             field_count += 1
             
         return embeds
@@ -1020,14 +1002,13 @@ class SanguineCog(commands.Cog):
         global last_generated_teams
         last_generated_teams = teams
 
-        # --- Send Embeds (in chunks of 10) ---
-        for i in range(0, len(team_embeds), 10):
-            chunk = team_embeds[i:i+10]
+        # --- Send Embeds (one at a time) ---
+        for i, embed in enumerate(team_embeds):
             if i == 0:
-                await interaction.followup.send(embeds=chunk)
+                await interaction.followup.send(embed=embed)
             else:
                 # Send subsequent chunks as new messages
-                await post_channel.send(embeds=chunk)
+                await post_channel.send(embed=embed)
 
 
     @app_commands.command(name="sangmatchtest", description="Create ToB teams without pinging or creating voice channels; show plain-text nicknames.")
@@ -1109,13 +1090,12 @@ class SanguineCog(commands.Cog):
         global last_generated_teams
         last_generated_teams = teams
         
-        # --- Send Embeds (in chunks of 10) ---
-        for i in range(0, len(team_embeds), 10):
-            chunk = team_embeds[i:i+10]
+        # --- Send Embeds (one at a time) ---
+        for i, embed in enumerate(team_embeds):
             if i == 0 and interaction.channel == post_channel:
-                await interaction.followup.send(embeds=chunk, allowed_mentions=discord.AllowedMentions.none())
+                await interaction.followup.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
             else:
-                await post_channel.send(embeds=chunk, allowed_mentions=discord.AllowedMentions.none())
+                await post_channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
         
         if interaction.channel != post_channel:
              await interaction.followup.send("✅ Posted no-ping test teams (no voice channels created).", ephemeral=True)
