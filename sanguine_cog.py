@@ -360,6 +360,22 @@ def format_player_line_plain(guild: discord.Guild, p: dict) -> str:
     freeze = freeze_icon(p)
     return f"{nickname} • **{role_text}** {kc_text} • {scythe} Scythe {freeze}"
 
+def format_player_line_mention(guild: discord.Guild, p: dict) -> str:
+    """Formats a player's info for the /sangmatch command with pings."""
+    try:
+        uid = int(p["user_id"])
+        member = guild.get_member(uid)
+        mention = member.mention if member else f"<@{uid}>"
+    except Exception:
+        mention = f"@{p.get('user_name', 'Unknown')}"
+    
+    role_text = p.get("proficiency", "Unknown").replace(" ", "-").capitalize().replace("-", " ")
+    kc_raw = p.get("kc", 0)
+    kc_text = f"({kc_raw} KC)" if isinstance(kc_raw, int) and kc_raw > 0 and role_text != "Mentor" and kc_raw != 9999 else ""
+    scythe = scythe_icon(p)
+    freeze = freeze_icon(p)
+    return f"{mention} • **{role_text}** {kc_text} • {scythe} Scythe {freeze}"
+
 # ---------------------------
 # 🔹 UI Modals & Views
 # ---------------------------
@@ -757,6 +773,48 @@ class SanguineCog(commands.Cog):
 
     # --- Cog Methods (from helper functions) ---
 
+    async def _create_team_embeds(
+        self,
+        teams: List[List[Dict[str, Any]]],
+        title: str,
+        description: str,
+        color: discord.Color,
+        guild: discord.Guild,
+        format_func
+    ) -> List[discord.Embed]:
+        """
+        Creates a list of embeds, paginating teams to respect the 25-field limit.
+        """
+        embeds = []
+        
+        if not teams:
+            embed = discord.Embed(title=title, description="Could not form any valid teams with the available players.", color=color)
+            embeds.append(embed)
+            return embeds
+
+        current_embed = discord.Embed(title=title, description=description, color=color)
+        embeds.append(current_embed)
+        field_count = 0
+        
+        for i, team in enumerate(teams, start=1):
+            if field_count >= 25:
+                # Current embed is full, create a new one
+                current_embed = discord.Embed(title=f"{title} (Page {len(embeds) + 1})", color=color)
+                embeds.append(current_embed)
+                field_count = 0
+                
+            team_sorted = sorted(team, key=prof_rank)
+            lines = [format_func(guild, p) for p in team_sorted]
+            
+            current_embed.add_field(
+                name=f"Team {i} (Size: {len(team)})",
+                value="\n".join(lines) if lines else "—",
+                inline=False
+            )
+            field_count += 1
+            
+        return embeds
+
     def get_previous_signup(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Fetches the latest signup data for a user from the HISTORY sheet."""
         if not self.history_sheet:
@@ -945,33 +1003,31 @@ class SanguineCog(commands.Cog):
                     print(f"Error creating VC: {e}") 
 
         post_channel = interaction.channel
-        embed = discord.Embed(title=f"Sanguine Sunday Teams - {channel_name}", description=f"Created {len(teams)} valid team(s) from {len(available_raiders)} available signed-up users.", color=discord.Color.red())
-        if not teams:
-            embed.description = "Could not form any valid teams with the available players."
-
-        for i, team in enumerate(teams, start=1):
-            team_sorted = sorted(team, key=prof_rank)
-            team_details = []
-            for p in team_sorted:
-                try:
-                    uid = int(p["user_id"])
-                    member = guild.get_member(uid)
-                    mention = member.mention if member else f"<@{uid}>"
-                except Exception:
-                    mention = f"@{p.get('user_name', 'Unknown')}"
-                
-                role_text = p.get("proficiency", "Unknown").replace(" ", "-").capitalize().replace("-", " ")
-                kc_raw = p.get("kc", 0)
-                kc_text = f"({kc_raw} KC)" if isinstance(kc_raw, int) and kc_raw > 0 and role_text != "Mentor" and kc_raw != 9999 else ""
-                scythe = scythe_icon(p)
-                freeze = freeze_icon(p)
-                team_details.append(f"{mention} • **{role_text}** {kc_text} • {scythe} Scythe {freeze}")
-            
-            embed.add_field(name=f"Team {i} (Size: {len(team)})", value="\n".join(team_details) if team_details else "—", inline=False)
+        
+        # --- Create Embeds ---
+        embed_title = f"Sanguine Sunday Teams - {channel_name}"
+        embed_desc = f"Created {len(teams)} valid team(s) from {len(available_raiders)} available signed-up users."
+        
+        team_embeds = await self._create_team_embeds(
+            teams,
+            embed_title,
+            embed_desc,
+            discord.Color.red(),
+            guild,
+            format_player_line_mention # Use the pinging formatter
+        )
         
         global last_generated_teams
         last_generated_teams = teams
-        await interaction.followup.send(embed=embed)
+
+        # --- Send Embeds (in chunks of 10) ---
+        for i in range(0, len(team_embeds), 10):
+            chunk = team_embeds[i:i+10]
+            if i == 0:
+                await interaction.followup.send(embeds=chunk)
+            else:
+                # Send subsequent chunks as new messages
+                await post_channel.send(embeds=chunk)
 
 
     @app_commands.command(name="sangmatchtest", description="Create ToB teams without pinging or creating voice channels; show plain-text nicknames.")
@@ -1036,20 +1092,32 @@ class SanguineCog(commands.Cog):
         
         guild = interaction.guild
         post_channel = channel or interaction.channel
-        embed = discord.Embed(title=f"Sanguine Sunday Teams (Test, no pings/VC) - {channel_name}", description=f"Created {len(teams)} valid team(s) from {len(available_raiders)} available signed-up users.", color=discord.Color.dark_gray())
-        
-        for i, team in enumerate(teams, start=1):
-            team_sorted = sorted(team, key=prof_rank)
-            lines = [format_player_line_plain(guild, p) for p in team_sorted]
-            embed.add_field(name=f"Team {i} (Size: {len(team)})", value="\n".join(lines) if lines else "—", inline=False)
-        
+
+        # --- Create Embeds ---
+        embed_title = f"Sanguine Sunday Teams (Test, no pings/VC) - {channel_name}"
+        embed_desc = f"Created {len(teams)} valid team(s) from {len(available_raiders)} available signed-up users."
+
+        team_embeds = await self._create_team_embeds(
+            teams,
+            embed_title,
+            embed_desc,
+            discord.Color.dark_gray(),
+            guild,
+            format_player_line_plain # Use the NO-ping formatter
+        )
+
         global last_generated_teams
         last_generated_teams = teams
         
-        if interaction.channel == post_channel:
-             await interaction.followup.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
-        else:
-             await post_channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+        # --- Send Embeds (in chunks of 10) ---
+        for i in range(0, len(team_embeds), 10):
+            chunk = team_embeds[i:i+10]
+            if i == 0 and interaction.channel == post_channel:
+                await interaction.followup.send(embeds=chunk, allowed_mentions=discord.AllowedMentions.none())
+            else:
+                await post_channel.send(embeds=chunk, allowed_mentions=discord.AllowedMentions.none())
+        
+        if interaction.channel != post_channel:
              await interaction.followup.send("✅ Posted no-ping test teams (no voice channels created).", ephemeral=True)
 
 
@@ -1175,4 +1243,3 @@ class SanguineCog(commands.Cog):
 # This setup function is required for the bot to load the Cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(SanguineCog(bot))
-
