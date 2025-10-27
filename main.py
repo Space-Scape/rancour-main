@@ -108,7 +108,7 @@ MENTOR_ROLE_ID = 1306021911830073414
 SANG_ROLE_ID = 1387153629072592916
 TOB_ROLE_ID = 1272694636921753701
 EVENTS_ROLE_ID = 1298358942887317555
-GUILD_ID = 1272629330115297330 # <-- Added your Guild ID for command syncing
+GUILD_ID = 1272629330115297330 # <-- Your Guild ID for fast command syncing
 
 # --- Justice Panel Config ---
 JUSTICE_PANEL_CHANNEL_ID = 1422373286368776314 # Channel where the main panel will be.
@@ -1981,8 +1981,17 @@ async def on_ready():
         await role_channel.send(embed=events_embed, view=EventsView(guild))
         print("✅ Role assignment panels reposted.")
     
-    # We move the command sync to the main() function
-    # to ensure it runs *after* cogs are loaded.
+    # --- Sync Commands ---
+    # This is the correct place to sync commands:
+    # *after* the bot is logged in and *after* cogs are loaded.
+    try:
+        # Sync to your specific guild for instant updates
+        guild = discord.Object(id=GUILD_ID)
+        bot.tree.copy_global_to(guild=guild)
+        synced = await bot.tree.sync(guild=guild)
+        print(f"✅ Synced {len(synced)} commands to the guild.")
+    except Exception as e:
+        print(f"❌ Command sync failed: {e}")
 
 
 # ----------------------------------------------------
@@ -1991,9 +2000,12 @@ async def on_ready():
 
 async def main():
     """Main async function to load cogs and start the bot."""
+    
+    # Print files in directory to help debug
+    print(f"Files in current directory: {os.listdir('.')}")
+    
     async with bot:
         # --- Load Cogs ---
-        # Add the filenames of your cogs here (without .py)
         # This tells the bot to load "sanguine_cog.py"
         cogs_to_load = ["sanguine_cog"]
         
@@ -2005,20 +2017,7 @@ async def main():
                 print(f"🔥 Failed to load extension {cog_name}.")
                 print(f"  Error: {e}")
 
-        # --- Sync Commands ---
-        # We sync here *after* all cogs are loaded so ALL commands
-        # (from this file and the cog) are synced at once.
-        try:
-            # Sync to your specific guild for instant updates
-            guild = discord.Object(id=GUILD_ID)
-            bot.tree.copy_global_to(guild=guild)
-            synced = await bot.tree.sync(guild=guild)
-            print(f"✅ Synced {len(synced)} commands to the guild.")
-        except Exception as e:
-            print(f"❌ Command sync failed: {e}")
-
         # --- Start the Bot ---
-        # This replaces the old bot.run()
         await bot.start(os.getenv('DISCORD_BOT_TOKEN'))
 
 if __name__ == "__main__":
