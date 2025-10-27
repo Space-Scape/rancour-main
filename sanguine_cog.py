@@ -144,7 +144,7 @@ def scythe_icon(p: dict) -> str:
 
 def freeze_icon(p: dict) -> str:
     """Returns a freeze icon if the player wants to learn."""
-    return "❄️ Learn Freeze" if p.get("learning_freeze") else ""
+    return "❄️" if p.get("learning_freeze") else ""
 
 def is_proficient_plus(p: dict) -> bool:
     """Checks if a player is proficient, highly proficient, or mentor."""
