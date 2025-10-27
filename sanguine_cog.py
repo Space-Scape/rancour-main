@@ -778,8 +778,14 @@ class SanguineCog(commands.Cog):
 
     # --- Cog Methods (from helper functions) ---
 
-    async def _create_team_embeds(
-...
+    async def _create_team_embeds(self, teams, title, description, color, guild, format_func):
+        """Helper function to build and paginate team embeds."""
+        embeds = []
+        if not teams:
+            return embeds
+
+        guild = self.bot.get_channel(GUILD_ID).guild
+        
         current_embed = discord.Embed(title=title, description=description, color=color)
         embeds.append(current_embed)
         field_count = 0
@@ -792,7 +798,17 @@ class SanguineCog(commands.Cog):
             if field_count >= FIELDS_PER_EMBED:
                 # Current embed is full, create a new one
                 current_embed = discord.Embed(title=f"{title} (Page {len(embeds) + 1})", color=color)
-...
+                embeds.append(current_embed)
+                field_count = 0
+                
+            team_sorted = sorted(team, key=prof_rank)
+            lines = [format_func(guild, p) for p in team_sorted]
+            
+            current_embed.add_field(
+                name=f"Team {i} (Size: {len(team)})",
+                value="\n".join(lines) if lines else "—",
+                inline=False
+            )
             field_count += 1
             
         return embeds
