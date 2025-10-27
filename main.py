@@ -108,6 +108,7 @@ MENTOR_ROLE_ID = 1306021911830073414
 SANG_ROLE_ID = 1387153629072592916
 TOB_ROLE_ID = 1272694636921753701
 EVENTS_ROLE_ID = 1298358942887317555
+GUILD_ID = 1272629330115297330 # <-- Added your Guild ID for command syncing
 
 # --- Justice Panel Config ---
 JUSTICE_PANEL_CHANNEL_ID = 1422373286368776314 # Channel where the main panel will be.
@@ -555,9 +556,22 @@ async def help(interaction: discord.Interaction):
         """,
         inline=False
     )
+    
+    # This section will now also include commands from your cog
+    embed.add_field(
+        name="🩸 Sanguine Sunday (ToB)",
+        value="""
+        `/sangmatch` - 🔒 (Staff) Create ToB teams from signups in a voice channel.
+        `/sangmatchtest` - 🔒 (Staff) Create ToB teams without pings or creating VCs.
+        `/sangsignup` - 🔒 (Staff) Manually post the Sanguine Sunday signup or reminder message.
+        `/sangexport` - 🔒 (Staff) Export the most recently generated teams to a text file.
+        `/sangcleanup` - 🔒 (Staff) Delete auto-created SanguineSunday voice channels.
+        """,
+        inline=False
+    )
 
     embed.add_field(
-        name="🔒 Staff Commands",
+        name="🔒 Other Staff Commands",
         value="""
         `/info` - Posts the detailed clan information embeds in the current channel.
         `/rules` - Posts the clan rules embeds in the current channel.
@@ -566,9 +580,8 @@ async def help(interaction: discord.Interaction):
         `/welcome` - (Used in ticket threads) Welcomes a new member and assigns default roles.
         `/rsn_panel` - Posts the interactive RSN registration panel.
         `/time_panel` - Posts the interactive timezone selection panel.
-        `/sangsignup [variant] [channel]` - Manually posts the Sanguine Sunday signup or reminder message.
-        `/admin_panel` - Posts the interactive admin panel for moderation.
-        `/support_panel` - Posts the staff support specialty role selector.
+        `/justice_panel` - 🔒 (Staff) Posts the server protection panel.
+        `/support_panel` - 🔒 (Staff) Posts the staff support specialty role selector.
         """,
         inline=False
     )
@@ -1885,7 +1898,8 @@ async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
-    await bot.process_commands(message)
+    # We don't need bot.process_commands(message) for a slash-command-only bot
+    # but it doesn't hurt to leave it if you have old text commands.
 
     parent_channel_id = None
     if isinstance(message.channel, discord.Thread):
@@ -1909,17 +1923,19 @@ async def on_message(message: discord.Message):
         
 @bot.event
 async def on_ready():
+    """This on_ready is for the MAIN bot. Cogs have their own on_ready."""
     print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
+    print("Main bot components are ready.")
     
-    # Add persistent views
+    # Add persistent views FROM THIS FILE
     bot.add_view(JusticePanelView()) 
     bot.add_view(SupportRoleView())
     bot.add_view(RSNPanelView())
     bot.add_view(CloseThreadView())
+    # Note: The SignupView is added by the SanguineCog itself.
 
     # Start the RSN writer task
     asyncio.create_task(rsn_writer())
-
 
     # Panel initializations
     rsn_channel_id = 1280532494139002912
@@ -1958,20 +1974,56 @@ async def on_ready():
         raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="", color=0x00ff00)
         await role_channel.send(embed=raid_embed, view=RaidsView(guild))
         
-        boss_embed = discord.Embed(title="⚔︎ 𝔊𝔯𝔬𝔲p 𝔅𝔬𝔰𝔰𝔢𝔰 ⚔︎", description="", color=0x0000ff)
+        boss_embed = discord.Embed(title="⚔︎ 𝔊𝔯𝔬𝔲p B𝔬𝔰𝔰𝔢𝔰 ⚔︎", description="", color=0x0000ff)
         await role_channel.send(embed=boss_embed, view=BossesView(guild))
         
         events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢𝔫𝔱𝔰 ⚔︎", description="", color=0xffff00)
         await role_channel.send(embed=events_embed, view=EventsView(guild))
         print("✅ Role assignment panels reposted.")
-        
-    try:
-        synced = await bot.tree.sync()
-        print(f"✅ Synced {len(synced)} commands.")
-    except Exception as e:
-        print(f"❌ Command sync failed: {e}")
+    
+    # We move the command sync to the main() function
+    # to ensure it runs *after* cogs are loaded.
 
-# ---------------------------
-# 🔹 Run Bot
-# ---------------------------
-bot.run(os.getenv('DISCORD_BOT_TOKEN'))
+
+# ----------------------------------------------------
+# 🔹 NEW MAIN ENTRY POINT (Cog Loader & Bot Runner)
+# ----------------------------------------------------
+
+async def main():
+    """Main async function to load cogs and start the bot."""
+    async with bot:
+        # --- Load Cogs ---
+        # Add the filenames of your cogs here (without .py)
+        # This tells the bot to load "sanguine_cog.py"
+        cogs_to_load = ["sanguine_cog"]
+        
+        for cog_name in cogs_to_load:
+            try:
+                await bot.load_extension(cog_name)
+                print(f"✅ Successfully loaded extension: {cog_name}")
+            except Exception as e:
+                print(f"🔥 Failed to load extension {cog_name}.")
+                print(f"  Error: {e}")
+
+        # --- Sync Commands ---
+        # We sync here *after* all cogs are loaded so ALL commands
+        # (from this file and the cog) are synced at once.
+        try:
+            # Sync to your specific guild for instant updates
+            guild = discord.Object(id=GUILD_ID)
+            bot.tree.copy_global_to(guild=guild)
+            synced = await bot.tree.sync(guild=guild)
+            print(f"✅ Synced {len(synced)} commands to the guild.")
+        except Exception as e:
+            print(f"❌ Command sync failed: {e}")
+
+        # --- Start the Bot ---
+        # This replaces the old bot.run()
+        await bot.start(os.getenv('DISCORD_BOT_TOKEN'))
+
+if __name__ == "__main__":
+    # This runs the main async function
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Bot is shutting down...")
