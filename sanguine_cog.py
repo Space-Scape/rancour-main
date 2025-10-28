@@ -791,9 +791,9 @@ class SanguineCog(commands.Cog):
         embeds.append(current_embed)
         field_count = 0
         
-        print("Sanguine Cog is ready.")
-
-    # --- Cog Methods (from helper functions) ---
+        # Define a safe limit for fields per embed. 25 is the max count,
+        # but 10 is safer to avoid the 6000-character total embed limit.
+        FIELDS_PER_EMBED = 10
         
         for i, team in enumerate(teams, start=1):
             if field_count >= FIELDS_PER_EMBED:
