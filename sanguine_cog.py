@@ -439,6 +439,40 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             
             if not placed:
                 final_stranded.append(player) # Truly stranded
+    
+    # --- Phase 5: Balance "New" Player KC across Mentor Teams ---
+    mentor_teams = [t for t in teams if any(normalize_role(p) == "mentor" for p in t)]
+    if len(mentor_teams) > 1:
+        # Sort teams by the total KC of their "New" players, lowest first
+        def get_new_player_kc(team):
+            return sum(int(p.get("kc", 0)) for p in team if normalize_role(p) == "new")
+            
+        mentor_teams.sort(key=get_new_player_kc)
+        
+        lowest_team = mentor_teams[0]
+        highest_team = mentor_teams[-1]
+        
+        # Check if balancing is needed and possible
+        if get_new_player_kc(highest_team) > get_new_player_kc(lowest_team):
+            # Find the highest-KC "New" player on the highest team
+            new_from_high = sorted([p for p in highest_team if normalize_role(p) == "new"], key=lambda p: -int(p.get("kc", 0)))
+            # Find the lowest-KC "New" player on the lowest team
+            new_from_low = sorted([p for p in lowest_team if normalize_role(p) == "new"], key=lambda p: int(p.get("kc", 0)))
+
+            if new_from_high and new_from_low:
+                player_to_move_up = new_from_high[0] # e.g., C9J (9KC)
+                player_to_move_down = new_from_low[0] # e.g., Her bie (0KC)
+                
+                # Check if the swap is beneficial
+                if int(player_to_move_up.get("kc", 0)) > int(player_to_move_down.get("kc", 0)):
+                    # Perform the swap
+                    lowest_team.remove(player_to_move_down)
+                    lowest_team.append(player_to_move_up)
+                    highest_team.remove(player_to_move_up)
+                    highest_team.append(player_to_move_down)
+                    print(f"Balancing Swap: Moved {player_to_move_up.get('user_name')} to {lowest_team[0].get('user_name')}'s team.")
+                    print(f"Balancing Swap: Moved {player_to_move_down.get('user_name')} to {highest_team[0].get('user_name')}'s team.")
+
 
     return teams, final_stranded # This list *should* be empty
     
@@ -657,8 +691,8 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
                     history_cell = self.cog.history_sheet.find(user_id, in_column=1)
                     if history_cell is None: self.cog.history_sheet.append_row(row_data)
                     else: self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:I{history_cell.row}')
-                except Exception as e: print(f"🔥 GSpread error on HISTORY (Mentor Form) write: {e}")
-            else: print("🔥 History sheet not available, skipping history append.")
+                except Exception as e: print(f"🔥 GSpread error on HISTORY (User Form) write: {e}")
+             else: print("🔥 History sheet not available, skipping history append.")
         except Exception as e:
             print(f"🔥 GSpread error on mentor signup: {e}")
             await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
@@ -1331,3 +1365,4 @@ class SanguineCog(commands.Cog):
 # This setup function is required for the bot to load the Cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(SanguineCog(bot))
+
