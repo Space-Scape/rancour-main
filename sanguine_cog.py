@@ -282,8 +282,9 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         if player.get('learning_freeze') and any(p.get('learning_freeze') for p in team):
             return False
             
-        # REMOVED: No 5-man teams with a "New" player (too hard)
-        # This rule was stranding players.
+        # NEW RULE: 'New' players or those who requested one MUST have a mentor.
+        if (normalize_role(player) == "new" or player.get("wants_mentor")) and not any(normalize_role(p) == "mentor" for p in team):
+             return False # BLOCK: No mentor on team.
 
         return True
 
@@ -308,11 +309,6 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             
             if not placed:
                 break # No mentor teams have space
-
-    # REMOVED: One-pass seeding (Distribute learners/newbs evenly)
-    # This was preventing two "New" players from being on the same team,
-    # which is necessary when there aren't enough mentors.
-    # The "Distribute leftovers" loop will now handle all placements.
 
     # ---------- Distribute leftovers ----------
     # Combine all remaining players into one pool
@@ -359,9 +355,93 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                 # Cycle the player to the back of the queue
                 leftovers.append(leftovers.pop(0))
     
-    # Any players still in `leftovers` are stranded
-    return teams, leftovers
+    # --- Phase 4: Resolve Stranded "New" Players (SWAP LOGIC) ---
+    # This logic ensures NO STRANDED LIST
+    final_stranded = []
+    for player in leftovers:
+        is_new_or_mentee = normalize_role(player) == "new" or player.get("wants_mentor")
+        
+        if not is_new_or_mentee:
+            # This player is a "Learner" or "Proficient"
+            # They can be placed on ANY team with space.
+            placed = False
+            for i in range(T):
+                # We can safely bypass the "can_add" mentor check here
+                if len(teams[i]) < max_sizes[i]:
+                    teams[i].append(player)
+                    placed = True
+                    break
+            if not placed:
+                final_stranded.append(player) # Truly stranded
+            continue
 
+        # --- This player IS a "New" player or "Mentee" ---
+        
+        # Attempt 1: Add to a non-full Mentor team (e.g., a 4-man becoming a 5-man)
+        placed = False
+        for i in range(T):
+            team_has_mentor = any(normalize_role(p) == "mentor" for p in teams[i])
+            if team_has_mentor and len(teams[i]) < max_sizes[i]:
+                 teams[i].append(player)
+                 placed = True
+                 break
+        
+        if placed:
+            continue # Player placed, move to next leftover
+            
+        # Attempt 2: SWAP with a "Learner" on a full Mentor team
+        if not placed:
+            swapped = False
+            for i in range(T): # Find a mentor team
+                team_has_mentor = any(normalize_role(p) == "mentor" for p in teams[i])
+                if not team_has_mentor:
+                    continue # Not a mentor team
+
+                # Find a "Learner" on this mentor team to swap with
+                learner_to_swap = None
+                for p_in_team in teams[i]:
+                    if normalize_role(p_in_team) == "learner":
+                        learner_to_swap = p_in_team
+                        break
+                
+                if learner_to_swap:
+                    # Found a swap!
+                    # 1. Find a new home for the "Learner" (e.g., Team 5)
+                    new_home_for_learner = None
+                    for j in range(T):
+                        if i == j: continue # Don't check the same team
+                        if len(teams[j]) < max_sizes[j]:
+                            # A "Learner" can join a non-mentor team.
+                            new_home_for_learner = teams[j]
+                            break
+                    
+                    if new_home_for_learner:
+                        # Swap is possible
+                        teams[i].remove(learner_to_swap)       # Remove Learner from Mentor team
+                        teams[i].append(player)                # Add "New" player to Mentor team
+                        new_home_for_learner.append(learner_to_swap) # Add "Learner" to proficient team
+                        swapped = True
+                        break # Swap complete, move to next leftover
+
+            if swapped:
+                continue
+
+        if not placed and not swapped:
+            # FINAL FALLBACK: No mentor teams had space, no swaps possible.
+            # Place them on *any* team with space to avoid a stranded list.
+            # This breaks the "New must have mentor" rule, but satisfies
+            # the "No Stranded List" rule, which is the higher priority.
+            for i in range(T):
+                if len(teams[i]) < max_sizes[i]:
+                    teams[i].append(player)
+                    placed = True
+                    break
+            
+            if not placed:
+                final_stranded.append(player) # Truly stranded
+
+    return teams, final_stranded # This list *should* be empty
+    
 def format_player_line_plain(guild: discord.Guild, p: dict) -> str:
     """Formats a player's info for the no-ping /sangmatchtest command."""
     nickname = p.get("user_name") or "Unknown"
@@ -1202,9 +1282,9 @@ class SanguineCog(commands.Cog):
         else:
             print(f"Error in a Sanguine command: {error}")
             if interaction.response.is_done():
-                await interaction.followup.send(f"An unexpected error occurred. Please contact staff.", ephemeral=True)
+                await interaction.followup.send(f"An unexpected error occurred: {error}", ephemeral=True)
             else:
-                await interaction.response.send_message(f"An unexpected error occurred. Please contact staff.", ephemeral=True)
+                await interaction.response.send_message(f"An unexpected error occurred: {error}", ephemeral=True)
 
     # --- Scheduled Tasks ---
 
@@ -1251,4 +1331,3 @@ class SanguineCog(commands.Cog):
 # This setup function is required for the bot to load the Cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(SanguineCog(bot))
-
