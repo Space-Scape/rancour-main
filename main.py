@@ -259,8 +259,9 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         if len(team) >= max_size:
             return False
         
+        # --- NEW: Blacklist Check ---
         if is_blacklist_violation(player, team):
-            return False
+            return False # Player or team member is on a blacklist
 
         future_size = len(team) + 1
 
@@ -278,7 +279,7 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         if (normalize_role(player) == "new" or player.get("wants_mentor")) and not any(normalize_role(p) == "mentor" for p in team):
              return False # BLOCK: No mentor on team.
 
-        # --- NEW RULE: 2x New Players require 2x Scythes ---
+        # --- UNCOMMENTED: 2x New Players require 2x Scythes ---
         if future_size == 5:
             team_new_count = sum(1 for p in team if normalize_role(p) == "new")
             player_is_new = normalize_role(player) == "new"
@@ -360,6 +361,8 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             # This player is a "Learner" or "Proficient"
             placed = False
             for i in range(T):
+                # We can safely bypass the "can_add" mentor check here,
+                # but we must still check the blacklist.
                 if len(teams[i]) < max_sizes[i] and not is_blacklist_violation(player, teams[i]):
                     teams[i].append(player)
                     placed = True
@@ -372,7 +375,7 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         placed = False
         for i in range(T):
             team_has_mentor = any(normalize_role(p) == "mentor" for p in teams[i])
-            if team_has_mentor and can_add(player, teams[i], max_sizes[i]):
+            if team_has_mentor and can_add(player, teams[i], max_sizes[i]): # can_add checks blacklist
                  teams[i].append(player)
                  placed = True
                  break
@@ -394,18 +397,23 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                         break
                 
                 if learner_to_swap:
+                    # Found a swap!
+                    # 1. Check if the "New" player can join the mentor team (blacklist check)
                     temp_mentor_team = [p for p in teams[i] if p != learner_to_swap]
                     if is_blacklist_violation(player, temp_mentor_team):
-                        continue
+                        continue # This swap violates blacklist, try next team
 
+                    # 2. Find a new home for the "Learner"
                     new_home_for_learner = None
                     for j in range(T):
                         if i == j: continue
+                        # Learner can join non-mentor team, but must check blacklist
                         if len(teams[j]) < max_sizes[j] and not is_blacklist_violation(learner_to_swap, teams[j]):
                             new_home_for_learner = teams[j]
                             break
                     
                     if new_home_for_learner:
+                        # Swap is possible
                         teams[i].remove(learner_to_swap)
                         teams[i].append(player)
                         new_home_for_learner.append(learner_to_swap)
@@ -416,8 +424,9 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                 continue
 
         if not placed and not swapped:
-            # FINAL FALLBACK
+            # FINAL FALLBACK: No mentor teams had space, no swaps possible.
             for i in range(T):
+                # Must use can_add to check blacklist, even here
                 if can_add(player, teams[i], max_sizes[i]):
                     teams[i].append(player)
                     placed = True
@@ -446,6 +455,7 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                 player_to_move_down = new_from_low[0]
                 
                 if int(player_to_move_up.get("kc", 0)) > int(player_to_move_down.get("kc", 0)):
+                    # --- Blacklist check before swapping ---
                     temp_lowest_team = [p for p in lowest_team if p != player_to_move_down]
                     temp_highest_team = [p for p in highest_team if p != player_to_move_up]
                     
@@ -453,6 +463,7 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                     violates_highest = is_blacklist_violation(player_to_move_down, temp_highest_team)
 
                     if not violates_lowest and not violates_highest:
+                        # Perform the swap
                         lowest_team.remove(player_to_move_down)
                         lowest_team.append(player_to_move_up)
                         highest_team.remove(player_to_move_up)
@@ -548,6 +559,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         user_name = sanitize_nickname(interaction.user.display_name)
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
         
+        # --- CHANGED: Preserve existing blacklist data from History ---
         blacklist_value = self.previous_data.get("Blacklist", "") if self.previous_data else ""
         
         row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, wants_mentor_bool, timestamp, blacklist_value]
@@ -557,7 +569,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
             if cell is None:
                 self.cog.sang_sheet.append_row(row_data)
             else:
-                self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
+                self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}') # Use Col J
 
             if self.cog.history_sheet:
                 try:
@@ -565,13 +577,15 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
                     if history_cell is None:
                         self.cog.history_sheet.append_row(row_data)
                     else:
-                        self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
+                        self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}') # Use Col J
                 except Exception as e:
                     print(f"🔥 GSpread error on HISTORY (User Form) write: {e}")
             else:
                 print("🔥 History sheet not available, skipping history append.")
 
         except gspread.CellNotFound:
+             # --- CHANGED: Ensure blacklist is preserved on first-time signup ---
+             # We must re-fetch previous_data in case it wasn't populated on init
              if not self.previous_data:
                  self.previous_data = self.cog.get_previous_signup(user_id)
              
@@ -616,7 +630,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
              self.kc.default = str(kc_val) if kc_val not in ["", None, "X"] else ""
              self.has_scythe.default = "Yes" if previous_data.get("Has_Scythe", False) else "No"
         
-        self.previous_data = previous_data
+        self.previous_data = previous_data # Store for blacklist
 
     async def on_submit(self, interaction: discord.Interaction):
         if not self.cog.sang_sheet:
@@ -646,6 +660,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         user_name = sanitize_nickname(interaction.user.display_name)
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
         
+        # --- CHANGED: Preserve existing blacklist data from History ---
         blacklist_value = self.previous_data.get("Blacklist", "") if self.previous_data else ""
         
         row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, False, timestamp, blacklist_value]
@@ -655,7 +670,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
             if cell is None:
                 self.cog.sang_sheet.append_row(row_data)
             else:
-                self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
+                self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}') # Use Col J
 
             if self.cog.history_sheet:
                 try:
@@ -663,12 +678,13 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
                     if history_cell is None:
                         self.cog.history_sheet.append_row(row_data)
                     else:
-                        self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
+                        self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}') # Use Col J
                 except Exception as e:
                     print(f"🔥 GSpread error on HISTORY (Mentor Form) write: {e}")
             else:
                 print("🔥 History sheet not available, skipping history append.")
         except gspread.CellNotFound:
+             # --- CHANGED: Ensure blacklist is preserved on first-time signup ---
              if not self.previous_data:
                  self.previous_data = self.cog.get_previous_signup(user_id)
              
@@ -762,6 +778,7 @@ class SignupView(View):
             user_name = member.display_name
             timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
             
+            # --- CHANGED: Preserve existing blacklist data from History ---
             blacklist_value = previous_data.get("Blacklist", "") if previous_data else ""
             
             row_data = [user_id, user_name, "All", "X", True, "Mentor", False, False, timestamp, blacklist_value]
@@ -781,6 +798,7 @@ class SignupView(View):
                 
                 await interaction.followup.send("✅ **Auto-signed up as Mentor!**\nTo edit your KC/Scythe/Roles, click the 'Mentor' button again.", ephemeral=True)
             except gspread.CellNotFound:
+                 # --- CHANGED: Ensure blacklist is preserved on first-time signup ---
                  if not previous_data:
                      previous_data = self.cog.get_previous_signup(user_id)
                  
@@ -842,6 +860,7 @@ class SanguineCog(commands.Cog):
             try:
                 self.sang_sheet = sang_google_sheet.worksheet(SANG_SHEET_TAB_NAME)
                 header = self.sang_sheet.row_values(1)
+                # --- CHANGED: Check for new header ---
                 if header != SANG_SHEET_HEADER:
                     print("⚠️ Sanguine sheet header mismatch. Re-writing...")
                     self.sang_sheet.clear()
@@ -854,6 +873,7 @@ class SanguineCog(commands.Cog):
             try:
                 self.history_sheet = sang_google_sheet.worksheet(SANG_HISTORY_TAB_NAME)
                 header = self.history_sheet.row_values(1)
+                # --- CHANGED: Check for new header ---
                 if header != SANG_SHEET_HEADER:
                     print("⚠️ Sanguine history sheet header mismatch. Re-writing...")
                     self.history_sheet.clear()
@@ -1083,7 +1103,7 @@ class SanguineCog(commands.Cog):
                 "knows_range": knows_range,
                 "knows_melee": knows_melee,
                 "wants_mentor": str(signup.get("Mentor_Request", "FALSE")).upper() == "TRUE",
-                "blacklist": blacklist_ids
+                "blacklist": blacklist_ids # --- NEW: Pass blacklist to algorithm
             })
 
         if not available_raiders:
@@ -1182,7 +1202,7 @@ class SanguineCog(commands.Cog):
                 "roles_known": roles_str, "learning_freeze": str(signup.get("Learning Freeze", "FALSE")).upper() == "TRUE",
                 "knows_range": knows_range, "knows_melee": knows_melee,
                 "wants_mentor": str(signup.get("Mentor_Request", "FALSE")).upper() == "TRUE",
-                "blacklist": blacklist_ids
+                "blacklist": blacklist_ids # --- NEW: Pass blacklist to algorithm
             })
         
         if not available_raiders:
