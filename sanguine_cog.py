@@ -692,7 +692,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
                     if history_cell is None: self.cog.history_sheet.append_row(row_data)
                     else: self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:I{history_cell.row}')
                 except Exception as e: print(f"🔥 GSpread error on HISTORY (User Form) write: {e}")
-             else: print("🔥 History sheet not available, skipping history append.")
+            else: print("🔥 History sheet not available, skipping history append.")
         except Exception as e:
             print(f"🔥 GSpread error on mentor signup: {e}")
             await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
@@ -1365,4 +1365,3 @@ class SanguineCog(commands.Cog):
 # This setup function is required for the bot to load the Cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(SanguineCog(bot))
-
