@@ -39,7 +39,8 @@ SANG_POST_CHANNEL_ID = 1338295765759688767
 SANG_SHEET_ID = "1CCpDAJO7Cq581yF_-rz3vx7L_BTettVaKglSvOmvTOE"
 SANG_SHEET_TAB_NAME = "SangSignups"
 SANG_HISTORY_TAB_NAME = "History"
-SANG_SHEET_HEADER = ["Discord_ID", "Discord_Name", "Favorite Roles", "KC", "Has_Scythe", "Proficiency", "Learning Freeze", "Mentor_Request", "Timestamp"]
+# --- CHANGED: Added "Blacklist" ---
+SANG_SHEET_HEADER = ["Discord_ID", "Discord_Name", "Favorite Roles", "KC", "Has_Scythe", "Proficiency", "Learning Freeze", "Mentor_Request", "Timestamp", "Blacklist"]
 
 # Message Content
 SANG_MESSAGE_IDENTIFIER = "Sanguine Sunday Sign Up"
@@ -160,21 +161,32 @@ def parse_roles(roles_str: str) -> (bool, bool):
     knows_melee = any(s in roles_str for s in ["melee", "mdps", "meleer"])
     return knows_range, knows_melee
 
+# --- NEW: Blacklist helper function ---
+def is_blacklist_violation(player: Dict[str, Any], team: List[Dict[str, Any]]) -> bool:
+    """Checks if a player joining a team violates any blacklists."""
+    player_blacklist = player.get("blacklist", set())
+    player_id_str = str(player.get("user_id"))
+    
+    for p_in_team in team:
+        p_in_team_id_str = str(p_in_team.get("user_id"))
+        
+        # Check 1: Does the player on the team (a mentor) exist in the new player's blacklist?
+        if p_in_team_id_str in player_blacklist:
+            return True # Player blacklists someone on team
+
+        # Check 2: Does the new player (a mentor) exist in the team member's blacklist?
+        p_in_team_blacklist = p_in_team.get("blacklist", set())
+        if player_id_str in p_in_team_blacklist:
+            return True # Someone on team blacklists player
+            
+    return False
+
 def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     """
     Core algorithm for sorting players into teams.
-    
-    This is a complex placement algorithm. It prioritizes:
-    1.  Splitting N players into teams of 4 or 5 (preferring 5s).
-    2.  Using Mentors, then strongest players, as "anchors" for each team.
-    3.  Placing mentees (users who requested a mentor) onto Mentor-led teams.
-    4.  Distributing "New" and "Learner" players evenly, one per team if possible.
-    5.  Filling remaining spots with proficient raiders.
-    6.  Applying hard constraints (e.g., no 5-man teams with a "New" player).
     """
     
     # ---------- Sort and segment ----------
-    # Sort all raiders by proficiency, then scythe, then KC
     available_raiders.sort(
         key=lambda p: (prof_rank(p), not p.get("has_scythe"), -int(p.get("kc", 0)))
     )
@@ -182,12 +194,10 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     mentors = [p for p in available_raiders if normalize_role(p) == "mentor"]
     non_mentors = [p for p in available_raiders if normalize_role(p) != "mentor"]
 
-    # Separate non-mentors into pools
     strong_pool = [p for p in non_mentors if prof_rank(p) <= PROF_ORDER["proficient"]]   # HP/Pro
     learners    = [p for p in non_mentors if normalize_role(p) == "learner"]
     news        = [p for p in non_mentors if normalize_role(p) == "new"]
 
-    # Pull out mentees from all non-mentor pools
     mentees = [p for p in non_mentors if p.get("wants_mentor")]
     mentee_ids = {m["user_id"] for m in mentees}
     def _without_mentees(pool): return [p for p in pool if p["user_id"] not in mentee_ids]
@@ -201,50 +211,35 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         return [], []
 
     def split_into_4_5(n: int):
-        # Finds non-negative integers a, b such that 4a + 5b = n
-        # Prioritizes maximizing 'b' (number of 5-person teams)
         for b in range(n // 5, -1, -1):
             rem = n - 5*b
             if rem % 4 == 0:
                 a = rem // 4
-                return [5]*b + [4]*a  # prefer 5s first
-        return None # No solution (e.g., N=1, 2, 3, 7, 11)
+                return [5]*b + [4]*a
+        return None
 
     sizes = split_into_4_5(N)
     if sizes is None:
-        # Handle special cases not solvable by 4s and 5s
-        if N == 6:
-            sizes = [3,3]
-        elif N == 7:
-            sizes = [4,3]
-        elif N == 11:
-            sizes = [4,4,3]
+        if N == 6: sizes = [3,3]
+        elif N == 7: sizes = [4,3]
+        elif N == 11: sizes = [4,4,3]
         else:
-            # Fallback guard (shouldn't trigger for N>=12)
             q, r = divmod(N, 4)
-            sizes = [4]*q + ([3] if r == 3 else ([] if r == 0 else [4])) # Should only be for N<12
+            sizes = [4]*q + ([3] if r == 3 else ([] if r == 0 else [4]))
 
     T = len(sizes) # Total number of teams
 
     # ---------- Build anchors (Mentors first, then strongest HP/Pro) ----------
-    # MODIFIED: Avoid placing Mentors on 3-man teams.
-    anchors: List[Optional[Dict[str, Any]]] = [None] * T # Initialize list of size T
+    anchors: List[Optional[Dict[str, Any]]] = [None] * T
     teams: List[List[Dict[str, Any]]] = []
     
-    # Priority pools for anchors
     anchor_pools_normal = [mentors, strong_pool, learners, news, mentees]
-    # Priority pools for TRIOS (no mentors)
     anchor_pools_trio = [strong_pool, learners, news, mentees]
-
-    extra_mentors = [] # Mentors not used as anchors
+    extra_mentors = []
 
     for i in range(T):
         target_size = sizes[i]
-        
-        # Select the right pool list based on team size
         pools_to_use = anchor_pools_trio if target_size == 3 else anchor_pools_normal
-
-        # Find the first available anchor from the priority pools
         anchor = None
         for pool in pools_to_use:
             if pool:
@@ -254,35 +249,33 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         if anchor:
             teams.append([anchor])
         else:
-            teams.append([]) # Should not happen if N > 0, but safety
+            teams.append([])
 
-    # Any remaining mentors who weren't used as anchors go into leftovers
     extra_mentors = mentors
 
     # ---------- Helper for safe placement ----------
     def can_add(player, team, max_size) -> bool:
         """Checks if a player can be added to a team based on constraints."""
         if len(team) >= max_size:
-            return False # Team is full
+            return False
         
+        # --- NEW: Blacklist Check ---
+        if is_blacklist_violation(player, team):
+            return False # Player or team member is on a blacklist
+
         future_size = len(team) + 1
 
-        # Hard constraints for 3-man teams (must all be proficient+)
         if max_size == 3:
-            # NEW: No mentors on 3-man teams, they are needed for 'New' players
             if normalize_role(player) == "mentor":
-                return False # Don't add mentor to trio
-
+                return False
             if not is_proficient_plus(player):
-                return False # Player not strong enough
+                return False
             if not all(is_proficient_plus(p) for p in team):
-                return False # Team not strong enough
+                return False
         
-        # Two "Learn Freeze" players cannot be on the same team
         if player.get('learning_freeze') and any(p.get('learning_freeze') for p in team):
             return False
             
-        # NEW RULE: 'New' players or those who requested one MUST have a mentor.
         if (normalize_role(player) == "new" or player.get("wants_mentor")) and not any(normalize_role(p) == "mentor" for p in team):
              return False # BLOCK: No mentor on team.
 
@@ -294,34 +287,31 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     mentor_idxs = [i for i, t in enumerate(teams) if normalize_role(t[0]) == "mentor"]
     mentees.sort(key=lambda p: (prof_rank(p), not p.get("has_scythe"), -int(p.get("kc", 0))))
     if mentor_idxs and mentees:
-        forward = True # Zig-zag placement
+        forward = True
         while mentees:
             placed = False
             idxs = mentor_idxs if forward else mentor_idxs[::-1]
             forward = not forward
             
-            # Try to place the *next* mentee
             for i in idxs:
                 if can_add(mentees[0], teams[i], max_sizes[i]):
                     teams[i].append(mentees.pop(0))
                     placed = True
-                    break # Mentee placed
+                    break
             
             if not placed:
-                break # No mentor teams have space
+                break
 
     # ---------- Distribute leftovers ----------
-    # Combine all remaining players into one pool
     leftovers = strong_pool + learners + news + mentees + extra_mentors
     forward = True
-    safety = 0 # Failsafe
+    safety = 0
     while leftovers and safety < 10000:
         safety += 1
         placed_any = False
         idxs = list(range(T)) if forward else list(range(T-1, -1, -1))
         forward = not forward
         
-        # Try to place the next leftover player
         for i in idxs:
             if not leftovers:
                 break
@@ -330,18 +320,14 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                 placed_any = True
         
         if not placed_any:
-            # This happens if the next player in `leftovers` can't fit anywhere
-            # (e.g., a "New" player, and all teams are full or are 4-mans)
-            # Try to "borrow" a strong player from a full team to fill a 3-man
             need_idxs = [i for i in range(T) if max_sizes[i] == 3 and len(teams[i]) < 3]
             borrowed = False
             for ti in need_idxs:
-                for dj in range(T): # Find a donor team
+                for dj in range(T):
                     if dj == ti: continue
                     donor_min_keep = 5 if max_sizes[dj] == 5 else (4 if max_sizes[dj] == 4 else 3)
-                    if len(teams[dj]) <= donor_min_keep: continue # Can't borrow
+                    if len(teams[dj]) <= donor_min_keep: continue
                     
-                    # Find a proficient player on the donor team
                     donor = next((p for p in teams[dj] if is_proficient_plus(p)), None)
                     if donor and can_add(donor, teams[ti], max_sizes[ti]):
                         teams[ti].append(donor)
@@ -352,52 +338,46 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                 if borrowed: break
             
             if not placed_any:
-                # Cycle the player to the back of the queue
                 leftovers.append(leftovers.pop(0))
     
     # --- Phase 4: Resolve Stranded "New" Players (SWAP LOGIC) ---
-    # This logic ensures NO STRANDED LIST
     final_stranded = []
     for player in leftovers:
         is_new_or_mentee = normalize_role(player) == "new" or player.get("wants_mentor")
         
         if not is_new_or_mentee:
             # This player is a "Learner" or "Proficient"
-            # They can be placed on ANY team with space.
             placed = False
             for i in range(T):
-                # We can safely bypass the "can_add" mentor check here
-                if len(teams[i]) < max_sizes[i]:
+                # We can safely bypass the "can_add" mentor check here,
+                # but we must still check the blacklist.
+                if len(teams[i]) < max_sizes[i] and not is_blacklist_violation(player, teams[i]):
                     teams[i].append(player)
                     placed = True
                     break
             if not placed:
-                final_stranded.append(player) # Truly stranded
+                final_stranded.append(player)
             continue
 
         # --- This player IS a "New" player or "Mentee" ---
-        
-        # Attempt 1: Add to a non-full Mentor team (e.g., a 4-man becoming a 5-man)
         placed = False
         for i in range(T):
             team_has_mentor = any(normalize_role(p) == "mentor" for p in teams[i])
-            if team_has_mentor and len(teams[i]) < max_sizes[i]:
+            if team_has_mentor and can_add(player, teams[i], max_sizes[i]): # can_add checks blacklist
                  teams[i].append(player)
                  placed = True
                  break
         
         if placed:
-            continue # Player placed, move to next leftover
+            continue
             
-        # Attempt 2: SWAP with a "Learner" on a full Mentor team
         if not placed:
             swapped = False
-            for i in range(T): # Find a mentor team
+            for i in range(T):
                 team_has_mentor = any(normalize_role(p) == "mentor" for p in teams[i])
                 if not team_has_mentor:
-                    continue # Not a mentor team
+                    continue
 
-                # Find a "Learner" on this mentor team to swap with
                 learner_to_swap = None
                 for p_in_team in teams[i]:
                     if normalize_role(p_in_team) == "learner":
@@ -406,44 +386,46 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                 
                 if learner_to_swap:
                     # Found a swap!
-                    # 1. Find a new home for the "Learner" (e.g., Team 5)
+                    # 1. Check if the "New" player can join the mentor team (blacklist check)
+                    temp_mentor_team = [p for p in teams[i] if p != learner_to_swap]
+                    if is_blacklist_violation(player, temp_mentor_team):
+                        continue # This swap violates blacklist, try next team
+
+                    # 2. Find a new home for the "Learner"
                     new_home_for_learner = None
                     for j in range(T):
-                        if i == j: continue # Don't check the same team
-                        if len(teams[j]) < max_sizes[j]:
-                            # A "Learner" can join a non-mentor team.
+                        if i == j: continue
+                        # Learner can join non-mentor team, but must check blacklist
+                        if len(teams[j]) < max_sizes[j] and not is_blacklist_violation(learner_to_swap, teams[j]):
                             new_home_for_learner = teams[j]
                             break
                     
                     if new_home_for_learner:
                         # Swap is possible
-                        teams[i].remove(learner_to_swap)       # Remove Learner from Mentor team
-                        teams[i].append(player)                # Add "New" player to Mentor team
-                        new_home_for_learner.append(learner_to_swap) # Add "Learner" to proficient team
+                        teams[i].remove(learner_to_swap)
+                        teams[i].append(player)
+                        new_home_for_learner.append(learner_to_swap)
                         swapped = True
-                        break # Swap complete, move to next leftover
+                        break
 
             if swapped:
                 continue
 
         if not placed and not swapped:
             # FINAL FALLBACK: No mentor teams had space, no swaps possible.
-            # Place them on *any* team with space to avoid a stranded list.
-            # This breaks the "New must have mentor" rule, but satisfies
-            # the "No Stranded List" rule, which is the higher priority.
             for i in range(T):
-                if len(teams[i]) < max_sizes[i]:
+                # Must use can_add to check blacklist, even here
+                if can_add(player, teams[i], max_sizes[i]):
                     teams[i].append(player)
                     placed = True
                     break
             
             if not placed:
-                final_stranded.append(player) # Truly stranded
+                final_stranded.append(player)
     
     # --- Phase 5: Balance "New" Player KC across Mentor Teams ---
     mentor_teams = [t for t in teams if any(normalize_role(p) == "mentor" for p in t)]
     if len(mentor_teams) > 1:
-        # Sort teams by the total KC of their "New" players, lowest first
         def get_new_player_kc(team):
             return sum(int(p.get("kc", 0)) for p in team if normalize_role(p) == "new")
             
@@ -452,29 +434,33 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         lowest_team = mentor_teams[0]
         highest_team = mentor_teams[-1]
         
-        # Check if balancing is needed and possible
         if get_new_player_kc(highest_team) > get_new_player_kc(lowest_team):
-            # Find the highest-KC "New" player on the highest team
             new_from_high = sorted([p for p in highest_team if normalize_role(p) == "new"], key=lambda p: -int(p.get("kc", 0)))
-            # Find the lowest-KC "New" player on the lowest team
             new_from_low = sorted([p for p in lowest_team if normalize_role(p) == "new"], key=lambda p: int(p.get("kc", 0)))
 
             if new_from_high and new_from_low:
-                player_to_move_up = new_from_high[0] # e.g., C9J (9KC)
-                player_to_move_down = new_from_low[0] # e.g., Her bie (0KC)
+                player_to_move_up = new_from_high[0]
+                player_to_move_down = new_from_low[0]
                 
-                # Check if the swap is beneficial
                 if int(player_to_move_up.get("kc", 0)) > int(player_to_move_down.get("kc", 0)):
-                    # Perform the swap
-                    lowest_team.remove(player_to_move_down)
-                    lowest_team.append(player_to_move_up)
-                    highest_team.remove(player_to_move_up)
-                    highest_team.append(player_to_move_down)
-                    print(f"Balancing Swap: Moved {player_to_move_up.get('user_name')} to {lowest_team[0].get('user_name')}'s team.")
-                    print(f"Balancing Swap: Moved {player_to_move_down.get('user_name')} to {highest_team[0].get('user_name')}'s team.")
+                    # --- Blacklist check before swapping ---
+                    temp_lowest_team = [p for p in lowest_team if p != player_to_move_down]
+                    temp_highest_team = [p for p in highest_team if p != player_to_move_up]
+                    
+                    violates_lowest = is_blacklist_violation(player_to_move_up, temp_lowest_team)
+                    violates_highest = is_blacklist_violation(player_to_move_down, temp_highest_team)
+
+                    if not violates_lowest and not violates_highest:
+                        # Perform the swap
+                        lowest_team.remove(player_to_move_down)
+                        lowest_team.append(player_to_move_up)
+                        highest_team.remove(player_to_move_up)
+                        highest_team.append(player_to_move_down)
+                        print(f"Balancing Swap: Moved {player_to_move_up.get('user_name')} to {lowest_team[0].get('user_name')}'s team.")
+                        print(f"Balancing Swap: Moved {player_to_move_down.get('user_name')} to {highest_team[0].get('user_name')}'s team.")
 
 
-    return teams, final_stranded # This list *should* be empty
+    return teams, final_stranded
     
 def format_player_line_plain(guild: discord.Guild, p: dict) -> str:
     """Formats a player's info for the no-ping /sangmatchtest command."""
@@ -516,23 +502,22 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
 
     def __init__(self, cog: 'SanguineCog', previous_data: dict = None):
         super().__init__(title="Sanguine Sunday Signup")
-        self.cog = cog # Store the cog instance to access sheets
+        self.cog = cog
         if previous_data:
-            # Pre-fill the form with data from the History sheet
             self.roles_known.default = previous_data.get("Favorite Roles", "")
             kc_val = previous_data.get("KC", "")
             self.kc.default = str(kc_val) if kc_val not in ["", None, "X"] else ""
             self.has_scythe.default = "Yes" if previous_data.get("Has_Scythe", False) else "No"
             self.learning_freeze.default = "Yes" if previous_data.get("Learning Freeze", False) else ""
             self.wants_mentor.default = "Yes" if previous_data.get("Mentor_Request", False) else ""
+        
+        self.previous_data = previous_data # Store for blacklist
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Use self.cog.sang_sheet and self.cog.history_sheet
         if not self.cog.sang_sheet:
             await interaction.response.send_message("⚠️ Error: The Sanguine Sunday signup sheet is not connected. Please contact staff.", ephemeral=True)
             return
         
-        # --- Validation ---
         try:
             kc_value = int(str(self.kc))
             if kc_value < 0: raise ValueError("KC cannot be negative.")
@@ -546,7 +531,6 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
             return
         has_scythe_bool = scythe_value in ["yes", "y"]
 
-        # --- Data Processing ---
         proficiency_value = ""
         if kc_value <= 10: proficiency_value = "New"
         elif 11 <= kc_value <= 25: proficiency_value = "Learner"
@@ -563,38 +547,45 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         user_name = sanitize_nickname(interaction.user.display_name)
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
         
-        # Prepare the row based on the sheet header order
-        row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, wants_mentor_bool, timestamp]
+        # --- CHANGED: Preserve existing blacklist data from History ---
+        blacklist_value = self.previous_data.get("Blacklist", "") if self.previous_data else ""
+        
+        row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, wants_mentor_bool, timestamp, blacklist_value]
         
         try:
-            # --- Write to SangSignups sheet ---
             cell = self.cog.sang_sheet.find(user_id, in_column=1)
             if cell is None:
-                self.cog.sang_sheet.append_row(row_data) # New signup
+                self.cog.sang_sheet.append_row(row_data)
             else:
-                self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:I{cell.row}') # Update existing
+                self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}') # Use Col J
 
-            # --- Write to History sheet ---
             if self.cog.history_sheet:
                 try:
                     history_cell = self.cog.history_sheet.find(user_id, in_column=1)
                     if history_cell is None:
                         self.cog.history_sheet.append_row(row_data)
                     else:
-                        self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:I{history_cell.row}')
+                        self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}') # Use Col J
                 except Exception as e:
                     print(f"🔥 GSpread error on HISTORY (User Form) write: {e}")
             else:
                 print("🔥 History sheet not available, skipping history append.")
 
         except gspread.CellNotFound:
-             # Fallback if find() fails but user isn't there
+             # --- CHANGED: Ensure blacklist is preserved on first-time signup ---
+             # We must re-fetch previous_data in case it wasn't populated on init
+             if not self.previous_data:
+                 self.previous_data = self.cog.get_previous_signup(user_id)
+             
+             blacklist_value = self.previous_data.get("Blacklist", "") if self.previous_data else ""
+             row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, wants_mentor_bool, timestamp, blacklist_value]
+
              self.cog.sang_sheet.append_row(row_data)
              if self.cog.history_sheet:
                 try:
                     history_cell = self.cog.history_sheet.find(user_id, in_column=1)
                     if history_cell is None: self.cog.history_sheet.append_row(row_data)
-                    else: self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:I{history_cell.row}')
+                    else: self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
                 except Exception as e: print(f"🔥 GSpread error on HISTORY (User Form) write: {e}")
              else: print("🔥 History sheet not available, skipping history append.")
         except Exception as e:
@@ -602,7 +593,6 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
             await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
             return
 
-        # --- Success Message ---
         await interaction.response.send_message(
             f"✅ **You are signed up as {proficiency_value}!**\n"
             f"**KC:** {kc_value}\n"
@@ -621,21 +611,20 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
 
     def __init__(self, cog: 'SanguineCog', previous_data: dict = None):
         super().__init__(title="Sanguine Sunday Mentor Signup")
-        self.cog = cog # Store the cog instance
+        self.cog = cog
         if previous_data:
-             # Pre-fill the form with data from the History sheet
              self.roles_known.default = previous_data.get("Favorite Roles", "")
              kc_val = previous_data.get("KC", "")
              self.kc.default = str(kc_val) if kc_val not in ["", None, "X"] else ""
              self.has_scythe.default = "Yes" if previous_data.get("Has_Scythe", False) else "No"
+        
+        self.previous_data = previous_data # Store for blacklist
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Use self.cog.sang_sheet and self.cog.history_sheet
         if not self.cog.sang_sheet:
             await interaction.response.send_message("⚠️ Error: The Sanguine Sunday signup sheet is not connected.", ephemeral=True)
             return
         
-        # --- Validation ---
         try:
             kc_value = int(str(self.kc))
             if kc_value < 50:
@@ -651,54 +640,58 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
             return
         has_scythe_bool = scythe_value in ["yes", "y"]
 
-        # --- Data Processing ---
         proficiency_value = "Mentor"
         roles_known_value = str(self.roles_known).strip()
-        learning_freeze_bool = False # Mentors don't learn freeze
+        learning_freeze_bool = False
 
         user_id = str(interaction.user.id)
         user_name = sanitize_nickname(interaction.user.display_name)
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
         
-        # Prepare the row based on the sheet header order
-        row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, False, timestamp]
+        # --- CHANGED: Preserve existing blacklist data from History ---
+        blacklist_value = self.previous_data.get("Blacklist", "") if self.previous_data else ""
+        
+        row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, False, timestamp, blacklist_value]
         
         try:
-            # --- Write to SangSignups sheet ---
             cell = self.cog.sang_sheet.find(user_id, in_column=1)
             if cell is None:
-                self.cog.sang_sheet.append_row(row_data) # New signup
+                self.cog.sang_sheet.append_row(row_data)
             else:
-                self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:I{cell.row}') # Update existing
+                self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}') # Use Col J
 
-            # --- Write to History sheet ---
             if self.cog.history_sheet:
                 try:
                     history_cell = self.cog.history_sheet.find(user_id, in_column=1)
                     if history_cell is None:
                         self.cog.history_sheet.append_row(row_data)
                     else:
-                        self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:I{history_cell.row}')
+                        self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}') # Use Col J
                 except Exception as e:
                     print(f"🔥 GSpread error on HISTORY (Mentor Form) write: {e}")
             else:
                 print("🔥 History sheet not available, skipping history append.")
         except gspread.CellNotFound:
-             # Fallback if find() fails but user isn't there
-            self.cog.sang_sheet.append_row(row_data)
-            if self.cog.history_sheet:
+             # --- CHANGED: Ensure blacklist is preserved on first-time signup ---
+             if not self.previous_data:
+                 self.previous_data = self.cog.get_previous_signup(user_id)
+             
+             blacklist_value = self.previous_data.get("Blacklist", "") if self.previous_data else ""
+             row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, False, timestamp, blacklist_value]
+            
+             self.cog.sang_sheet.append_row(row_data)
+             if self.cog.history_sheet:
                 try:
                     history_cell = self.cog.history_sheet.find(user_id, in_column=1)
                     if history_cell is None: self.cog.history_sheet.append_row(row_data)
-                    else: self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:I{history_cell.row}')
+                    else: self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
                 except Exception as e: print(f"🔥 GSpread error on HISTORY (User Form) write: {e}")
-            else: print("🔥 History sheet not available, skipping history append.")
+             else: print("🔥 History sheet not available, skipping history append.")
         except Exception as e:
             print(f"🔥 GSpread error on mentor signup: {e}")
             await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
             return
 
-        # --- Success Message ---
         await interaction.response.send_message(
             f"✅ **You are signed up as a Mentor!**\n"
             f"**KC:** {kc_value}\n"
@@ -711,7 +704,7 @@ class WithdrawalButton(ui.Button):
     """A simple button to withdraw from the event."""
     def __init__(self, cog: 'SanguineCog'):
         super().__init__(label="Withdraw", style=ButtonStyle.secondary, custom_id="sang_withdraw", emoji="❌")
-        self.cog = cog # Store the cog instance
+        self.cog = cog
 
     async def callback(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
@@ -722,7 +715,6 @@ class WithdrawalButton(ui.Button):
             return
 
         try:
-            # Use self.cog.sang_sheet
             cell = self.cog.sang_sheet.find(user_id, in_column=1)
             if cell is None:
                 await interaction.response.send_message(f"ℹ️ {user_name}, you are not currently signed up for this week's event.", ephemeral=True)
@@ -739,14 +731,12 @@ class SignupView(View):
     """The persistent view with the 3 main buttons: Raider, Mentor, Withdraw."""
     def __init__(self, cog: 'SanguineCog'):
         super().__init__(timeout=None)
-        self.cog = cog # Store the cog instance
+        self.cog = cog
         self.add_item(WithdrawalButton(self.cog))
 
     @ui.button(label="Sign Up as Raider", style=ButtonStyle.success, custom_id="sang_signup_raider", emoji="📝")
     async def user_signup_button(self, interaction: discord.Interaction, button: Button):
-        # Call the cog's method to get previous data
         previous_data = self.cog.get_previous_signup(str(interaction.user.id))
-        # Pass the cog instance to the modal
         await interaction.response.send_modal(UserSignupForm(self.cog, previous_data=previous_data))
 
     @ui.button(label="Sign Up as Mentor", style=ButtonStyle.danger, custom_id="sang_signup_mentor", emoji="🎓")
@@ -761,16 +751,12 @@ class SignupView(View):
         previous_data = self.cog.get_previous_signup(str(user.id))
 
         if not has_mentor_role:
-            # User does NOT have @Mentor role, send them the Mentor form
             await interaction.response.send_modal(MentorSignupForm(self.cog, previous_data=previous_data))
             return
         
-        # User HAS @Mentor role, check for auto-signup
         is_auto_signup = previous_data and previous_data.get("KC") == "X"
 
         if not is_auto_signup:
-            # This is a Mentor's first-time click, or they've filled out the form before.
-            # Auto-sign them up with default values.
             await interaction.response.defer(ephemeral=True)
             if not self.cog.sang_sheet or not self.cog.history_sheet:
                 await interaction.followup.send("⚠️ Error: The Sanguine Sunday signup or history sheet is not connected.", ephemeral=True)
@@ -779,30 +765,40 @@ class SignupView(View):
             user_id = str(user.id)
             user_name = member.display_name
             timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
-            # Default values for auto-signup
-            row_data = [user_id, user_name, "All", "X", True, "Mentor", False, False, timestamp]
+            
+            # --- CHANGED: Preserve existing blacklist data from History ---
+            blacklist_value = previous_data.get("Blacklist", "") if previous_data else ""
+            
+            row_data = [user_id, user_name, "All", "X", True, "Mentor", False, False, timestamp, blacklist_value]
 
             try:
                 cell = self.cog.sang_sheet.find(user_id, in_column=1)
                 if cell is None: self.cog.sang_sheet.append_row(row_data)
-                else: self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:I{cell.row}')
+                else: self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
 
                 if self.cog.history_sheet:
                     try:
                         history_cell = self.cog.history_sheet.find(user_id, in_column=1)
                         if history_cell is None: self.cog.history_sheet.append_row(row_data)
-                        else: self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:I{history_cell.row}')
+                        else: self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
                     except Exception as e: print(f"🔥 GSpread error on HISTORY (Auto-Mentor) write: {e}")
                 else: print("🔥 History sheet not available, skipping history append.")
                 
                 await interaction.followup.send("✅ **Auto-signed up as Mentor!**\nTo edit your KC/Scythe/Roles, click the 'Mentor' button again.", ephemeral=True)
             except gspread.CellNotFound:
+                 # --- CHANGED: Ensure blacklist is preserved on first-time signup ---
+                 if not previous_data:
+                     previous_data = self.cog.get_previous_signup(user_id)
+                 
+                 blacklist_value = previous_data.get("Blacklist", "") if previous_data else ""
+                 row_data = [user_id, user_name, "All", "X", True, "Mentor", False, False, timestamp, blacklist_value]
+                 
                  self.cog.sang_sheet.append_row(row_data)
                  if self.cog.history_sheet:
                     try:
                         history_cell = self.cog.history_sheet.find(user_id, in_column=1)
                         if history_cell is None: self.cog.history_sheet.append_row(row_data)
-                        else: self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:I{history_cell.row}')
+                        else: self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
                     except Exception as e: print(f"🔥 GSpread error on HISTORY (Auto-Mentor) write: {e}")
                  else: print("🔥 History sheet not available, skipping history append.")
                  await interaction.followup.send("✅ **Auto-signed up as Mentor!**\nTo edit your KC/Scythe/Roles, click the 'Mentor' button again.", ephemeral=True)
@@ -810,9 +806,7 @@ class SignupView(View):
                 print(f"🔥 GSpread error on auto mentor signup: {e}")
                 await interaction.followup.send("⚠️ An error occurred while auto-signing you up.", ephemeral=True)
         else:
-            # Mentor has already auto-signed up (KC="X").
-            # Send them the form to let them edit their info.
-            previous_data["KC"] = "" # Clear the "X"
+            previous_data["KC"] = ""
             await interaction.response.send_modal(MentorSignupForm(self.cog, previous_data=previous_data))
 
 
@@ -853,8 +847,8 @@ class SanguineCog(commands.Cog):
             
             try:
                 self.sang_sheet = sang_google_sheet.worksheet(SANG_SHEET_TAB_NAME)
-                # Check header
                 header = self.sang_sheet.row_values(1)
+                # --- CHANGED: Check for new header ---
                 if header != SANG_SHEET_HEADER:
                     print("⚠️ Sanguine sheet header mismatch. Re-writing...")
                     self.sang_sheet.clear()
@@ -866,8 +860,8 @@ class SanguineCog(commands.Cog):
             
             try:
                 self.history_sheet = sang_google_sheet.worksheet(SANG_HISTORY_TAB_NAME)
-                # Check header
                 header = self.history_sheet.row_values(1)
+                # --- CHANGED: Check for new header ---
                 if header != SANG_SHEET_HEADER:
                     print("⚠️ Sanguine history sheet header mismatch. Re-writing...")
                     self.history_sheet.clear()
@@ -880,16 +874,12 @@ class SanguineCog(commands.Cog):
             print("✅ Sanguine Cog: Google Sheets initialized successfully.")
         except Exception as e:
             print(f"🔥 CRITICAL ERROR initializing SanguineCog GSheets: {e}")
-            # Bot will continue, but commands will fail with checks
 
-        # Add the persistent view
-        # We pass `self` (the cog instance) to the view
         self.bot.add_view(SignupView(self))
 
     @commands.Cog.listener()
     async def on_ready(self):
         """Called when the cog is loaded and the bot is ready."""
-        # Start the tasks
         if not self.scheduled_post_signup.is_running():
             self.scheduled_post_signup.start()
             print("✅ Sanguine Cog: Started scheduled signup task.")
@@ -909,20 +899,15 @@ class SanguineCog(commands.Cog):
         embeds = []
         if not teams:
             return embeds
-
-        # guild = self.bot.get_channel(GUILD_ID).guild <--- REMOVED THIS LINE
         
         current_embed = discord.Embed(title=title, description=description, color=color)
         embeds.append(current_embed)
         field_count = 0
         
-        # Define a safe limit for fields per embed. 25 is the max count,
-        # but 10 is safer to avoid the 6000-character total embed limit.
         FIELDS_PER_EMBED = 10
         
         for i, team in enumerate(teams, start=1):
             if field_count >= FIELDS_PER_EMBED:
-                # Current embed is full, create a new one
                 current_embed = discord.Embed(title=f"{title} (Page {len(embeds) + 1})", color=color)
                 embeds.append(current_embed)
                 field_count = 0
@@ -950,15 +935,14 @@ class SanguineCog(commands.Cog):
                  print("No records found in history_sheet.")
                  return None
             
-            # Iterate in reverse to find the *last* entry for this user
             for record in reversed(all_records):
                 sheet_discord_id = record.get("Discord_ID")
                 sheet_discord_id_str = str(sheet_discord_id) if sheet_discord_id is not None else None
                 
                 if sheet_discord_id_str == user_id:
-                    # Convert GSheet "TRUE"/"FALSE" strings to real booleans
                     record["Has_Scythe"] = str(record.get("Has_Scythe", "FALSE")).upper() == "TRUE"
                     record["Learning Freeze"] = str(record.get("Learning Freeze", "FALSE")).upper() == "TRUE"
+                    # --- NEW: "Blacklist" is now read, no conversion needed
                     return record
             
             print(f"No history match found for user_id: {user_id}")
@@ -978,7 +962,6 @@ class SanguineCog(commands.Cog):
             print("⚠️ Cannot post reminder, Sang Sheet not connected.")
             return False
         
-        # Delete previous reminder messages
         try:
             async for message in channel.history(limit=50):
                 if message.author == self.bot.user and LEARNER_REMINDER_IDENTIFIER in message.content:
@@ -1074,7 +1057,7 @@ class SanguineCog(commands.Cog):
         for signup in all_signups_records:
             user_id = str(signup.get("Discord_ID"))
             if vc_member_ids and user_id not in vc_member_ids:
-                 continue # User is not in the specified VC
+                 continue
             
             roles_str = signup.get("Favorite Roles", "")
             knows_range, knows_melee = parse_roles(roles_str)
@@ -1083,18 +1066,19 @@ class SanguineCog(commands.Cog):
             try:
                 kc_val = int(kc_raw)
             except (ValueError, TypeError):
-                # Handle "X" KC for mentors or bad data
                 kc_val = 9999 if signup.get("Proficiency", "").lower() == 'mentor' else 0
             
             proficiency_val = signup.get("Proficiency", "").lower()
             
-            # Re-calculate proficiency based on KC, overriding sheet value
-            # (unless they are a mentor)
             if proficiency_val != 'mentor':
                 if kc_val <= 10: proficiency_val = "new"
                 elif 11 <= kc_val <= 25: proficiency_val = "learner"
                 elif 26 <= kc_val <= 100: proficiency_val = "proficient"
                 else: proficiency_val = "highly proficient"
+
+            # --- NEW: Read blacklist data ---
+            blacklist_str = str(signup.get("Blacklist", ""))
+            blacklist_ids = set(blacklist_str.split(',')) if blacklist_str else set()
 
             available_raiders.append({
                 "user_id": user_id,
@@ -1106,7 +1090,8 @@ class SanguineCog(commands.Cog):
                 "learning_freeze": str(signup.get("Learning Freeze", "FALSE")).upper() == "TRUE",
                 "knows_range": knows_range,
                 "knows_melee": knows_melee,
-                "wants_mentor": str(signup.get("Mentor_Request", "FALSE")).upper() == "TRUE"
+                "wants_mentor": str(signup.get("Mentor_Request", "FALSE")).upper() == "TRUE",
+                "blacklist": blacklist_ids # --- NEW: Pass blacklist to algorithm
             })
 
         if not available_raiders:
@@ -1118,7 +1103,6 @@ class SanguineCog(commands.Cog):
         guild = interaction.guild
         category = guild.get_channel(SANG_VC_CATEGORY_ID)
         
-        # Create Voice Channels
         if category and hasattr(category, "create_voice_channel"):
             for i in range(len(teams)):
                 try:
@@ -1128,7 +1112,6 @@ class SanguineCog(commands.Cog):
 
         post_channel = interaction.channel
         
-        # --- Create Embeds ---
         embed_title = f"Sanguine Sunday Teams - {channel_name}"
         embed_desc = f"Created {len(teams)} valid team(s) from {len(available_raiders)} available signed-up users."
         
@@ -1138,18 +1121,16 @@ class SanguineCog(commands.Cog):
             embed_desc,
             discord.Color.red(),
             guild,
-            format_player_line_mention # Use the pinging formatter
+            format_player_line_mention
         )
         
         global last_generated_teams
         last_generated_teams = teams
 
-        # --- Send Embeds (one at a time) ---
         for i, embed in enumerate(team_embeds):
             if i == 0:
                 await interaction.followup.send(embed=embed)
             else:
-                # Send subsequent chunks as new messages
                 await post_channel.send(embed=embed)
 
 
@@ -1198,13 +1179,18 @@ class SanguineCog(commands.Cog):
                 elif 26 <= kc_val <= 100: proficiency_val = "proficient"
                 else: proficiency_val = "highly proficient"
 
+            # --- NEW: Read blacklist data ---
+            blacklist_str = str(signup.get("Blacklist", ""))
+            blacklist_ids = set(blacklist_str.split(',')) if blacklist_str else set()
+
             available_raiders.append({
                 "user_id": user_id, "user_name": sanitize_nickname(signup.get("Discord_Name")),
                 "proficiency": proficiency_val, "kc": kc_val,
                 "has_scythe": str(signup.get("Has_Scythe", "FALSE")).upper() == "TRUE",
                 "roles_known": roles_str, "learning_freeze": str(signup.get("Learning Freeze", "FALSE")).upper() == "TRUE",
                 "knows_range": knows_range, "knows_melee": knows_melee,
-                "wants_mentor": str(signup.get("Mentor_Request", "FALSE")).upper() == "TRUE"
+                "wants_mentor": str(signup.get("Mentor_Request", "FALSE")).upper() == "TRUE",
+                "blacklist": blacklist_ids # --- NEW: Pass blacklist to algorithm
             })
         
         if not available_raiders:
@@ -1216,7 +1202,6 @@ class SanguineCog(commands.Cog):
         guild = interaction.guild
         post_channel = channel or interaction.channel
 
-        # --- Create Embeds ---
         embed_title = f"Sanguine Sunday Teams (Test, no pings/VC) - {channel_name}"
         embed_desc = f"Created {len(teams)} valid team(s) from {len(available_raiders)} available signed-up users."
 
@@ -1226,13 +1211,12 @@ class SanguineCog(commands.Cog):
             embed_desc,
             discord.Color.dark_gray(),
             guild,
-            format_player_line_plain # Use the NO-ping formatter
+            format_player_line_plain
         )
 
         global last_generated_teams
         last_generated_teams = teams
         
-        # --- Send Embeds (one at a time) ---
         for i, embed in enumerate(team_embeds):
             if i == 0 and interaction.channel == post_channel:
                 await interaction.followup.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
@@ -1265,7 +1249,6 @@ class SanguineCog(commands.Cog):
             lines.append("")
         txt = "\n".join(lines)
 
-        # Try to save to a mounted volume, fallback to /tmp
         export_dir = Path(os.getenv("SANG_EXPORT_DIR", "/mnt/data"))
         try:
             export_dir.mkdir(parents=True, exist_ok=True)
@@ -1302,7 +1285,7 @@ class SanguineCog(commands.Cog):
                     await ch.delete(reason="sangcleanup")
                     deleted += 1
             except Exception:
-                pass # Ignore errors (e.g., channel deleted by someone else)
+                pass
         await interaction.followup.send(f"🧹 Deleted {deleted} voice channels.", ephemeral=True)
 
     @sangsignup.error
