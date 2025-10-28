@@ -144,7 +144,7 @@ def scythe_icon(p: dict) -> str:
 
 def freeze_icon(p: dict) -> str:
     """Returns a freeze icon if the player wants to learn."""
-    return "❄️" if p.get("learning_freeze") else ""
+    return "❄️ Learn Freeze" if p.get("learning_freeze") else ""
 
 def is_proficient_plus(p: dict) -> bool:
     """Checks if a player is proficient, highly proficient, or mentor."""
@@ -227,23 +227,37 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     T = len(sizes) # Total number of teams
 
     # ---------- Build anchors (Mentors first, then strongest HP/Pro) ----------
-    anchors: List[Dict[str, Any]] = []
-    if len(mentors) >= T:
-        # More mentors than teams; use the first T as anchors
-        anchors = mentors[:T]
-        extra_mentors = mentors[T:]
-    else:
-        # Fewer mentors than teams; use all mentors, then fill with strong players
-        anchors = mentors[:] + strong_pool[: (T - len(mentors))]
-        strong_pool = strong_pool[(T - len(mentors)):] # Remaining strong players
-        extra_mentors = []
+    # MODIFIED: Avoid placing Mentors on 3-man teams.
+    anchors: List[Optional[Dict[str, Any]]] = [None] * T # Initialize list of size T
+    teams: List[List[Dict[str, Any]]] = []
+    
+    # Priority pools for anchors
+    anchor_pools_normal = [mentors, strong_pool, learners, news, mentees]
+    # Priority pools for TRIOS (no mentors)
+    anchor_pools_trio = [strong_pool, learners, news, mentees]
 
-    # If still short (edge case, very few players), backfill from any pool
-    for pool in (strong_pool, learners, news, mentees):
-        while len(anchors) < T and pool:
-            anchors.append(pool.pop(0))
+    extra_mentors = [] # Mentors not used as anchors
 
-    teams: List[List[Dict[str, Any]]] = [[a] for a in anchors] # Initialize teams with their anchors
+    for i in range(T):
+        target_size = sizes[i]
+        
+        # Select the right pool list based on team size
+        pools_to_use = anchor_pools_trio if target_size == 3 else anchor_pools_normal
+
+        # Find the first available anchor from the priority pools
+        anchor = None
+        for pool in pools_to_use:
+            if pool:
+                anchor = pool.pop(0)
+                break
+        
+        if anchor:
+            teams.append([anchor])
+        else:
+            teams.append([]) # Should not happen if N > 0, but safety
+
+    # Any remaining mentors who weren't used as anchors go into leftovers
+    extra_mentors = mentors
 
     # ---------- Helper for safe placement ----------
     def can_add(player, team, max_size) -> bool:
@@ -255,6 +269,10 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
 
         # Hard constraints for 3-man teams (must all be proficient+)
         if max_size == 3:
+            # NEW: No mentors on 3-man teams, they are needed for 'New' players
+            if normalize_role(player) == "mentor":
+                return False # Don't add mentor to trio
+
             if not is_proficient_plus(player):
                 return False # Player not strong enough
             if not all(is_proficient_plus(p) for p in team):
@@ -264,9 +282,8 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         if player.get('learning_freeze') and any(p.get('learning_freeze') for p in team):
             return False
             
-        # No 5-man teams with a "New" player (too hard)
-        if normalize_role(player) == 'new' and future_size == 5:
-            return False
+        # REMOVED: No 5-man teams with a "New" player (too hard)
+        # This rule was stranding players.
 
         return True
 
@@ -278,29 +295,13 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     if mentor_idxs and mentees:
         forward = True # Zig-zag placement
         while mentees:
-            placed = False
-            idxs = mentor_idxs if forward else mentor_idxs[::-1]
-            forward = not forward
-            for i in idxs:
-                if not mentees:
-                    break
-                if can_add(mentees[0], teams[i], max_sizes[i]):
-                    teams[i].append(mentees.pop(0))
-                    placed = True
             if not placed:
                 break # No mentor teams have space
 
-    # ---------- One-pass seeding (Distribute learners/newbs evenly) ----------
-    # First pass: try to give each team one learner/newb
-    for i in range(T):
-        if news and can_add(news[0], teams[i], max_sizes[i]):
-            teams[i].append(news.pop(0))
-        elif learners and can_add(learners[0], teams[i], max_sizes[i]):
-            teams[i].append(learners.pop(0))
-    # Second pass: fill with strong players
-    for i in range(T):
-        if strong_pool and can_add(strong_pool[0], teams[i], max_sizes[i]):
-            teams[i].append(strong_pool.pop(0))
+    # REMOVED: One-pass seeding (Distribute learners/newbs evenly)
+    # This was preventing two "New" players from being on the same team,
+    # which is necessary when there aren't enough mentors.
+    # The "Distribute leftovers" loop will now handle all placements.
 
     # ---------- Distribute leftovers ----------
     # Combine all remaining players into one pool
@@ -784,15 +785,15 @@ class SanguineCog(commands.Cog):
         if not teams:
             return embeds
 
-        guild = self.bot.get_channel(GUILD_ID).guild
+        # guild = self.bot.get_channel(GUILD_ID).guild <--- REMOVED THIS LINE
         
         current_embed = discord.Embed(title=title, description=description, color=color)
         embeds.append(current_embed)
         field_count = 0
         
-        # Define a safe limit for fields per embed. 25 is the max count,
-        # but 10 is safer to avoid the 6000-character total embed limit.
-        FIELDS_PER_EMBED = 10
+        print("Sanguine Cog is ready.")
+
+    # --- Cog Methods (from helper functions) ---
         
         for i, team in enumerate(teams, start=1):
             if field_count >= FIELDS_PER_EMBED:
