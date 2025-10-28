@@ -295,6 +295,17 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     if mentor_idxs and mentees:
         forward = True # Zig-zag placement
         while mentees:
+            placed = False
+            idxs = mentor_idxs if forward else mentor_idxs[::-1]
+            forward = not forward
+            
+            # Try to place the *next* mentee
+            for i in idxs:
+                if can_add(mentees[0], teams[i], max_sizes[i]):
+                    teams[i].append(mentees.pop(0))
+                    placed = True
+                    break # Mentee placed
+            
             if not placed:
                 break # No mentor teams have space
 
@@ -1240,3 +1251,4 @@ class SanguineCog(commands.Cog):
 # This setup function is required for the bot to load the Cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(SanguineCog(bot))
+
