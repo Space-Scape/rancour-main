@@ -140,11 +140,11 @@ def prof_rank(p: dict) -> int:
 
 def scythe_icon(p: dict) -> str:
     """Returns a Scythe emoji icon based on player data."""
-    return "✅" if p.get("has_scythe") else "❌"
+    return " • <:tob:1272864087105208364>" if p.get("has_scythe") else ""
 
 def freeze_icon(p: dict) -> str:
     """Returns a freeze icon if the player wants to learn."""
-    return "❄️ Learn Freeze" if p.get("learning_freeze") else ""
+    return " • ❄️" if p.get("learning_freeze") else ""
 
 def is_proficient_plus(p: dict) -> bool:
     """Checks if a player is proficient, highly proficient, or mentor."""
@@ -359,7 +359,7 @@ def format_player_line_plain(guild: discord.Guild, p: dict) -> str:
     kc_text = f"({kc_raw} KC)" if isinstance(kc_raw, int) and kc_raw > 0 and role_text != "Mentor" and kc_raw != 9999 else ""
     scythe = scythe_icon(p)
     freeze = freeze_icon(p)
-    return f"{nickname} • **{role_text}** {kc_text} • {scythe} <:tob:1272864087105208364> {freeze}"
+    return f"{nickname} • **{role_text}** {kc_text}{scythe}{freeze}"
 
 def format_player_line_mention(guild: discord.Guild, p: dict) -> str:
     """Formats a player's info for the /sangmatch command with pings."""
@@ -375,7 +375,7 @@ def format_player_line_mention(guild: discord.Guild, p: dict) -> str:
     kc_text = f"({kc_raw} KC)" if isinstance(kc_raw, int) and kc_raw > 0 and role_text != "Mentor" and kc_raw != 9999 else ""
     scythe = scythe_icon(p)
     freeze = freeze_icon(p)
-    return f"{mention} • **{role_text}** {kc_text} • {scythe} <:tob:1272864087105208364> {freeze}"
+    return f"{mention} • **{role_text}** {kc_text}{scythe}{freeze}"
 
 # ---------------------------
 # 🔹 UI Modals & Views
