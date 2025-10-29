@@ -902,6 +902,8 @@ class SupportTicketButton(Button):
 
 
         try:
+        except Exception:
+            pass
             thread = await support_channel.create_thread(
                 name=thread_name,
                 type=discord.ChannelType.private_thread
@@ -928,12 +930,6 @@ class SupportTicketButton(Button):
             )
 
             await interaction.followup.send(f"✅ A support ticket has been created for you in {thread.mention}.", ephemeral=True)
-
-        except discord.Forbidden:
-            await interaction.followup.send("❌ I don't have permission to create threads in the support channel.", ephemeral=True)
-        except Exception as e:
-            print(f"Error creating support thread: {e}")
-            await interaction.followup.send("❌ An unexpected error occurred while creating the ticket.", ephemeral=True)
 
 class SupportRoleView(View):
     def __init__(self):
@@ -1918,6 +1914,119 @@ async def on_message(message: discord.Message):
         if valid_mention or message.attachments or has_pasted_image:
             view = CollatButtons(message.author, valid_mention)
             await message.reply("Collat actions:", view=view, allowed_mentions=discord.AllowedMentions.none())
+        
+@bot.event
+async def on_ready():
+
+    # --- one-time command sync (added by patch) ---
+    global _has_synced_commands
+    if not _has_synced_commands:
+        try:
+            guild_id = os.getenv('GUILD_ID')
+            if guild_id:
+                guild = discord.Object(id=int(guild_id))
+                bot.tree.copy_global_to(guild=guild)
+                synced = await bot.tree.sync(guild=guild)
+                print(f"✅ Synced {len(synced)} commands to guild {guild_id}.")
+            else:
+                synced = await bot.tree.sync()
+                print(f"✅ Synced {len(synced)} global commands.")
+        except Exception as e:
+            print(f"❌ Command sync failed in on_ready: {e}")
+        else:
+            _has_synced_commands = True
+    # --- end sync block ---
+    """This on_ready is for the MAIN bot. Cogs have their own on_ready."""
+    print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
+    print("Main bot components are ready.")
+    
+    # Add persistent views FROM THIS FILE
+    bot.add_view(JusticePanelView()) 
+    bot.add_view(SupportRoleView())
+    bot.add_view(RSNPanelView())
+    bot.add_view(CloseThreadView())
+    # Note: The SignupView is added by the SanguineCog itself.
+
+    # Start the RSN writer task
+    asyncio.create_task(rsn_writer())
+
+    # Panel initializations
+    rsn_channel_id = 1280532494139002912
+    rsn_channel = bot.get_channel(rsn_channel_id)
+    if rsn_channel:
+        print("🔄 Checking and posting RSN panel...")
+        await send_rsn_panel(rsn_channel)
+        print("✅ RSN panel posted.")
+
+    time_channel_id = 1398775387139342386
+    time_channel = bot.get_channel(time_channel_id)
+    if time_channel:
+        print("🔄 Checking and posting Timezone panel...")
+        await send_time_panel(time_channel)
+        print("✅ Timezone panel posted.")
+            
+    support_channel_id = SUPPORT_PANEL_CHANNEL_ID
+    support_channel = bot.get_channel(support_channel_id)
+    if support_channel:
+        print("🔄 Checking and posting Support panel...")
+        await send_support_panel(support_channel)
+        print(f"✅ Posted support panel in #{support_channel.name}.")
+
+    role_channel_id = 1272648586198519818
+    role_channel = bot.get_channel(role_channel_id)
+    if role_channel:
+        guild = role_channel.guild
+        
+        print("🔄 Purging and reposting role assignment panels...")
+        async for msg in role_channel.history(limit=100):
+            if msg.author == bot.user:
+                await msg.delete()
+        
+        await role_channel.send("Select your roles below:")
+        
+        raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="", color=0x00ff00)
+        await role_channel.send(embed=raid_embed, view=RaidsView(guild))
+        
+        boss_embed = discord.Embed(title="⚔︎ 𝔊𝔯𝔬𝔲p B𝔬𝔰𝔰𝔢𝔰 ⚔︎", description="", color=0x0000ff)
+        await role_channel.send(embed=boss_embed, view=BossesView(guild))
+        
+        events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢𝔫𝔱𝔰 ⚔︎", description="", color=0xffff00)
+        await role_channel.send(embed=events_embed, view=EventsView(guild))
+        print("✅ Role assignment panels reposted.")
+    
+    # We move the command sync to the main() function
+    # to ensure it runs *after* cogs are loaded.
+
+
+# ----------------------------------------------------
+# 🔹 NEW MAIN ENTRY POINT (Cog Loader & Bot Runner)
+# ----------------------------------------------------
+
+async def main():
+    """Main async function to load cogs and start the bot."""
+    async with bot:
+        # --- Load Cogs ---
+        # Add the filenames of your cogs here (without .py)
+        # This tells the bot to load "sanguine_cog.py"
+        cogs_to_load = ["sanguine_cog"]
+        
+        for cog_name in cogs_to_load:
+            try:
+                await bot.load_extension(cog_name)
+                print(f"✅ Successfully loaded extension: {cog_name}")
+            except Exception as e:
+                print(f"🔥 Failed to load extension {cog_name}.")
+                print(f"  Error: {e}")
+        # --- Start the Bot ---
+        # This replaces the old bot.run()
+        await bot.start(os.getenv('DISCORD_BOT_TOKEN'))
+
+if __name__ == "__main__":
+    # This runs the main async function
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Bot is shutting down...")
         
 @bot.event
 async def on_ready():
