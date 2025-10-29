@@ -2117,32 +2117,3 @@ async def on_ready():
     # to ensure it runs *after* cogs are loaded.
 
 
-# ----------------------------------------------------
-# 🔹 NEW MAIN ENTRY POINT (Cog Loader & Bot Runner)
-# ----------------------------------------------------
-
-async def main():
-    """Main async function to load cogs and start the bot."""
-    async with bot:
-        # --- Load Cogs ---
-        # Add the filenames of your cogs here (without .py)
-        # This tells the bot to load "sanguine_cog.py"
-        cogs_to_load = ["sanguine_cog"]
-        
-        for cog_name in cogs_to_load:
-            try:
-                await bot.load_extension(cog_name)
-                print(f"✅ Successfully loaded extension: {cog_name}")
-            except Exception as e:
-                print(f"🔥 Failed to load extension {cog_name}.")
-                print(f"  Error: {e}")
-        # --- Start the Bot ---
-        # This replaces the old bot.run()
-        await bot.start(os.getenv('DISCORD_BOT_TOKEN'))
-
-if __name__ == "__main__":
-    # This runs the main async function
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("Bot is shutting down...")
