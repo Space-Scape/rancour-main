@@ -902,8 +902,6 @@ class SupportTicketButton(Button):
 
 
         try:
-        except Exception:
-            pass
             thread = await support_channel.create_thread(
                 name=thread_name,
                 type=discord.ChannelType.private_thread
@@ -930,6 +928,12 @@ class SupportTicketButton(Button):
             )
 
             await interaction.followup.send(f"✅ A support ticket has been created for you in {thread.mention}.", ephemeral=True)
+
+        except discord.Forbidden:
+            await interaction.followup.send("❌ I don't have permission to create threads in the support channel.", ephemeral=True)
+        except Exception as e:
+            print(f"Error creating support thread: {e}")
+            await interaction.followup.send("❌ An unexpected error occurred while creating the ticket.", ephemeral=True)
 
 class SupportRoleView(View):
     def __init__(self):
