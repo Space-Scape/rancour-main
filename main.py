@@ -902,6 +902,8 @@ class SupportTicketButton(Button):
 
 
         try:
+        except Exception:
+            pass
             thread = await support_channel.create_thread(
                 name=thread_name,
                 type=discord.ChannelType.private_thread
@@ -1701,6 +1703,8 @@ class FinalConfirmationView(View):
     async def confirm_button(self, interaction: discord.Interaction, button: Button):
         log_channel = bot.get_channel(LOG_CHANNEL_ID)
         try:
+        except Exception:
+            pass
             if self.action == "kick":
                 await self.target.kick(reason=f"Action by {self.initiator.name}, approved by {self.approver.name}. Reason: {self.reason}")
             elif self.action == "ban":
