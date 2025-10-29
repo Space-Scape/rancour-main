@@ -11,6 +11,9 @@ from discord import ButtonStyle
 from typing import Optional
 from datetime import datetime, timedelta, timezone, time
 from zoneinfo import ZoneInfo
+# one-time guard for command syncing
+_has_synced_commands = False
+
 
 # ---------------------------
 # 🔹 Google Sheets Setup
@@ -88,6 +91,15 @@ intents.members = True
 intents.message_content = True # Needed for on_message
 intents.reactions = True # Needed for reaction tasks
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+# ensure application_id is set from env so tree.sync can run before connection if needed
+app_id_env = os.getenv('APPLICATION_ID')
+if app_id_env:
+    try:
+        bot.application_id = int(app_id_env)
+        print(f"Using APPLICATION_ID from env: {bot.application_id}")
+    except Exception as e:
+        print(f"Invalid APPLICATION_ID env value: {e}")
 tree = bot.tree
 
 # ---------------------------
@@ -1923,6 +1935,25 @@ async def on_message(message: discord.Message):
         
 @bot.event
 async def on_ready():
+
+    # --- one-time command sync (added by patch) ---
+    global _has_synced_commands
+    if not _has_synced_commands:
+        try:
+            guild_id = os.getenv('GUILD_ID')
+            if guild_id:
+                guild = discord.Object(id=int(guild_id))
+                bot.tree.copy_global_to(guild=guild)
+                synced = await bot.tree.sync(guild=guild)
+                print(f"✅ Synced {len(synced)} commands to guild {guild_id}.")
+            else:
+                synced = await bot.tree.sync()
+                print(f"✅ Synced {len(synced)} global commands.")
+        except Exception as e:
+            print(f"❌ Command sync failed in on_ready: {e}")
+        else:
+            _has_synced_commands = True
+    # --- end sync block ---
     """This on_ready is for the MAIN bot. Cogs have their own on_ready."""
     print(f"✅ Logged in as {bot.user} (ID: {bot.user.id})")
     print("Main bot components are ready.")
