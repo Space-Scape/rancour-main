@@ -93,13 +93,8 @@ intents.reactions = True # Needed for reaction tasks
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ensure application_id is set from env so tree.sync can run before connection if needed
-app_id_env = os.getenv('APPLICATION_ID')
-if app_id_env:
     try:
-        bot.application_id = int(app_id_env)
-        print(f"Using APPLICATION_ID from env: {bot.application_id}")
-    except Exception as e:
-        print(f"Invalid APPLICATION_ID env value: {e}")
+            except Exception as e:
 tree = bot.tree
 
 # ---------------------------
@@ -2035,19 +2030,6 @@ async def main():
             except Exception as e:
                 print(f"🔥 Failed to load extension {cog_name}.")
                 print(f"  Error: {e}")
-
-        # --- Sync Commands ---
-        # We sync here *after* all cogs are loaded so ALL commands
-        # (from this file and the cog) are synced at once.
-        try:
-            # Sync to your specific guild for instant updates
-            guild = discord.Object(id=GUILD_ID)
-            bot.tree.copy_global_to(guild=guild)
-            synced = await bot.tree.sync(guild=guild)
-            print(f"✅ Synced {len(synced)} commands to the guild.")
-        except Exception as e:
-            print(f"❌ Command sync failed: {e}")
-
         # --- Start the Bot ---
         # This replaces the old bot.run()
         await bot.start(os.getenv('DISCORD_BOT_TOKEN'))
