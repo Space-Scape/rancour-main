@@ -93,8 +93,6 @@ intents.reactions = True # Needed for reaction tasks
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ensure application_id is set from env so tree.sync can run before connection if needed
-    try:
-            except Exception as e:
 tree = bot.tree
 
 # ---------------------------
@@ -931,12 +929,6 @@ class SupportTicketButton(Button):
 
             await interaction.followup.send(f"✅ A support ticket has been created for you in {thread.mention}.", ephemeral=True)
 
-        except discord.Forbidden:
-            await interaction.followup.send("❌ I don't have permission to create threads in the support channel.", ephemeral=True)
-        except Exception as e:
-            print(f"Error creating support thread: {e}")
-            await interaction.followup.send("❌ An unexpected error occurred while creating the ticket.", ephemeral=True)
-
 class SupportRoleView(View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -983,8 +975,6 @@ async def rsn_writer():
                 ])
                 print(f"✅ Added new RSN for {member} ({member.id}) as {rsn_value}")
 
-        except Exception as e:
-            print(f"❌ Error writing RSN to sheet for {member}: {e}")
         finally:
             rsn_write_queue.task_done()
 
@@ -1732,13 +1722,6 @@ class FinalConfirmationView(View):
                 log_embed.add_field(name="Approved By", value=f"{self.approver.name} ({self.approver.id})", inline=True)
                 log_embed.add_field(name="Reason", value=self.reason, inline=False)
                 await log_channel.send(embed=log_embed)
-
-        except discord.Forbidden:
-            await interaction.response.edit_message(content="❌ **Action Failed.** I don't have the necessary permissions to perform this action.", view=None)
-            await self.update_original_message("Failed (Permissions)", discord.Color.dark_grey())
-        except Exception as e:
-            await interaction.response.edit_message(content=f"An unexpected error occurred: {e}", view=None)
-            await self.update_original_message("Failed (Error)", discord.Color.dark_grey())
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel_button(self, interaction: discord.Interaction, button: Button):
