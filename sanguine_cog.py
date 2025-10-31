@@ -803,34 +803,33 @@ class SanguineCog(commands.Cog):
             sang_success = False
             hist_success = False
             
+            # --- THIS IS THE FIX ---
             # Operation 1: Write to SangSignups Sheet
             try:
                 cell = self.sang_sheet.find(user_id, in_column=1)
-                self.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
-                sang_success = True
-            except gspread.CellNotFound: # <--- THIS IS THE FIX
-                try:
+                if cell is None:
+                    # User not found, append them
                     self.sang_sheet.append_row(row_data)
-                    sang_success = True
-                except Exception as e:
-                    print(f"🔥 GSpread error on SangSignups APPEND: {e}")
+                else:
+                    # User found, update them
+                    self.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
+                sang_success = True
             except Exception as e:
-                print(f"🔥 GSpread error on SangSignups UPDATE: {e}")
+                print(f"🔥 GSpread error on SangSignups: {e}")
 
             # Operation 2: Write to History Sheet
             if self.history_sheet:
                 try:
                     history_cell = self.history_sheet.find(user_id, in_column=1)
-                    self.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
-                    hist_success = True
-                except gspread.CellNotFound: # <--- THIS IS THE FIX
-                    try:
+                    if history_cell is None:
+                        # User not found, append them
                         self.history_sheet.append_row(row_data)
-                        hist_success = True
-                    except Exception as e:
-                        print(f"🔥 GSpread error on History APPEND: {e}")
+                    else:
+                        # User found, update them
+                        self.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
+                    hist_success = True
                 except Exception as e:
-                    print(f"🔥 GSpread error on History UPDATE: {e}")
+                    print(f"🔥 GSpread error on History: {e}")
             else:
                 print("🔥 History sheet not available, skipping history write.")
                 hist_success = True # Don't block success if history is down
