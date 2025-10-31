@@ -512,9 +512,8 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         self.previous_data = previous_data # Store for blacklist
 
     async def on_submit(self, interaction: discord.Interaction):
-        # --- DEBUG: ADDED TOP-LEVEL TRY/EXCEPT ---
-        try:
-            if not self.cog.sang_sheet:
+        # Removed the outer debugging try/except
+        if not self.cog.sang_sheet:
                 await interaction.response.send_message("⚠️ Error: The Sanguine Sunday signup sheet is not connected. Please contact staff.", ephemeral=True)
                 return
             
@@ -551,8 +550,6 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
             
             row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, wants_mentor_bool, timestamp, blacklist_value]
             
-            # --- FIXED LOGIC: Parallel Sheet Updates ---
-            
             sang_sheet_success = False
             history_sheet_success = False
 
@@ -561,7 +558,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
                 cell = self.cog.sang_sheet.find(user_id, in_column=1)
                 self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
                 sang_sheet_success = True
-            except gspread.CellNotFound:
+            except gspread.exceptions.CellNotFound: # <--- THIS IS THE FIX
                 try:
                     self.cog.sang_sheet.append_row(row_data)
                     sang_sheet_success = True
@@ -576,7 +573,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
                     history_cell = self.cog.history_sheet.find(user_id, in_column=1)
                     self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
                     history_sheet_success = True
-                except gspread.CellNotFound:
+                except gspread.exceptions.CellNotFound: # <--- THIS IS THE FIX
                     try:
                         self.cog.history_sheet.append_row(row_data)
                         history_sheet_success = True
@@ -602,16 +599,6 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
                 )
             else:
                 await interaction.response.send_message("⚠️ An error occurred while saving your signup. Please contact staff.", ephemeral=True)
-        
-        except Exception as e:
-            # --- THIS IS THE NEW DEBUGGING LINE ---
-            print(f"🔥🔥🔥 UNCAUGHT ERROR IN UserSignupForm on_submit: {e}")
-            # We must still respond to the interaction, or it will fail
-            if not interaction.response.is_done():
-                try:
-                    await interaction.response.send_message("⚠️ A critical error occurred. Please tell staff to check the bot console.", ephemeral=True)
-                except discord.InteractionResponded:
-                    pass # Someone else already responded
 
 
 class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
@@ -632,9 +619,8 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         self.previous_data = previous_data # Store for blacklist
 
     async def on_submit(self, interaction: discord.Interaction):
-        # --- DEBUG: ADDED TOP-LEVEL TRY/EXCEPT ---
-        try:
-            if not self.cog.sang_sheet:
+        # Removed the outer debugging try/except
+        if not self.cog.sang_sheet:
                 await interaction.response.send_message("⚠️ Error: The Sanguine Sunday signup sheet is not connected.", ephemeral=True)
                 return
             
@@ -665,8 +651,6 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
             
             row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, False, timestamp, blacklist_value]
             
-            # --- FIXED LOGIC: Parallel Sheet Updates ---
-
             sang_sheet_success = False
             history_sheet_success = False
 
@@ -675,7 +659,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
                 cell = self.cog.sang_sheet.find(user_id, in_column=1)
                 self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
                 sang_sheet_success = True
-            except gspread.CellNotFound:
+            except gspread.exceptions.CellNotFound: # <--- THIS IS THE FIX
                 try:
                     self.cog.sang_sheet.append_row(row_data)
                     sang_sheet_success = True
@@ -690,7 +674,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
                     history_cell = self.cog.history_sheet.find(user_id, in_column=1)
                     self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
                     history_sheet_success = True
-                except gspread.CellNotFound:
+                except gspread.exceptions.CellNotFound: # <--- THIS IS THE FIX
                     try:
                         self.cog.history_sheet.append_row(row_data)
                         history_sheet_success = True
@@ -702,8 +686,6 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
                 print("🔥 History sheet not available, skipping history write.")
                 history_sheet_success = True # Don't block success if history is down
                 
-            # --- End Fixed Logic ---
-
             if sang_sheet_success and history_sheet_success:
                 await interaction.response.send_message(
                     f"✅ **You are signed up as a Mentor!**\n"
@@ -714,16 +696,6 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
                 )
             else:
                 await interaction.response.send_message("⚠️ An error occurred while saving your signup. Please contact staff.", ephemeral=True)
-        
-        except Exception as e:
-            # --- THIS IS THE NEW DEBUGGING LINE ---
-            print(f"🔥🔥🔥 UNCAUGHT ERROR IN MentorSignupForm on_submit: {e}")
-            # We must still respond to the interaction, or it will fail
-            if not interaction.response.is_done():
-                try:
-                    await interaction.response.send_message("⚠️ A critical error occurred. Please tell staff to check the bot console.", ephemeral=True)
-                except discord.InteractionResponded:
-                    pass
 
 
 class WithdrawalButton(ui.Button):
