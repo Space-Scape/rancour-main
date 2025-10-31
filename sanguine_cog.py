@@ -13,7 +13,7 @@ from discord.ui import View, Button, Modal, TextInput
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone, time as dt_time
 from zoneinfo import ZoneInfo
-import gspread.exceptions
+# --- REMOVED gspread.exceptions IMPORT ---
 import math
 from pathlib import Path # Import Path for export function
 from zoneinfo import ZoneInfo
@@ -94,7 +94,7 @@ LEARNER_REMINDER_MESSAGE = f"""\
 This is a reminder for all learners who signed up for Sanguine Sunday!
 
 Please make sure you have reviewed the following guides and have your gear and plugins ready to go:
-• **[ToB Resource Hub](https://discord.com/channels/1272629330115297330/1426262876699496598)**
+• **[ToB Learner Resource Hub](https://discord.com/channels/1272629330115297330/1426262876699496598)**
 • **[Learner Setups](https://discord.com/channels/1272629330115297330/1426263868950450257)**
 • **[Rancour Meta Setups](https://discord.com/channels/1272629330115297330/1426272592452391012)**
 • **[Guides & Plugins](https://discord.com/channels/1272629330115297330/1426263621440372768)**
@@ -808,7 +808,7 @@ class SanguineCog(commands.Cog):
                 cell = self.sang_sheet.find(user_id, in_column=1)
                 self.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
                 sang_success = True
-            except gspread.exceptions.CellNotFound: 
+            except gspread.CellNotFound: # <--- THIS IS THE FIX
                 try:
                     self.sang_sheet.append_row(row_data)
                     sang_success = True
@@ -823,7 +823,7 @@ class SanguineCog(commands.Cog):
                     history_cell = self.history_sheet.find(user_id, in_column=1)
                     self.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
                     hist_success = True
-                except gspread.exceptions.CellNotFound: 
+                except gspread.CellNotFound: # <--- THIS IS THE FIX
                     try:
                         self.history_sheet.append_row(row_data)
                         hist_success = True
