@@ -512,22 +512,24 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         self.previous_data = previous_data # Store for blacklist
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Removed the outer debugging try/except
+        # --- THIS IS THE FIX ---
+        # Defer the interaction to prevent a 3-second timeout
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         if not self.cog.sang_sheet:
-            await interaction.response.send_message("⚠️ Error: The Sanguine Sunday signup sheet is not connected. Please contact staff.", ephemeral=True)
+            await interaction.followup.send("⚠️ Error: The Sanguine Sunday signup sheet is not connected. Please contact staff.", ephemeral=True)
             return
         
-        # --- ENTIRE BLOCK BELOW IS NOW INDENTED CORRECTLY ---
         try:
             kc_value = int(str(self.kc))
             if kc_value < 0: raise ValueError("KC cannot be negative.")
         except ValueError:
-            await interaction.response.send_message("⚠️ Error: Kill Count must be a valid number.", ephemeral=True)
+            await interaction.followup.send("⚠️ Error: Kill Count must be a valid number.", ephemeral=True)
             return
         
         scythe_value = str(self.has_scythe).strip().lower()
         if scythe_value not in ["yes", "no", "y", "n"]:
-            await interaction.response.send_message("⚠️ Error: Scythe must be 'Yes' or 'No'.", ephemeral=True)
+            await interaction.followup.send("⚠️ Error: Scythe must be 'Yes' or 'No'.", ephemeral=True)
             return
         has_scythe_bool = scythe_value in ["yes", "y"]
 
@@ -559,7 +561,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
             cell = self.cog.sang_sheet.find(user_id, in_column=1)
             self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
             sang_sheet_success = True
-        except gspread.exceptions.CellNotFound: # <--- THIS IS THE FIX
+        except gspread.exceptions.CellNotFound: 
             try:
                 self.cog.sang_sheet.append_row(row_data)
                 sang_sheet_success = True
@@ -574,7 +576,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
                 history_cell = self.cog.history_sheet.find(user_id, in_column=1)
                 self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
                 history_sheet_success = True
-            except gspread.exceptions.CellNotFound: # <--- THIS IS THE FIX
+            except gspread.exceptions.CellNotFound: 
                 try:
                     self.cog.history_sheet.append_row(row_data)
                     history_sheet_success = True
@@ -584,12 +586,10 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
                 print(f"🔥 GSpread error on History UPDATE: {e}")
         else:
             print("🔥 History sheet not available, skipping history write.")
-            history_sheet_success = True # Don't block success if history is down
-
-        # --- End Fixed Logic ---
+            history_sheet_success = True 
 
         if sang_sheet_success and history_sheet_success:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"✅ **You are signed up as {proficiency_value}!**\n"
                 f"**KC:** {kc_value}\n"
                 f"**Scythe:** {'Yes' if has_scythe_bool else 'No'}\n"
@@ -599,7 +599,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
                 ephemeral=True
             )
         else:
-            await interaction.response.send_message("⚠️ An error occurred while saving your signup. Please contact staff.", ephemeral=True)
+            await interaction.followup.send("⚠️ An error occurred while saving your signup. Please contact staff.", ephemeral=True)
 
 
 class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
@@ -620,24 +620,26 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         self.previous_data = previous_data # Store for blacklist
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Removed the outer debugging try/except
+        # --- THIS IS THE FIX ---
+        # Defer the interaction to prevent a 3-second timeout
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        
         if not self.cog.sang_sheet:
-            await interaction.response.send_message("⚠️ Error: The Sanguine Sunday signup sheet is not connected.", ephemeral=True)
+            await interaction.followup.send("⚠️ Error: The Sanguine Sunday signup sheet is not connected.", ephemeral=True)
             return
         
-        # --- ENTIRE BLOCK BELOW IS NOW INDENTED CORRECTLY ---
         try:
             kc_value = int(str(self.kc))
             if kc_value < 50:
-                await interaction.response.send_message("⚠️ Mentors should have 50+ KC to sign up via form.", ephemeral=True)
+                await interaction.followup.send("⚠️ Mentors should have 50+ KC to sign up via form.", ephemeral=True)
                 return
         except ValueError:
-            await interaction.response.send_message("⚠️ Error: Kill Count must be a valid number.", ephemeral=True)
+            await interaction.followup.send("⚠️ Error: Kill Count must be a valid number.", ephemeral=True)
             return
         
         scythe_value = str(self.has_scythe).strip().lower()
         if scythe_value not in ["yes", "no", "y", "n"]:
-            await interaction.response.send_message("⚠️ Error: Scythe must be 'Yes' or 'No'.", ephemeral=True)
+            await interaction.followup.send("⚠️ Error: Scythe must be 'Yes' or 'No'.", ephemeral=True)
             return
         has_scythe_bool = scythe_value in ["yes", "y"]
 
@@ -661,7 +663,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
             cell = self.cog.sang_sheet.find(user_id, in_column=1)
             self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
             sang_sheet_success = True
-        except gspread.exceptions.CellNotFound: # <--- THIS IS THE FIX
+        except gspread.exceptions.CellNotFound: 
             try:
                 self.cog.sang_sheet.append_row(row_data)
                 sang_sheet_success = True
@@ -676,7 +678,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
                 history_cell = self.cog.history_sheet.find(user_id, in_column=1)
                 self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
                 history_sheet_success = True
-            except gspread.exceptions.CellNotFound: # <--- THIS IS THE FIX
+            except gspread.exceptions.CellNotFound: 
                 try:
                     self.cog.history_sheet.append_row(row_data)
                     history_sheet_success = True
@@ -686,10 +688,10 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
                 print(f"🔥 GSpread error on History (Mentor) UPDATE: {e}")
         else:
             print("🔥 History sheet not available, skipping history write.")
-            history_sheet_success = True # Don't block success if history is down
+            history_sheet_success = True
             
         if sang_sheet_success and history_sheet_success:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"✅ **You are signed up as a Mentor!**\n"
                 f"**KC:** {kc_value}\n"
                 f"**Scythe:** {'Yes' if has_scythe_bool else 'No'}\n"
@@ -697,7 +699,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
                 ephemeral=True
             )
         else:
-            await interaction.response.send_message("⚠️ An error occurred while saving your signup. Please contact staff.", ephemeral=True)
+            await interaction.followup.send("⚠️ An error occurred while saving your signup. Please contact staff.", ephemeral=True)
 
 
 class WithdrawalButton(ui.Button):
@@ -1300,4 +1302,5 @@ class SanguineCog(commands.Cog):
 # This setup function is required for the bot to load the Cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(SanguineCog(bot))
+
 
