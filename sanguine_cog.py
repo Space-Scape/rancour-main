@@ -6,6 +6,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 import asyncio
 import re
+# --- NEW IMPORT ---
+import functools 
 from discord import ui, ButtonStyle, Member
 from discord.ui import View, Button, Modal, TextInput
 from typing import Optional, List, Dict, Any
@@ -512,7 +514,6 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         self.previous_data = previous_data # Store for blacklist
 
     async def on_submit(self, interaction: discord.Interaction):
-        # --- THIS IS THE FIX ---
         # Defer the interaction to prevent a 3-second timeout
         await interaction.response.defer(ephemeral=True, thinking=True)
 
@@ -553,53 +554,25 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         
         row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, wants_mentor_bool, timestamp, blacklist_value]
         
-        sang_sheet_success = False
-        history_sheet_success = False
-
-        # Operation 1: Write to SangSignups Sheet
+        # --- MODIFIED LOGIC: Run GSpread logic in a thread ---
         try:
-            cell = self.cog.sang_sheet.find(user_id, in_column=1)
-            self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
-            sang_sheet_success = True
-        except gspread.exceptions.CellNotFound: 
-            try:
-                self.cog.sang_sheet.append_row(row_data)
-                sang_sheet_success = True
-            except Exception as e:
-                print(f"🔥 GSpread error on SangSignups APPEND: {e}")
+            sang_sheet_success, history_sheet_success = await self.cog._write_to_sheets_in_thread(user_id, row_data)
+
+            if sang_sheet_success and history_sheet_success:
+                await interaction.followup.send(
+                    f"✅ **You are signed up as {proficiency_value}!**\n"
+                    f"**KC:** {kc_value}\n"
+                    f"**Scythe:** {'Yes' if has_scythe_bool else 'No'}\n"
+                    f"**Favorite Roles:** {roles_known_value}\n"
+                    f"**Learn Freeze:** {'Yes' if learning_freeze_bool else 'No'}\n"
+                    f"**Mentor Request:** {'Yes' if wants_mentor_bool else 'No'}",
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send("⚠️ An error occurred while saving your signup. Please contact staff.", ephemeral=True)
         except Exception as e:
-            print(f"🔥 GSpread error on SangSignups UPDATE: {e}")
-
-        # Operation 2: Write to History Sheet
-        if self.cog.history_sheet:
-            try:
-                history_cell = self.cog.history_sheet.find(user_id, in_column=1)
-                self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
-                history_sheet_success = True
-            except gspread.exceptions.CellNotFound: 
-                try:
-                    self.cog.history_sheet.append_row(row_data)
-                    history_sheet_success = True
-                except Exception as e:
-                    print(f"🔥 GSpread error on History APPEND: {e}")
-            except Exception as e:
-                print(f"🔥 GSpread error on History UPDATE: {e}")
-        else:
-            print("🔥 History sheet not available, skipping history write.")
-            history_sheet_success = True 
-
-        if sang_sheet_success and history_sheet_success:
-            await interaction.followup.send(
-                f"✅ **You are signed up as {proficiency_value}!**\n"
-                f"**KC:** {kc_value}\n"
-                f"**Scythe:** {'Yes' if has_scythe_bool else 'No'}\n"
-                f"**Favorite Roles:** {roles_known_value}\n"
-                f"**Learn Freeze:** {'Yes' if learning_freeze_bool else 'No'}\n"
-                f"**Mentor Request:** {'Yes' if wants_mentor_bool else 'No'}",
-                ephemeral=True
-            )
-        else:
-            await interaction.followup.send("⚠️ An error occurred while saving your signup. Please contact staff.", ephemeral=True)
+            print(f"🔥🔥🔥 UNCAUGHT ERROR IN UserSignupForm on_submit: {e}")
+            await interaction.followup.send("⚠️ A critical error occurred. Please tell staff to check the bot console.", ephemeral=True)
 
 
 class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
@@ -620,7 +593,6 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         self.previous_data = previous_data # Store for blacklist
 
     async def on_submit(self, interaction: discord.Interaction):
-        # --- THIS IS THE FIX ---
         # Defer the interaction to prevent a 3-second timeout
         await interaction.response.defer(ephemeral=True, thinking=True)
         
@@ -655,51 +627,23 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         
         row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, False, timestamp, blacklist_value]
         
-        sang_sheet_success = False
-        history_sheet_success = False
-
-        # Operation 1: Write to SangSignups Sheet
+        # --- MODIFIED LOGIC: Run GSpread logic in a thread ---
         try:
-            cell = self.cog.sang_sheet.find(user_id, in_column=1)
-            self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
-            sang_sheet_success = True
-        except gspread.exceptions.CellNotFound: 
-            try:
-                self.cog.sang_sheet.append_row(row_data)
-                sang_sheet_success = True
-            except Exception as e:
-                print(f"🔥 GSpread error on SangSignups (Mentor) APPEND: {e}")
-        except Exception as e:
-            print(f"🔥 GSpread error on SangSignups (Mentor) UPDATE: {e}")
-
-        # Operation 2: Write to History Sheet
-        if self.cog.history_sheet:
-            try:
-                history_cell = self.cog.history_sheet.find(user_id, in_column=1)
-                self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
-                history_sheet_success = True
-            except gspread.exceptions.CellNotFound: 
-                try:
-                    self.cog.history_sheet.append_row(row_data)
-                    history_sheet_success = True
-                except Exception as e:
-                    print(f"🔥 GSpread error on History (Mentor) APPEND: {e}")
-            except Exception as e:
-                print(f"🔥 GSpread error on History (Mentor) UPDATE: {e}")
-        else:
-            print("🔥 History sheet not available, skipping history write.")
-            history_sheet_success = True
+            sang_sheet_success, history_sheet_success = await self.cog._write_to_sheets_in_thread(user_id, row_data)
             
-        if sang_sheet_success and history_sheet_success:
-            await interaction.followup.send(
-                f"✅ **You are signed up as a Mentor!**\n"
-                f"**KC:** {kc_value}\n"
-                f"**Scythe:** {'Yes' if has_scythe_bool else 'No'}\n"
-                f"**Favorite Roles:** {roles_known_value}",
-                ephemeral=True
-            )
-        else:
-            await interaction.followup.send("⚠️ An error occurred while saving your signup. Please contact staff.", ephemeral=True)
+            if sang_sheet_success and history_sheet_success:
+                await interaction.followup.send(
+                    f"✅ **You are signed up as a Mentor!**\n"
+                    f"**KC:** {kc_value}\n"
+                    f"**Scythe:** {'Yes' if has_scythe_bool else 'No'}\n"
+                    f"**Favorite Roles:** {roles_known_value}",
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send("⚠️ An error occurred while saving your signup. Please contact staff.", ephemeral=True)
+        except Exception as e:
+            print(f"🔥🔥🔥 UNCAUGHT ERROR IN MentorSignupForm on_submit: {e}")
+            await interaction.followup.send("⚠️ A critical error occurred. Please tell staff to check the bot console.", ephemeral=True)
 
 
 class WithdrawalButton(ui.Button):
@@ -847,6 +791,59 @@ class SanguineCog(commands.Cog):
         print("Sanguine Cog is ready.")
 
     # --- Cog Methods (from helper functions) ---
+
+    # --- NEW HELPER FUNCTION TO RUN GSHEET ACTIONS IN A THREAD ---
+    async def _write_to_sheets_in_thread(self, user_id: str, row_data: List[Any]) -> (bool, bool):
+        """
+        Runs blocking gspread operations in a separate thread 
+        to avoid blocking the bot's event loop.
+        """
+        
+        def _blocking_sheet_write():
+            sang_success = False
+            hist_success = False
+            
+            # Operation 1: Write to SangSignups Sheet
+            try:
+                cell = self.sang_sheet.find(user_id, in_column=1)
+                self.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
+                sang_success = True
+            except gspread.exceptions.CellNotFound: 
+                try:
+                    self.sang_sheet.append_row(row_data)
+                    sang_success = True
+                except Exception as e:
+                    print(f"🔥 GSpread error on SangSignups APPEND: {e}")
+            except Exception as e:
+                print(f"🔥 GSpread error on SangSignups UPDATE: {e}")
+
+            # Operation 2: Write to History Sheet
+            if self.history_sheet:
+                try:
+                    history_cell = self.history_sheet.find(user_id, in_column=1)
+                    self.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
+                    hist_success = True
+                except gspread.exceptions.CellNotFound: 
+                    try:
+                        self.history_sheet.append_row(row_data)
+                        hist_success = True
+                    except Exception as e:
+                        print(f"🔥 GSpread error on History APPEND: {e}")
+                except Exception as e:
+                    print(f"🔥 GSpread error on History UPDATE: {e}")
+            else:
+                print("🔥 History sheet not available, skipping history write.")
+                hist_success = True # Don't block success if history is down
+            
+            return sang_success, hist_success
+        
+        # Run the blocking function in an executor
+        loop = asyncio.get_running_loop()
+        sang_sheet_success, history_sheet_success = await loop.run_in_executor(
+            None, _blocking_sheet_write
+        )
+        return sang_sheet_success, history_sheet_success
+
 
     async def _create_team_embeds(self, teams, title, description, color, guild, format_func):
         """Helper function to build and paginate team embeds."""
@@ -1302,5 +1299,4 @@ class SanguineCog(commands.Cog):
 # This setup function is required for the bot to load the Cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(SanguineCog(bot))
-
 
