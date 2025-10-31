@@ -39,7 +39,6 @@ SANG_POST_CHANNEL_ID = 1338295765759688767
 SANG_SHEET_ID = "1CCpDAJO7Cq581yF_-rz3vx7L_BTettVaKglSvOmvTOE"
 SANG_SHEET_TAB_NAME = "SangSignups"
 SANG_HISTORY_TAB_NAME = "History"
-# --- CHANGED: Added "Blacklist" ---
 SANG_SHEET_HEADER = ["Discord_ID", "Discord_Name", "Favorite Roles", "KC", "Has_Scythe", "Proficiency", "Learning Freeze", "Mentor_Request", "Timestamp", "Blacklist"]
 
 # Message Content
@@ -78,7 +77,7 @@ Click a button below to sign up for the event.
 - **Mentor:** Fill out the form to sign up as a mentor.
 - **Withdraw:** Remove your name from this week's signup list.
 
-The form will remember your answers from past events! 
+The form will remember your answers from past events! 
 You only need to edit Kc's and Roles.
 
 Event link: <https://discord.com/events/1272629330115297330/1386302870646816788>
@@ -161,7 +160,6 @@ def parse_roles(roles_str: str) -> (bool, bool):
     knows_melee = any(s in roles_str for s in ["melee", "mdps", "meleer"])
     return knows_range, knows_melee
 
-# --- NEW: Blacklist helper function ---
 def is_blacklist_violation(player: Dict[str, Any], team: List[Dict[str, Any]]) -> bool:
     """Checks if a player joining a team violates any blacklists."""
     player_blacklist = player.get("blacklist", set())
@@ -194,7 +192,7 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     mentors = [p for p in available_raiders if normalize_role(p) == "mentor"]
     non_mentors = [p for p in available_raiders if normalize_role(p) != "mentor"]
 
-    strong_pool = [p for p in non_mentors if prof_rank(p) <= PROF_ORDER["proficient"]]   # HP/Pro
+    strong_pool = [p for p in non_mentors if prof_rank(p) <= PROF_ORDER["proficient"]]    # HP/Pro
     learners    = [p for p in non_mentors if normalize_role(p) == "learner"]
     news        = [p for p in non_mentors if normalize_role(p) == "new"]
 
@@ -275,7 +273,7 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         
         if player.get('learning_freeze') and any(p.get('learning_freeze') for p in team):
             return False
-            
+                
         if (normalize_role(player) == "new" or player.get("wants_mentor")) and not any(normalize_role(p) == "mentor" for p in team):
              return False # BLOCK: No mentor on team.
 
@@ -459,7 +457,6 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                         print(f"Balancing Swap: Moved {player_to_move_up.get('user_name')} to {lowest_team[0].get('user_name')}'s team.")
                         print(f"Balancing Swap: Moved {player_to_move_down.get('user_name')} to {highest_team[0].get('user_name')}'s team.")
 
-
     return teams, final_stranded
     
 def format_player_line_plain(guild: discord.Guild, p: dict) -> str:
@@ -547,48 +544,41 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         user_name = sanitize_nickname(interaction.user.display_name)
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
         
-        # --- CHANGED: Preserve existing blacklist data from History ---
+        # --- FIXED ---
+        # Use previous_data gathered when the form was OPENED
         blacklist_value = self.previous_data.get("Blacklist", "") if self.previous_data else ""
         
+        # This is the single source of truth for the row data
         row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, wants_mentor_bool, timestamp, blacklist_value]
         
         try:
+            # 1. TRY TO FIND & UPDATE existing user
             cell = self.cog.sang_sheet.find(user_id, in_column=1)
-            if cell is None:
-                self.cog.sang_sheet.append_row(row_data)
-            else:
-                self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}') # Use Col J
-
+            self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
+            
+            # Also update history
             if self.cog.history_sheet:
                 try:
                     history_cell = self.cog.history_sheet.find(user_id, in_column=1)
-                    if history_cell is None:
-                        self.cog.history_sheet.append_row(row_data)
-                    else:
-                        self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}') # Use Col J
+                    self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
+                except gspread.CellNotFound:
+                    self.cog.history_sheet.append_row(row_data) # Add to history if not there
                 except Exception as e:
-                    print(f"🔥 GSpread error on HISTORY (User Form) write: {e}")
-            else:
-                print("🔥 History sheet not available, skipping history append.")
-
+                    print(f"🔥 GSpread error on HISTORY (User Form) update: {e}")
+            
         except gspread.CellNotFound:
-             # --- CHANGED: Ensure blacklist is preserved on first-time signup ---
-             # We must re-fetch previous_data in case it wasn't populated on init
-             if not self.previous_data:
-                 self.previous_data = self.cog.get_previous_signup(user_id)
-             
-             blacklist_value = self.previous_data.get("Blacklist", "") if self.previous_data else ""
-             row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, wants_mentor_bool, timestamp, blacklist_value]
-
-             self.cog.sang_sheet.append_row(row_data)
-             if self.cog.history_sheet:
-                try:
-                    history_cell = self.cog.history_sheet.find(user_id, in_column=1)
-                    if history_cell is None: self.cog.history_sheet.append_row(row_data)
-                    else: self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
-                except Exception as e: print(f"🔥 GSpread error on HISTORY (User Form) write: {e}")
-             else: print("🔥 History sheet not available, skipping history append.")
+            # 2. User is NEW. APPEND to both sheets.
+            try:
+                self.cog.sang_sheet.append_row(row_data)
+                if self.cog.history_sheet:
+                    self.cog.history_sheet.append_row(row_data)
+            except Exception as e:
+                print(f"🔥 GSpread error on NEW signup append: {e}")
+                await interaction.response.send_message("⚠️ An error occurred while saving your new signup.", ephemeral=True)
+                return
+        
         except Exception as e:
+            # 3. Catch any other unexpected errors
             print(f"🔥 GSpread error on signup: {e}")
             await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
             return
@@ -648,46 +638,41 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         user_name = sanitize_nickname(interaction.user.display_name)
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
         
-        # --- CHANGED: Preserve existing blacklist data from History ---
+        # --- FIXED ---
+        # Use previous_data gathered when the form was OPENED
         blacklist_value = self.previous_data.get("Blacklist", "") if self.previous_data else ""
         
+        # This is the single source of truth for the row data
         row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, False, timestamp, blacklist_value]
         
         try:
+            # 1. TRY TO FIND & UPDATE existing user
             cell = self.cog.sang_sheet.find(user_id, in_column=1)
-            if cell is None:
-                self.cog.sang_sheet.append_row(row_data)
-            else:
-                self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}') # Use Col J
-
+            self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
+            
+            # Also update history
             if self.cog.history_sheet:
                 try:
                     history_cell = self.cog.history_sheet.find(user_id, in_column=1)
-                    if history_cell is None:
-                        self.cog.history_sheet.append_row(row_data)
-                    else:
-                        self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}') # Use Col J
+                    self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
+                except gspread.CellNotFound:
+                    self.cog.history_sheet.append_row(row_data) # Add to history if not there
                 except Exception as e:
-                    print(f"🔥 GSpread error on HISTORY (Mentor Form) write: {e}")
-            else:
-                print("🔥 History sheet not available, skipping history append.")
+                    print(f"🔥 GSpread error on HISTORY (Mentor Form) update: {e}")
+
         except gspread.CellNotFound:
-             # --- CHANGED: Ensure blacklist is preserved on first-time signup ---
-             if not self.previous_data:
-                 self.previous_data = self.cog.get_previous_signup(user_id)
-             
-             blacklist_value = self.previous_data.get("Blacklist", "") if self.previous_data else ""
-             row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, False, timestamp, blacklist_value]
-            
-             self.cog.sang_sheet.append_row(row_data)
-             if self.cog.history_sheet:
-                try:
-                    history_cell = self.cog.history_sheet.find(user_id, in_column=1)
-                    if history_cell is None: self.cog.history_sheet.append_row(row_data)
-                    else: self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
-                except Exception as e: print(f"🔥 GSpread error on HISTORY (User Form) write: {e}")
-             else: print("🔥 History sheet not available, skipping history append.")
+            # 2. User is NEW. APPEND to both sheets.
+            try:
+                self.cog.sang_sheet.append_row(row_data)
+                if self.cog.history_sheet:
+                    self.cog.history_sheet.append_row(row_data)
+            except Exception as e:
+                print(f"🔥 GSpread error on NEW mentor signup append: {e}")
+                await interaction.response.send_message("⚠️ An error occurred while saving your new signup.", ephemeral=True)
+                return
+        
         except Exception as e:
+            # 3. Catch any other unexpected errors
             print(f"🔥 GSpread error on mentor signup: {e}")
             await interaction.response.send_message("⚠️ An error occurred while saving your signup.", ephemeral=True)
             return
@@ -766,45 +751,43 @@ class SignupView(View):
             user_name = member.display_name
             timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
             
-            # --- CHANGED: Preserve existing blacklist data from History ---
+            # --- FIXED ---
             blacklist_value = previous_data.get("Blacklist", "") if previous_data else ""
             
             row_data = [user_id, user_name, "All", "X", True, "Mentor", False, False, timestamp, blacklist_value]
 
             try:
+                # 1. TRY TO FIND & UPDATE
                 cell = self.cog.sang_sheet.find(user_id, in_column=1)
-                if cell is None: self.cog.sang_sheet.append_row(row_data)
-                else: self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
-
+                self.cog.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
+                
                 if self.cog.history_sheet:
                     try:
                         history_cell = self.cog.history_sheet.find(user_id, in_column=1)
-                        if history_cell is None: self.cog.history_sheet.append_row(row_data)
-                        else: self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
-                    except Exception as e: print(f"🔥 GSpread error on HISTORY (Auto-Mentor) write: {e}")
-                else: print("🔥 History sheet not available, skipping history append.")
-                
-                await interaction.followup.send("✅ **Auto-signed up as Mentor!**\nTo edit your KC/Scythe/Roles, click the 'Mentor' button again.", ephemeral=True)
+                        self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
+                    except gspread.CellNotFound:
+                        self.cog.history_sheet.append_row(row_data) # Add to history if not there
+                    except Exception as e:
+                        print(f"🔥 GSpread error on HISTORY (Auto-Mentor) update: {e}")
+
             except gspread.CellNotFound:
-                 # --- CHANGED: Ensure blacklist is preserved on first-time signup ---
-                 if not previous_data:
-                     previous_data = self.cog.get_previous_signup(user_id)
-                 
-                 blacklist_value = previous_data.get("Blacklist", "") if previous_data else ""
-                 row_data = [user_id, user_name, "All", "X", True, "Mentor", False, False, timestamp, blacklist_value]
-                 
-                 self.cog.sang_sheet.append_row(row_data)
-                 if self.cog.history_sheet:
-                    try:
-                        history_cell = self.cog.history_sheet.find(user_id, in_column=1)
-                        if history_cell is None: self.cog.history_sheet.append_row(row_data)
-                        else: self.cog.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
-                    except Exception as e: print(f"🔥 GSpread error on HISTORY (Auto-Mentor) write: {e}")
-                 else: print("🔥 History sheet not available, skipping history append.")
-                 await interaction.followup.send("✅ **Auto-signed up as Mentor!**\nTo edit your KC/Scythe/Roles, click the 'Mentor' button again.", ephemeral=True)
+                # 2. User is NEW. APPEND to both sheets.
+                try:
+                    self.cog.sang_sheet.append_row(row_data)
+                    if self.cog.history_sheet:
+                        self.cog.history_sheet.append_row(row_data)
+                except Exception as e:
+                    print(f"🔥 GSpread error on NEW auto-mentor signup append: {e}")
+                    await interaction.followup.send("⚠️ An error occurred while auto-signing you up.", ephemeral=True)
+                    return
+            
             except Exception as e:
+                # 3. Catch any other unexpected errors
                 print(f"🔥 GSpread error on auto mentor signup: {e}")
                 await interaction.followup.send("⚠️ An error occurred while auto-signing you up.", ephemeral=True)
+                return
+            
+            await interaction.followup.send("✅ **Auto-signed up as Mentor!**\nTo edit your KC/Scythe/Roles, click the 'Mentor' button again.", ephemeral=True)
         else:
             previous_data["KC"] = ""
             await interaction.response.send_modal(MentorSignupForm(self.cog, previous_data=previous_data))
@@ -848,7 +831,6 @@ class SanguineCog(commands.Cog):
             try:
                 self.sang_sheet = sang_google_sheet.worksheet(SANG_SHEET_TAB_NAME)
                 header = self.sang_sheet.row_values(1)
-                # --- CHANGED: Check for new header ---
                 if header != SANG_SHEET_HEADER:
                     print("⚠️ Sanguine sheet header mismatch. Re-writing...")
                     self.sang_sheet.clear()
@@ -861,7 +843,6 @@ class SanguineCog(commands.Cog):
             try:
                 self.history_sheet = sang_google_sheet.worksheet(SANG_HISTORY_TAB_NAME)
                 header = self.history_sheet.row_values(1)
-                # --- CHANGED: Check for new header ---
                 if header != SANG_SHEET_HEADER:
                     print("⚠️ Sanguine history sheet header mismatch. Re-writing...")
                     self.history_sheet.clear()
@@ -932,8 +913,8 @@ class SanguineCog(commands.Cog):
         try:
             all_records = self.history_sheet.get_all_records()
             if not all_records:
-                 print("No records found in history_sheet.")
-                 return None
+                print("No records found in history_sheet.")
+                return None
             
             for record in reversed(all_records):
                 sheet_discord_id = record.get("Discord_ID")
@@ -1057,7 +1038,7 @@ class SanguineCog(commands.Cog):
         for signup in all_signups_records:
             user_id = str(signup.get("Discord_ID"))
             if vc_member_ids and user_id not in vc_member_ids:
-                 continue
+                continue
             
             roles_str = signup.get("Favorite Roles", "")
             knows_range, knows_melee = parse_roles(roles_str)
