@@ -113,8 +113,9 @@ GUILD_ID = 1272629330115297330 # <-- Added your Guild ID for command syncing
 # --- Justice Panel Config ---
 JUSTICE_PANEL_CHANNEL_ID = 1422373286368776314 # Channel where the main panel will be.
 SENIOR_STAFF_CHANNEL_ID = 1336473990302142484  # Channel for approval notifications.
-ADMINISTRATOR_ROLE_ID = 1272961765034164318   # Role that can approve actions.
+ADMINISTRATOR_ROLE_ID = 1272961765034164318    # Role that can approve actions.
 SENIOR_STAFF_ROLE_ID = 1336473488159936512    # Role that can approve actions.
+INACTIVE_ROLE_ID = 1392889183265230848         # Role for inactive members
 
 # --- NEW SUPPORT PANEL CONFIG ---
 SUPPORT_PANEL_CHANNEL_ID = 1422397857142542346 # Channel where the support panel will be.
@@ -542,7 +543,7 @@ async def help(interaction: discord.Interaction):
         """,
         inline=False
     )
-   
+    
     embed.add_field(
         name="💰 Clan Coffer Commands",
         value="""
@@ -1918,6 +1919,41 @@ async def on_message(message: discord.Message):
             view = CollatButtons(message.author, valid_mention)
             await message.reply("Collat actions:", view=view, allowed_mentions=discord.AllowedMentions.none())
         
+@bot.event
+async def on_member_update(before: discord.Member, after: discord.Member):
+    """Sends a DM to a user when they receive the Inactive role."""
+    # Ignore bots
+    if after.bot:
+        return
+
+    # Check if roles were changed
+    if before.roles == after.roles:
+        return
+
+    # Find out which role(s) were added
+    roles_added = set(after.roles) - set(before.roles)
+
+    inactive_role = discord.utils.get(after.guild.roles, id=INACTIVE_ROLE_ID)
+    
+    if inactive_role and inactive_role in roles_added:
+        message_content = (
+            f"Hey {after.display_name}!\n\n"
+            "We noticed you haven't been active in a while, so we've marked you as 'inactive' to clean up our member list. "
+            "No hard feelings at all, this is just routine housekeeping!\n\n"
+            "Want to come back?\n"
+            "There's no need to re-apply. Just head to our welcome channel and use the 'Returning Player' button, "
+            "and a staff member will get you a re-invite in-game when you're on.\n\n"
+            "Hope to see you again soon!"
+        )
+
+        try:
+            await after.send(message_content)
+            print(f"Sent inactivity DM to {after.name}")
+        except discord.Forbidden:
+            print(f"❌ Could not send inactivity DM to {after.name}. They may have DMs disabled.")
+        except Exception as e:
+            print(f"❌ An error occurred while sending inactivity DM to {after.name}: {e}")
+
 has_synced = False
 
 @bot.event
@@ -1941,6 +1977,19 @@ async def on_ready():
     bot.add_view(SupportRoleView())
     bot.add_view(RSNPanelView())
     bot.add_view(CloseThreadView())
+    # Add persistent views for role panels
+    if bot.get_channel(1272648586198519818): # Check if role_channel exists
+        guild = bot.get_guild(GUILD_ID)
+        if guild:
+            bot.add_view(RaidsView(guild))
+            bot.add_view(BossesView(guild))
+            bot.add_view(EventsView(guild))
+    # Add persistent view for timezone panel
+    if bot.get_channel(1398775387139342386):
+        guild = bot.get_guild(GUILD_ID)
+        if guild:
+            bot.add_view(TimezoneView(guild))
+
 
     asyncio.create_task(rsn_writer())
 
@@ -1970,19 +2019,31 @@ async def on_ready():
     if role_channel:
         guild = role_channel.guild
         print("🔄 Purging and reposting role assignment panels...")
-        async for msg in role_channel.history(limit=100):
-            if msg.author == bot.user:
-                await msg.delete()
+        
+        # Purge old messages from the bot
+        try:
+            async for msg in role_channel.history(limit=50):
+                if msg.author == bot.user:
+                    await msg.delete()
+        except discord.Forbidden:
+            print("❌ Bot lacks permission to delete messages in the role channel.")
+        except Exception as e:
+            print(f"❌ Error purging role channel: {e}")
 
-        await role_channel.send("Select your roles below:")
+        await role_channel.send("https://i.postimg.cc/8G3CWSDP/info.png") # Banner
+        
+        await role_channel.send(
+            "Select your roles below to get pings for group content and events!",
+            allowed_mentions=discord.AllowedMentions.none()
+            )
 
-        raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="", color=0x00ff00)
+        raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="Roles for Chambers of Xeric, Theatre of Blood, and Tombs of Amascut.", color=0xDAA520)
         await role_channel.send(embed=raid_embed, view=RaidsView(guild))
 
-        boss_embed = discord.Embed(title="⚔︎ 𝔊𝔯𝔬𝔲p B𝔬𝔰𝔰𝔢𝔰 ⚔︎", description="", color=0x0000ff)
+        boss_embed = discord.Embed(title="⚔︎ 𝔊𝔯𝔬𝔲p B𝔬𝔰𝔰𝔢𝔰 ⚔︎", description="Roles for God Wars Dungeon, Corporeal Beast, and more.", color=0xC0C0C0)
         await role_channel.send(embed=boss_embed, view=BossesView(guild))
 
-        events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢𝔫𝔱𝔰 ⚔︎", description="", color=0xffff00)
+        events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢𝔫𝔱𝔰 ⚔︎", description="Roles for clan events, skill/boss of the week, and PvP.", color=0xCD7F32)
         await role_channel.send(embed=events_embed, view=EventsView(guild))
         print("✅ Role assignment panels reposted.")
 
