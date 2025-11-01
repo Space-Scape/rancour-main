@@ -1937,11 +1937,11 @@ async def on_member_update(before: discord.Member, after: discord.Member):
     
     if inactive_role and inactive_role in roles_added:
         message_content = (
-            f"Hey {after.display_name}!\n\n"
+            f"Hey {after.display_name}! :wave:\n\n"
             "We noticed you haven't been active in a while, so we've marked you as 'inactive' to clean up our member list. "
             "No hard feelings at all, this is just routine housekeeping!\n\n"
-            "Want to come back?\n"
-            "There's no need to re-apply. Just head to our welcome channel and use the 'Returning Player' button, "
+            "Want to come back? :handshake:\n"
+            "There's no need to re-apply. Just head to https://discord.com/channels/1272629330115297330/1272648453264248852 and use the 'Returning Player' button, "
             "and a staff member will get you a re-invite in-game when you're on.\n\n"
             "Hope to see you again soon!"
         )
@@ -2066,3 +2066,6 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         print("Bot is shutting down...")
+
+
+
