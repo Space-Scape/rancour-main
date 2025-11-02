@@ -36,6 +36,8 @@ ADMINISTRATOR_ROLE_ID = 1272961765034164318
 SENIOR_STAFF_ROLE_ID = 1336473488159936512
 SANG_VC_CATEGORY_ID = 1376645103803830322
 SANG_POST_CHANNEL_ID = 1338295765759688767
+# --- NEW: Added VC Link ---
+SANG_VC_LINK = "https://discord.com/channels/1272629330115297330/1431953026842624090"
 
 # GSheet Config
 SANG_SHEET_ID = "1CCpDAJO7Cq581yF_-rz3vx7L_BTettVaKglSvOmvTOE"
@@ -88,17 +90,19 @@ Event link: <https://discord.com/events/1272629330115297330/1386302870646816788>
 """
 
 LEARNER_REMINDER_IDENTIFIER = "Sanguine Sunday Learner Reminder"
+# --- UPDATED: Added VC Link ---
 LEARNER_REMINDER_MESSAGE = f"""\
 # {LEARNER_REMINDER_IDENTIFIER} ⏰ <:sanguine_sunday:1388100187985154130>
 
 This is a reminder for all learners who signed up for Sanguine Sunday!
 
 Please make sure you have reviewed the following guides and have your gear and plugins ready to go:
-• **[ToB Learner Resource Hub](https://discord.com/channels/1272629330115297330/1426262876699496598)**
+• **[ToB Resource Hub](https://discord.com/channels/1272629330115297330/1426262876699496598)**
 • **[Learner Setups](https://discord.com/channels/1272629330115297330/1426263868950450257)**
 • **[Rancour Meta Setups](https://discord.com/channels/1272629330115297330/1426272592452391012)**
 • **[Guides & Plugins](https://discord.com/channels/1272629330115297330/1426263621440372768)**
 
+We will be gathering in the **[Sanguine Sunday VC]({SANG_VC_LINK})**!
 We look forward to seeing you there!
 """
 
@@ -874,6 +878,83 @@ class SanguineCog(commands.Cog):
             
         return embeds
 
+    # --- NEW: Helper to generate a signups embed ---
+    async def _generate_signups_embed(self) -> Optional[discord.Embed]:
+        """Fetches all signups and formats them into a sorted embed."""
+        if not self.sang_sheet:
+            print("⚠️ Cannot generate signups embed, Sang Sheet not connected.")
+            return None
+        
+        try:
+            all_signups_records = self.sang_sheet.get_all_records()
+            if not all_signups_records:
+                return None # No signups, return None
+        except Exception as e:
+            print(f"🔥 GSheet error fetching all signups for embed: {e}")
+            return None
+        
+        players = []
+        for signup in all_signups_records:
+            # We only need a partial dict for sorting and display
+            kc_raw = signup.get("KC", 0)
+            try: kc_val = int(kc_raw)
+            except (ValueError, TypeError): kc_val = 9999 if signup.get("Proficiency", "").lower() == 'mentor' else 0
+            
+            proficiency_val = signup.get("Proficiency", "").lower()
+            if proficiency_val != 'mentor':
+                if kc_val <= 10: proficiency_val = "new"
+                elif 11 <= kc_val <= 25: proficiency_val = "learner"
+                elif 26 <= kc_val <= 100: proficiency_val = "proficient"
+                else: proficiency_val = "highly proficient"
+
+            players.append({
+                "user_name": sanitize_nickname(signup.get("Discord_Name")),
+                "proficiency": proficiency_val,
+                "kc": kc_val, # Not used for display, but good to have
+                "has_scythe": str(signup.get("Has_Scythe", "FALSE")).upper() == "TRUE",
+                "learning_freeze": str(signup.get("Learning Freeze", "FALSE")).upper() == "TRUE",
+            })
+        
+        if not players:
+            return None
+            
+        # Sort players by proficiency rank
+        players.sort(key=prof_rank)
+        
+        embed = discord.Embed(
+            title="<:sanguine_sunday:1388100187985154130> Sanguine Sunday Signups",
+            color=discord.Color.red(),
+            timestamp=datetime.now(CST)
+        )
+        
+        # Group players by proficiency
+        grouped_players = {}
+        for p in players:
+            prof = p['proficiency'].capitalize()
+            if prof not in grouped_players:
+                grouped_players[prof] = []
+            grouped_players[prof].append(p)
+            
+        # Add fields in the correct order
+        for prof_key in PROF_ORDER.keys():
+            prof_name = prof_key.capitalize()
+            if prof_name in grouped_players:
+                player_list = grouped_players[prof_name]
+                field_value = []
+                for p in player_list:
+                    scythe = scythe_icon(p)
+                    freeze = freeze_icon(p)
+                    field_value.append(f"{p['user_name']}{scythe}{freeze}")
+                
+                embed.add_field(
+                    name=f"**{prof_name}** ({len(player_list)})",
+                    value="\n".join(field_value),
+                    inline=False
+                )
+                
+        embed.set_footer(text=f"Total Signups: {len(players)}")
+        return embed
+
     def get_previous_signup(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Fetches the latest signup data for a user from the HISTORY sheet."""
         if not self.history_sheet:
@@ -907,7 +988,7 @@ class SanguineCog(commands.Cog):
         print(f"✅ Posted Sanguine Sunday signup in #{channel.name}")
 
     async def post_reminder(self, channel: discord.TextChannel):
-        """Finds learners and posts a reminder."""
+        """Finds learners, posts a reminder, and posts all signups."""
         if not self.sang_sheet:
             print("⚠️ Cannot post reminder, Sang Sheet not connected.")
             return False
@@ -939,6 +1020,14 @@ class SanguineCog(commands.Cog):
 
             await channel.send(reminder_content, allowed_mentions=discord.AllowedMentions(users=True))
             print(f"✅ Posted Sanguine Sunday learner reminder in #{channel.name}")
+            
+            # --- NEW: Post the signups embed ---
+            signups_embed = await self._generate_signups_embed()
+            if signups_embed:
+                await channel.send(embed=signups_embed)
+                print("✅ Posted Sanguine Sunday signups embed.")
+            # --- End new ---
+            
             return True
         except Exception as e:
             print(f"🔥 GSpread error fetching/posting reminder: {e}")
@@ -971,6 +1060,51 @@ class SanguineCog(commands.Cog):
                 await interaction.followup.send(f"✅ Learner reminder posted in {target_channel.mention}.")
             else:
                 await interaction.followup.send("⚠️ Could not post the reminder.")
+
+    # --- NEW: /sangsignups command ---
+    @app_commands.command(name="sangsignups", description="Show a plain-text list of all Sanguine Sunday signups.")
+    @app_commands.checks.has_role(STAFF_ROLE_ID)
+    async def sangsignups(self, interaction: discord.Interaction):
+        if not self.sang_sheet:
+            await interaction.response.send_message("⚠️ Error: The Sanguine Sunday sheet is not connected.", ephemeral=True)
+            return
+        
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            all_signups_records = self.sang_sheet.get_all_records()
+            if not all_signups_records:
+                await interaction.followup.send("There are no signups yet for this week.", ephemeral=True)
+                return
+        except Exception as e:
+            print(f"🔥 GSheet error fetching all signups: {e}")
+            await interaction.followup.send("⚠️ An error occurred fetching signups from the database.", ephemeral=True)
+            return
+
+        names = [sanitize_nickname(signup.get("Discord_Name")) for signup in all_signups_records if signup.get("Discord_Name")]
+        
+        if not names:
+            await interaction.followup.send("There are no signups yet for this week.", ephemeral=True)
+            return
+
+        header = "Signups:\n\n"
+        message_content = header + "\n".join(names)
+        
+        # Handle Discord's 2000-character limit
+        if len(message_content) <= 2000:
+            await interaction.followup.send(message_content, ephemeral=True)
+        else:
+            # Send in chunks
+            await interaction.followup.send(header, ephemeral=True)
+            current_chunk = ""
+            for name in names:
+                if len(current_chunk) + len(name) + 1 > 2000:
+                    await interaction.followup.send(current_chunk, ephemeral=True)
+                    current_chunk = name
+                else:
+                    current_chunk += f"\n{name}"
+            if current_chunk: # Send the last chunk
+                await interaction.followup.send(current_chunk, ephemeral=True)
 
     @app_commands.command(name="sangmatch", description="Create ToB teams from signups in a voice channel.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
@@ -1220,7 +1354,7 @@ class SanguineCog(commands.Cog):
             await interaction.followup.send(f"⚠️ Failed to write export file: {e}", ephemeral=True)
 
 
-    @app_commands.command(name="sangcleanup", description="Delete auto-created SanguineSunday voice channels from the last run.")
+    @app_GOODS_Ui, description="Delete auto-created SanguineSunday voice channels from the last run.")
     @app_commands.checks.has_any_role("Administrators", "Clan Staff", "Senior Staff", "Staff", "Trial Staff")
     async def sangcleanup(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -1243,6 +1377,7 @@ class SanguineCog(commands.Cog):
     @sangmatchtest.error
     @sangexport.error
     @sangcleanup.error
+    @sangsignups.error  # --- NEW: Added error handler for new command ---
     async def sang_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.MissingRole):
             await interaction.response.send_message("❌ You don't have the required role for this command.", ephemeral=True)
@@ -1265,10 +1400,25 @@ class SanguineCog(commands.Cog):
             else:
                 print(f"🔥 Failed to post signup: Channel {SANG_CHANNEL_ID} not found.")
 
-    @tasks.loop(time=dt_time(hour=14, minute=0, tzinfo=CST))
+    # --- MODIFIED: Changed loop to run every 30 minutes ---
+    @tasks.loop(minutes=30)
     async def scheduled_post_reminder(self):
-        if datetime.now(CST).weekday() == 5:  # 5 = Saturday
-            print("It's Saturday at 2:00 PM CST. Posting Sanguine learner reminder...")
+        now = datetime.now(CST)
+        
+        # Condition 1: Saturday at 2:00 PM (14:00)
+        # Will trigger if task runs at 14:00
+        is_saturday_reminder = (now.weekday() == 5 and now.hour == 14 and now.minute < 30)
+        
+        # --- FIXED TIME: Sunday at 1:30 PM (13:30) ---
+        # Will trigger if task runs at 13:30
+        is_sunday_reminder = (now.weekday() == 6 and now.hour == 13 and now.minute >= 30)
+
+        if is_saturday_reminder or is_sunday_reminder:
+            if is_saturday_reminder:
+                print("It's Saturday at 2:00 PM CST. Posting Sanguine learner reminder...")
+            if is_sunday_reminder:
+                print("It's Sunday at 1:30 PM CST. Posting Sanguine learner reminder...")
+                
             channel = self.bot.get_channel(SANG_CHANNEL_ID)
             if channel:
                 await self.post_reminder(channel)
@@ -1298,4 +1448,6 @@ class SanguineCog(commands.Cog):
 # This setup function is required for the bot to load the Cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(SanguineCog(bot))
+
+
 
