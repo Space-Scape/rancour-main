@@ -1061,6 +1061,7 @@ class SanguineCog(commands.Cog):
             else:
                 await interaction.followup.send("⚠️ Could not post the reminder.")
 
+    # --- NEW: /sangsignups command ---
     @app_commands.command(name="sangsignups", description="Show a plain-text list of all Sanguine Sunday signups.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
     async def sangsignups(self, interaction: discord.Interaction):
@@ -1068,12 +1069,12 @@ class SanguineCog(commands.Cog):
             await interaction.response.send_message("⚠️ Error: The Sanguine Sunday sheet is not connected.", ephemeral=True)
             return
         
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=False)
         
         try:
             all_signups_records = self.sang_sheet.get_all_records()
             if not all_signups_records:
-                await interaction.followup.send("There are no signups yet for this week.", ephemeral=True)
+                await interaction.followup.send("There are no signups yet for this week.", ephemeral=False)
                 return
         except Exception as e:
             print(f"🔥 GSheet error fetching all signups: {e}")
@@ -1083,7 +1084,7 @@ class SanguineCog(commands.Cog):
         names = [sanitize_nickname(signup.get("Discord_Name")) for signup in all_signups_records if signup.get("Discord_Name")]
         
         if not names:
-            await interaction.followup.send("There are no signups yet for this week.", ephemeral=True)
+            await interaction.followup.send("There are no signups yet for this week.", ephemeral=False)
             return
 
         header = "Signups:\n\n"
@@ -1091,10 +1092,10 @@ class SanguineCog(commands.Cog):
         
         # Handle Discord's 2000-character limit
         if len(message_content) <= 2000:
-            await interaction.followup.send(message_content, ephemeral=True)
+            await interaction.followup.send(message_content, ephemeral=False)
         else:
             # Send in chunks
-            await interaction.followup.send(header, ephemeral=True)
+            await interaction.followup.send(header, ephemeral=False)
             current_chunk = ""
             for name in names:
                 if len(current_chunk) + len(name) + 1 > 2000:
@@ -1447,4 +1448,6 @@ class SanguineCog(commands.Cog):
 # This setup function is required for the bot to load the Cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(SanguineCog(bot))
+
+
 
