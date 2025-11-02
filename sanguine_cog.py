@@ -38,6 +38,8 @@ SANG_VC_CATEGORY_ID = 1376645103803830322
 SANG_POST_CHANNEL_ID = 1338295765759688767
 # --- NEW: Added VC Link ---
 SANG_VC_LINK = "https://discord.com/channels/1272629330115297330/1431953026842624090"
+# --- NEW: File to store message ID for live updates ---
+SANG_MESSAGE_ID_FILE = "sang_message_id.txt"
 
 # GSheet Config
 SANG_SHEET_ID = "1CCpDAJO7Cq581yF_-rz3vx7L_BTettVaKglSvOmvTOE"
@@ -119,8 +121,8 @@ def sanitize_nickname(name: str) -> str:
     # Remove (RSN#1234) or [RSN#1234] tags
     name = re.sub(r'\s*\([^)]*#\d{4}\)', '', name)
     name = re.sub(r'\s*\[[^\]]*#\d{4}\]', '', name)
-    # Remove leading @ from names
-    name = re.sub(r'^@', '', name)
+    # --- UPDATED: Remove leading special chars like !, #, @ ---
+    name = re.sub(r'^[!#@]+', '', name)
     return name.strip()
 
 def normalize_role(p: dict) -> str:
@@ -551,6 +553,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         wants_mentor_bool = wants_mentor_value in ["yes", "y"]
 
         user_id = str(interaction.user.id)
+        # --- MODIFIED: Sanitize name *before* saving ---
         user_name = sanitize_nickname(interaction.user.display_name)
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
         
@@ -624,6 +627,7 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         learning_freeze_bool = False
 
         user_id = str(interaction.user.id)
+        # --- MODIFIED: Sanitize name *before* saving ---
         user_name = sanitize_nickname(interaction.user.display_name)
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
         
@@ -671,6 +675,10 @@ class WithdrawalButton(ui.Button):
                 return
             
             self.cog.sang_sheet.delete_rows(cell.row)
+            
+            # --- NEW: Update the live message on withdrawal ---
+            await self.cog.update_live_signup_message()
+            
             await interaction.response.send_message(f"✅ **{user_name}**, you have been successfully withdrawn from this week's Sanguine Sunday signups.", ephemeral=True)
             print(f"✅ User {user_id} ({user_name}) withdrew from SangSignups.")
         except Exception as e:
@@ -725,6 +733,9 @@ class SanguineCog(commands.Cog):
         self.bot = bot
         self.sang_sheet = None
         self.history_sheet = None
+        # --- NEW: For live-updating message ---
+        self.live_signup_message_id = None
+        self.live_signup_message_lock = asyncio.Lock()
         
         # Initialize Google Sheets
         try:
@@ -782,6 +793,9 @@ class SanguineCog(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         """Called when the cog is loaded and the bot is ready."""
+        # --- NEW: Load the message ID on startup ---
+        await self.load_live_message_id()
+
         if not self.scheduled_post_signup.is_running():
             self.scheduled_post_signup.start()
             print("✅ Sanguine Cog: Started scheduled signup task.")
@@ -845,6 +859,11 @@ class SanguineCog(commands.Cog):
         sang_sheet_success, history_sheet_success = await loop.run_in_executor(
             None, _blocking_sheet_write
         )
+        
+        # --- NEW: Trigger live update after write ---
+        if sang_sheet_success:
+            await self.update_live_signup_message()
+
         return sang_sheet_success, history_sheet_success
 
 
@@ -878,20 +897,30 @@ class SanguineCog(commands.Cog):
             
         return embeds
 
-    # --- NEW: Helper to generate a signups embed ---
-    async def _generate_signups_embed(self) -> Optional[discord.Embed]:
+    # --- MODIFIED: Helper to generate a signups embed ---
+    async def _generate_signups_embed(self) -> discord.Embed:
         """Fetches all signups and formats them into a sorted embed."""
+        embed = discord.Embed(
+            title="<:sanguine_sunday:1388100187985154130> Sanguine Sunday Signups",
+            color=discord.Color.red(),
+            timestamp=datetime.now(CST)
+        )
+
         if not self.sang_sheet:
             print("⚠️ Cannot generate signups embed, Sang Sheet not connected.")
-            return None
+            embed.description = "⚠️ Bot could not connect to the signup sheet."
+            return embed
         
         try:
             all_signups_records = self.sang_sheet.get_all_records()
             if not all_signups_records:
-                return None # No signups, return None
+                embed.description = "No signups yet. Be the first!"
+                embed.set_footer(text="Total Signups: 0")
+                return embed
         except Exception as e:
             print(f"🔥 GSheet error fetching all signups for embed: {e}")
-            return None
+            embed.description = "⚠️ An error occurred while fetching signups."
+            return embed
         
         players = []
         for signup in all_signups_records:
@@ -916,20 +945,17 @@ class SanguineCog(commands.Cog):
             })
         
         if not players:
-            return None
+            embed.description = "No signups yet. Be the first!"
+            embed.set_footer(text="Total Signups: 0")
+            return embed
             
         # Sort players by proficiency rank
         players.sort(key=prof_rank)
         
-        embed = discord.Embed(
-            title="<:sanguine_sunday:1388100187985154130> Sanguine Sunday Signups",
-            color=discord.Color.red(),
-            timestamp=datetime.now(CST)
-        )
-        
         # Group players by proficiency
         grouped_players = {}
         for p in players:
+            # Use the display name from the sheet, which is already sanitized
             prof = p['proficiency'].capitalize()
             if prof not in grouped_players:
                 grouped_players[prof] = []
@@ -954,6 +980,58 @@ class SanguineCog(commands.Cog):
                 
         embed.set_footer(text=f"Total Signups: {len(players)}")
         return embed
+
+    # --- NEW: Methods for live-updating message ---
+    async def load_live_message_id(self):
+        """Reads the persistent message ID from a file on startup."""
+        try:
+            if os.path.exists(SANG_MESSAGE_ID_FILE):
+                with open(SANG_MESSAGE_ID_FILE, 'r') as f:
+                    self.live_signup_message_id = int(f.read().strip())
+                    print(f"✅ Loaded live signup message ID: {self.live_signup_message_id}")
+        except Exception as e:
+            print(f"🔥 Failed to load live signup message ID: {e}")
+            self.live_signup_message_id = None
+
+    async def save_live_message_id(self, message_id: Optional[int]):
+        """Saves the message ID to a file for persistence."""
+        self.live_signup_message_id = message_id
+        try:
+            if message_id is None:
+                if os.path.exists(SANG_MESSAGE_ID_FILE):
+                    os.remove(SANG_MESSAGE_ID_FILE)
+            else:
+                with open(SANG_MESSAGE_ID_FILE, 'w') as f:
+                    f.write(str(message_id))
+        except Exception as e:
+            print(f"🔥 Failed to save live signup message ID: {e}")
+
+    async def update_live_signup_message(self):
+        """Fetches all signups and edits the live message."""
+        async with self.live_signup_message_lock:
+            if not self.live_signup_message_id:
+                print("ℹ️ No live signup message ID found. Skipping update.")
+                return
+
+            new_embed = await self._generate_signups_embed()
+            
+            try:
+                channel = self.bot.get_channel(SANG_CHANNEL_ID)
+                if not channel:
+                    print(f"🔥 Cannot find channel {SANG_CHANNEL_ID} to update live message.")
+                    return
+                    
+                message = await channel.fetch_message(self.live_signup_message_id)
+                await message.edit(embed=new_embed)
+                print(f"✅ Updated live signup message: {self.live_signup_message_id}")
+            
+            except discord.NotFound:
+                print(f"🔥 Live signup message {self.live_signup_message_id} not found. Clearing ID.")
+                await self.save_live_message_id(None)
+            except discord.Forbidden:
+                print(f"🔥 Bot lacks permissions to edit message {self.live_signup_message_id}.")
+            except Exception as e:
+                print(f"🔥 Failed to update live signup message: {e}")
 
     def get_previous_signup(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Fetches the latest signup data for a user from the HISTORY sheet."""
@@ -983,9 +1061,24 @@ class SanguineCog(commands.Cog):
             return None
 
     async def post_signup(self, channel: discord.TextChannel):
-        """Posts the main signup message with the signup buttons."""
+        """Posts the main signup message and the live signup embed."""
+        # 1. Post the main message with buttons
         await channel.send(SANG_MESSAGE, view=SignupView(self))
         print(f"✅ Posted Sanguine Sunday signup in #{channel.name}")
+
+        # 2. Post the live-updating message
+        try:
+            # Start with a basic embed
+            initial_embed = await self._generate_signups_embed()
+            live_message = await channel.send(embed=initial_embed)
+            
+            # 3. Save the ID for persistence and updates
+            await self.save_live_message_id(live_message.id)
+            print(f"✅ Posted live signup message: {live_message.id}")
+            
+        except Exception as e:
+            print(f"🔥 Failed to post live signup message: {e}")
+
 
     async def post_reminder(self, channel: discord.TextChannel):
         """Finds learners, posts a reminder, and posts all signups."""
@@ -1021,12 +1114,10 @@ class SanguineCog(commands.Cog):
             await channel.send(reminder_content, allowed_mentions=discord.AllowedMentions(users=True))
             print(f"✅ Posted Sanguine Sunday learner reminder in #{channel.name}")
             
-            # --- NEW: Post the signups embed ---
-            signups_embed = await self._generate_signups_embed()
-            if signups_embed:
-                await channel.send(embed=signups_embed)
-                print("✅ Posted Sanguine Sunday signups embed.")
-            # --- End new ---
+            # --- MODIFIED: Update the existing live embed ---
+            await self.update_live_signup_message()
+            print("✅ Updated live signups embed for reminder.")
+            # --- End modification ---
             
             return True
         except Exception as e:
@@ -1053,7 +1144,7 @@ class SanguineCog(commands.Cog):
         
         if variant == 1:
             await self.post_signup(target_channel)
-            await interaction.followup.send(f"✅ Signup message posted in {target_channel.mention}.")
+            await interaction.followup.send(f"✅ Signup message & live embed posted in {target_channel.mention}.")
         elif variant == 2:
             result = await self.post_reminder(target_channel)
             if result:
@@ -1061,50 +1152,7 @@ class SanguineCog(commands.Cog):
             else:
                 await interaction.followup.send("⚠️ Could not post the reminder.")
 
-    # --- NEW: /sangsignups command ---
-    @app_commands.command(name="sangsignups", description="Show a plain-text list of all Sanguine Sunday signups.")
-    @app_commands.checks.has_role(STAFF_ROLE_ID)
-    async def sangsignups(self, interaction: discord.Interaction):
-        if not self.sang_sheet:
-            await interaction.response.send_message("⚠️ Error: The Sanguine Sunday sheet is not connected.", ephemeral=True)
-            return
-        
-        await interaction.response.defer(ephemeral=False)
-        
-        try:
-            all_signups_records = self.sang_sheet.get_all_records()
-            if not all_signups_records:
-                await interaction.followup.send("There are no signups yet for this week.", ephemeral=False)
-                return
-        except Exception as e:
-            print(f"🔥 GSheet error fetching all signups: {e}")
-            await interaction.followup.send("⚠️ An error occurred fetching signups from the database.", ephemeral=True)
-            return
-
-        names = [sanitize_nickname(signup.get("Discord_Name")) for signup in all_signups_records if signup.get("Discord_Name")]
-        
-        if not names:
-            await interaction.followup.send("There are no signups yet for this week.", ephemeral=False)
-            return
-
-        header = "Signups:\n\n"
-        message_content = header + "\n".join(names)
-        
-        # Handle Discord's 2000-character limit
-        if len(message_content) <= 2000:
-            await interaction.followup.send(message_content, ephemeral=False)
-        else:
-            # Send in chunks
-            await interaction.followup.send(header, ephemeral=False)
-            current_chunk = ""
-            for name in names:
-                if len(current_chunk) + len(name) + 1 > 2000:
-                    await interaction.followup.send(current_chunk, ephemeral=False)
-                    current_chunk = name
-                else:
-                    current_chunk += f"\n{name}"
-            if current_chunk: # Send the last chunk
-                await interaction.followup.send(current_chunk, ephemeral=False)
+    # --- REMOVED /sangsignups command ---
 
     @app_commands.command(name="sangmatch", description="Create ToB teams from signups in a voice channel.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
@@ -1353,7 +1401,7 @@ class SanguineCog(commands.Cog):
             print(f"🔥 Failed to write or send export file: {e}")
             await interaction.followup.send(f"⚠️ Failed to write export file: {e}", ephemeral=True)
 
-    # --- THIS IS THE LINE I FIXED ---
+
     @app_commands.command(name="sangcleanup", description="Delete auto-created SanguineSunday voice channels from the last run.")
     @app_commands.checks.has_any_role("Administrators", "Clan Staff", "Senior Staff", "Staff", "Trial Staff")
     async def sangcleanup(self, interaction: discord.Interaction):
@@ -1377,7 +1425,7 @@ class SanguineCog(commands.Cog):
     @sangmatchtest.error
     @sangexport.error
     @sangcleanup.error
-    @sangsignups.error  # --- NEW: Added error handler for new command ---
+    # --- REMOVED @sangsignups.error ---
     async def sang_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.MissingRole):
             await interaction.response.send_message("❌ You don't have the required role for this command.", ephemeral=True)
@@ -1434,6 +1482,10 @@ class SanguineCog(commands.Cog):
                     self.sang_sheet.clear()
                     self.sang_sheet.append_row(SANG_SHEET_HEADER)
                     print("✅ SangSignups sheet cleared and headers added.")
+                    
+                    # --- NEW: Update the live message to show "No signups" ---
+                    await self.update_live_signup_message()
+                    
                 except Exception as e:
                     print(f"🔥 Failed to clear SangSignups sheet: {e}")
             else:
@@ -1448,6 +1500,5 @@ class SanguineCog(commands.Cog):
 # This setup function is required for the bot to load the Cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(SanguineCog(bot))
-
 
 
