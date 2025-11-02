@@ -1061,7 +1061,6 @@ class SanguineCog(commands.Cog):
             else:
                 await interaction.followup.send("⚠️ Could not post the reminder.")
 
-    # --- NEW: /sangsignups command ---
     @app_commands.command(name="sangsignups", description="Show a plain-text list of all Sanguine Sunday signups.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
     async def sangsignups(self, interaction: discord.Interaction):
@@ -1099,12 +1098,12 @@ class SanguineCog(commands.Cog):
             current_chunk = ""
             for name in names:
                 if len(current_chunk) + len(name) + 1 > 2000:
-                    await interaction.followup.send(current_chunk, ephemeral=True)
+                    await interaction.followup.send(current_chunk, ephemeral=False)
                     current_chunk = name
                 else:
                     current_chunk += f"\n{name}"
             if current_chunk: # Send the last chunk
-                await interaction.followup.send(current_chunk, ephemeral=True)
+                await interaction.followup.send(current_chunk, ephemeral=False)
 
     @app_commands.command(name="sangmatch", description="Create ToB teams from signups in a voice channel.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
