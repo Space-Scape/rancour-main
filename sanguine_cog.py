@@ -1353,8 +1353,8 @@ class SanguineCog(commands.Cog):
             print(f"🔥 Failed to write or send export file: {e}")
             await interaction.followup.send(f"⚠️ Failed to write export file: {e}", ephemeral=True)
 
-
-    @app_GOODS_Ui, description="Delete auto-created SanguineSunday voice channels from the last run.")
+    # --- THIS IS THE LINE I FIXED ---
+    @app_commands.command(name="sangcleanup", description="Delete auto-created SanguineSunday voice channels from the last run.")
     @app_commands.checks.has_any_role("Administrators", "Clan Staff", "Senior Staff", "Staff", "Trial Staff")
     async def sangcleanup(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -1448,6 +1448,4 @@ class SanguineCog(commands.Cog):
 # This setup function is required for the bot to load the Cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(SanguineCog(bot))
-
-
 
