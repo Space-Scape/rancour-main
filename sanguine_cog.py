@@ -1172,7 +1172,7 @@ class SanguineCog(commands.Cog):
                 return
             vc_member_ids = {str(member.id) for member in voice_channel.members if not member.bot}
             if not vc_member_ids:
-                await interaction.followup.send(f"⚠️ No human users are in {voice_channel.mention}.")
+                await interaction.followup.send(f"⚠️ No users are in {voice_channel.mention}.")
                 return
         
         try:
@@ -1238,7 +1238,7 @@ class SanguineCog(commands.Cog):
         if category and hasattr(category, "create_voice_channel"):
             for i in range(len(teams)):
                 try:
-                    await category.create_voice_channel(name=f"SanguineSunday – Team {i+1}", user_limit=5)
+                    await category.create_voice_channel(name=f"SangSunTeam {i+1}")
                 except Exception as e:
                     print(f"Error creating VC: {e}") 
 
