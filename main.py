@@ -104,6 +104,7 @@ COLLAT_CHANNEL_ID = 1272648340940525648
 EVENT_SCHEDULE_CHANNEL_ID = 1274957572977197138
 SANG_CHANNEL_ID = 1338295765759688767
 STAFF_ROLE_ID = 1272635396991221824
+TRIAL_STAFF_ROLE_ID = 1431045433798688768
 MENTOR_ROLE_ID = 1306021911830073414
 SANG_ROLE_ID = 1387153629072592916
 TOB_ROLE_ID = 1272694636921753701
@@ -600,12 +601,7 @@ class WelcomeView(View):
 
     @discord.ui.button(label="Approve & Close", style=discord.ButtonStyle.success, custom_id="approve_and_close")
     async def approve_and_close(self, interaction: discord.Interaction, button: Button):
-        # Permission Check
-        staff_role = discord.utils.get(interaction.guild.roles, id=STAFF_ROLE_ID)
-        if staff_role not in interaction.user.roles:
-            await interaction.response.send_message("❌ You do not have permission to use this button.", ephemeral=True)
-            return
-        
+
         if not isinstance(interaction.channel, discord.Thread):
             await interaction.response.send_message("❌ This button can only be used in a ticket thread.", ephemeral=True)
             return
@@ -732,7 +728,7 @@ class RoleButton(Button):
             await interaction.user.add_roles(role)
             feedback = f"{interaction.user.mention}, role **{role_name}** added."
 
-        await interaction.response.send_message(feedback, ephemeral=False)
+        await interaction.response.send_message(feedback, ephemeral=True)
         await asyncio.sleep(1)
         try:
             await interaction.delete_original_response()
@@ -1646,7 +1642,7 @@ class CollatButtons(discord.ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user == self.author or (self.mentioned and interaction.user == self.mentioned):
             return True
-        await interaction.response.send_message("You are not allowed to interact with this post.", ephemeral=True)
+        await interaction.response.send_message("You are not involved in this collat.", ephemeral=True)
         return False
 
     async def disable_all(self, interaction: discord.Interaction):
@@ -1859,11 +1855,11 @@ class JusticePanelView(View):
         await interaction.response.send_modal(JusticeActionModal("ban"))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        """Checks if the user has the Clan Staff role."""
-        staff_role = discord.utils.get(interaction.guild.roles, id=STAFF_ROLE_ID)
+        """Checks if the user has the Trial Staff role."""
+        staff_role = discord.utils.get(interaction.guild.roles, id=TRIAL_STAFF_ROLE_ID)
         if staff_role and staff_role in interaction.user.roles:
             return True
-        await interaction.response.send_message("❌ This panel is for Clan Staff members only.", ephemeral=True)
+        await interaction.response.send_message("❌ This panel is for Trial Staff members only.", ephemeral=True)
         return False
 
 
@@ -1878,7 +1874,7 @@ async def justice_panel(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🛡️ Justice Panel 🛡️",
         description=(
-            "This panel serves as a server protection system. It allows Clan Staff to request the removal of a user, subject to approval.\n\n"
+            "This panel serves as a server protection system. It allows Trial Staff to request the removal of a user, subject to approval.\n\n"
             "**Instructions for Trial Staff:**\n"
             "1. Click **Initiate Kick** or **Initiate Ban**.\n"
             "2. Fill out the user's **exact name or ID** and a **detailed reason**.\n"
