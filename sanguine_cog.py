@@ -7,7 +7,7 @@ import gspread
 import asyncio
 import re
 # --- NEW IMPORT ---
-import functools 
+import functools
 from discord import ui, ButtonStyle, Member
 from discord.ui import View, Button, Modal, TextInput
 from typing import Optional, List, Dict, Any
@@ -34,8 +34,11 @@ TOB_ROLE_ID = 1272694636921753701
 SENIOR_STAFF_CHANNEL_ID = 1336473990302142484
 ADMINISTRATOR_ROLE_ID = 1272961765034164318
 SENIOR_STAFF_ROLE_ID = 1336473488159936512
-SANG_VC_CATEGORY_ID = 1376645103803830322
+# --- UPDATED VC CATEGORY ID ---
+SANG_VC_CATEGORY_ID = 1272808271392014336
 SANG_POST_CHANNEL_ID = 1338295765759688767
+# --- NEW: Matchmaking VC ID ---
+SANG_MATCHMAKING_VC_ID = 1431953026842624090
 # --- NEW: Added VC Link ---
 SANG_VC_LINK = "https://discord.com/channels/1272629330115297330/1431953026842624090"
 # --- NEW: File to store message ID for live updates ---
@@ -83,7 +86,7 @@ Click a button below to sign up for the event.
 - **Mentor:** Fill out the form to sign up as a mentor.
 - **Withdraw:** Remove your name from this week's signup list.
 
-The form will remember your answers from past events! 
+The form will remember your answers from past events! 
 You only need to edit Kc's and Roles.
 
 Event link: <https://discord.com/events/1272629330115297330/1386302870646816788>
@@ -281,9 +284,9 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         
         if player.get('learning_freeze') and any(p.get('learning_freeze') for p in team):
             return False
-                
+                    
         if (normalize_role(player) == "new" or player.get("wants_mentor")) and not any(normalize_role(p) == "mentor" for p in team):
-             return False # BLOCK: No mentor on team.
+                 return False # BLOCK: No mentor on team.
 
         return True
 
@@ -370,9 +373,9 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         for i in range(T):
             team_has_mentor = any(normalize_role(p) == "mentor" for p in teams[i])
             if team_has_mentor and can_add(player, teams[i], max_sizes[i]): # can_add checks blacklist
-                 teams[i].append(player)
-                 placed = True
-                 break
+               teams[i].append(player)
+               placed = True
+               break
         
         if placed:
             continue
@@ -716,7 +719,7 @@ class SignupView(View):
         # clear the "X" so the placeholder text shows instead.
         if previous_data and previous_data.get("KC") == "X":
              previous_data["KC"] = "" 
-             
+              
         await interaction.response.send_modal(MentorSignupForm(self.cog, previous_data=previous_data))
 
 
@@ -1154,26 +1157,27 @@ class SanguineCog(commands.Cog):
 
     # --- REMOVED /sangsignups command ---
 
-    @app_commands.command(name="sangmatch", description="Create ToB teams from signups in a voice channel.")
+    @app_commands.command(name="sangmatch", description="Create ToB teams from users in the designated voice channel.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
-    @app_commands.describe(voice_channel="Optional: The voice channel to pull users from. If omitted, uses all signups.")
-    async def sangmatch(self, interaction: discord.Interaction, voice_channel: Optional[discord.VoiceChannel] = None):
+    async def sangmatch(self, interaction: discord.Interaction):
         if not self.sang_sheet:
             await interaction.response.send_message("⚠️ Error: The Sanguine Sunday sheet is not connected.", ephemeral=True)
             return
         await interaction.response.defer(ephemeral=False)
         
-        vc_member_ids = None 
-        channel_name = "All Signups" 
-        if voice_channel: 
-            channel_name = voice_channel.name
-            if not voice_channel.members:
-                await interaction.followup.send(f"⚠️ No users are in {voice_channel.mention}.")
-                return
-            vc_member_ids = {str(member.id) for member in voice_channel.members if not member.bot}
-            if not vc_member_ids:
-                await interaction.followup.send(f"⚠️ No users are in {voice_channel.mention}.")
-                return
+        voice_channel = self.bot.get_channel(SANG_MATCHMAKING_VC_ID)
+        if not voice_channel or not isinstance(voice_channel, discord.VoiceChannel):
+            await interaction.followup.send("⚠️ Matchmaking voice channel not found or is not a voice channel.")
+            return
+
+        channel_name = voice_channel.name
+        if not voice_channel.members:
+            await interaction.followup.send(f"⚠️ No users are in {voice_channel.mention}.")
+            return
+        vc_member_ids = {str(member.id) for member in voice_channel.members if not member.bot}
+        if not vc_member_ids:
+            await interaction.followup.send(f"⚠️ No human users are in {voice_channel.mention}.")
+            return
         
         try:
             all_signups_records = self.sang_sheet.get_all_records()
@@ -1234,11 +1238,19 @@ class SanguineCog(commands.Cog):
         
         guild = interaction.guild
         category = guild.get_channel(SANG_VC_CATEGORY_ID)
+        created_vcs = []
         
-        if category and hasattr(category, "create_voice_channel"):
-            for i in range(len(teams)):
+        if category and isinstance(category, discord.CategoryChannel):
+            for i, team in enumerate(teams):
                 try:
-                    await category.create_voice_channel(name=f"SangSunTeam {i+1}")
+                    mentor_name = f"Team{i+1}"
+                    if team: # Make sure team is not empty
+                        # First player in sorted team is the anchor/mentor
+                        mentor_name = sanitize_nickname(team[0].get("user_name", mentor_name))
+                    
+                    vc_name = f"SanSun{mentor_name}"
+                    new_vc = await category.create_voice_channel(name=vc_name)
+                    created_vcs.append(new_vc)
                 except Exception as e:
                     print(f"Error creating VC: {e}") 
 
@@ -1264,28 +1276,34 @@ class SanguineCog(commands.Cog):
                 await interaction.followup.send(embed=embed)
             else:
                 await post_channel.send(embed=embed)
+        
+        if created_vcs:
+            links = [f"Team {i+1}: {vc.mention}" for i, vc in enumerate(created_vcs)]
+            await post_channel.send("🔊 **Team Voice Channels**\n" + "\n".join(links))
 
 
-    @app_commands.command(name="sangmatchtest", description="Create ToB teams without pinging or creating voice channels; show plain-text nicknames.")
+    @app_commands.command(name="sangmatchtest", description="Create ToB teams from the designated VC without pings/creating channels.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
-    @app_commands.describe(voice_channel="Optional: The voice channel to pull users from. If omitted, uses all signups.", channel="(Optional) Override the text channel to post teams (testing).")
-    async def sangmatchtest(self, interaction: discord.Interaction, voice_channel: Optional[discord.VoiceChannel] = None, channel: Optional[discord.TextChannel] = None):
+    @app_commands.describe(channel="(Optional) Override the text channel to post teams (testing).")
+    async def sangmatchtest(self, interaction: discord.Interaction, channel: Optional[discord.TextChannel] = None):
         if not self.sang_sheet:
             await interaction.response.send_message("⚠️ Error: The Sanguine Sunday sheet is not connected.", ephemeral=True)
             return
         await interaction.response.defer(ephemeral=False)
 
-        vc_member_ids = None
-        channel_name = "All Signups"
-        if voice_channel:
-            channel_name = voice_channel.name
-            if not voice_channel.members:
-                await interaction.followup.send(f"⚠️ No users are in {voice_channel.mention}.")
-                return
-            vc_member_ids = {str(m.id) for m in voice_channel.members if not m.bot}
-            if not vc_member_ids:
-                await interaction.followup.send(f"⚠️ No human users are in {voice_channel.mention}.")
-                return
+        voice_channel = self.bot.get_channel(SANG_MATCHMAKING_VC_ID)
+        if not voice_channel or not isinstance(voice_channel, discord.VoiceChannel):
+            await interaction.followup.send("⚠️ Matchmaking voice channel not found or is not a voice channel.")
+            return
+
+        channel_name = voice_channel.name
+        if not voice_channel.members:
+            await interaction.followup.send(f"⚠️ No users are in {voice_channel.mention}.")
+            return
+        vc_member_ids = {str(m.id) for m in voice_channel.members if not m.bot}
+        if not vc_member_ids:
+            await interaction.followup.send(f"⚠️ No human users are in {voice_channel.mention}.")
+            return
 
         try:
             all_signups_records = self.sang_sheet.get_all_records()
@@ -1413,7 +1431,7 @@ class SanguineCog(commands.Cog):
         deleted = 0
         for ch in list(category.channels):
             try:
-                if isinstance(ch, discord.VoiceChannel) and ch.name.startswith("SanguineSunday – Team "):
+                if isinstance(ch, discord.VoiceChannel) and ch.name.startswith("SanSun"):
                     await ch.delete(reason="sangcleanup")
                     deleted += 1
             except Exception:
@@ -1500,5 +1518,3 @@ class SanguineCog(commands.Cog):
 # This setup function is required for the bot to load the Cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(SanguineCog(bot))
-
-
