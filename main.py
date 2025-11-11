@@ -104,7 +104,7 @@ COLLAT_CHANNEL_ID = 1272648340940525648
 EVENT_SCHEDULE_CHANNEL_ID = 1274957572977197138
 SANG_CHANNEL_ID = 1338295765759688767
 STAFF_ROLE_ID = 1272635396991221824
-TRIAL_STAFF_ROLE_ID = 1431045433798688768
+
 MENTOR_ROLE_ID = 1306021911830073414
 SANG_ROLE_ID = 1387153629072592916
 TOB_ROLE_ID = 1272694636921753701
@@ -544,7 +544,7 @@ async def help(interaction: discord.Interaction):
         """,
         inline=False
     )
-    
+
     embed.add_field(
         name="💰 Clan Coffer Commands",
         value="""
@@ -558,7 +558,7 @@ async def help(interaction: discord.Interaction):
         """,
         inline=False
     )
-    
+
     # This section will now also include commands from your cog
     embed.add_field(
         name="🩸 Sanguine Sunday (ToB)",
@@ -601,13 +601,18 @@ class WelcomeView(View):
 
     @discord.ui.button(label="Approve & Close", style=discord.ButtonStyle.success, custom_id="approve_and_close")
     async def approve_and_close(self, interaction: discord.Interaction, button: Button):
-
+        # Permission Check
+        staff_role = discord.utils.get(interaction.guild.roles, id=STAFF_ROLE_ID)
+        if staff_role not in interaction.user.roles:
+            await interaction.response.send_message("❌ You do not have permission to use this button.", ephemeral=True)
+            return
+        
         if not isinstance(interaction.channel, discord.Thread):
             await interaction.response.send_message("❌ This button can only be used in a ticket thread.", ephemeral=True)
             return
 
         await interaction.response.send_message(f"✅ Ticket approved and closed by {interaction.user.mention}.")
-        
+
         # Lock and archive the thread
         await interaction.channel.edit(locked=True, archived=True)
 
@@ -831,14 +836,14 @@ class SupportTicketActionView(View):
 
         try:
             await self.target_user.add_roles(role_to_add)
-            
+
             embed = discord.Embed(
                 title="✅ Request Approved",
                 color=discord.Color.green(),
                 description=f"The {self.role_name} role has been granted to {self.target_user.mention}.\nThis thread can now be closed."
             )
             embed.set_footer(text=f"Approved by {interaction.user.display_name}")
-            
+
             # Edit the original message, replacing the view with the close button
             await interaction.response.edit_message(embed=embed, view=CloseThreadView())
 
@@ -866,7 +871,7 @@ class SupportTicketActionView(View):
         await asyncio.sleep(5) 
         if isinstance(interaction.channel, discord.Thread):
             await interaction.channel.edit(archived=True, locked=True)
-            
+
 class SupportTicketButton(Button):
     """A custom button that creates a support ticket thread when clicked."""
     def __init__(self, role_name: str, emoji=None):
@@ -889,7 +894,7 @@ class SupportTicketButton(Button):
             "Technical/Bot Support": "This ticket is for the technical support role, focused on reporting issues with the bot, spreadsheets, or other server functions. An Administrator will be looped in for any necessary code or server changes.",
             "Mentor Support": "This ticket is for the mentor support role, which assists with questions related to PvM learning, raid mechanics, and connecting members with mentors."
         }
-        
+
         description = role_descriptions.get(self.label, "A new support role request has been opened.")
 
 
@@ -902,7 +907,7 @@ class SupportTicketButton(Button):
             await thread.add_user(user)
 
             admin_role_mention = f"<@&{ADMINISTRATOR_ROLE_ID}>"
-            
+
             embed = discord.Embed(
                 title=f"New '{self.label}' Role Request",
                 description=description,
@@ -1568,7 +1573,7 @@ async def send_support_panel(channel: discord.TextChannel):
     """Posts or updates the support specialty role selection panel."""
     if not channel:
         return
-        
+
     embed = discord.Embed(
         title="🛠️ Staff Support Specialties",
         description="""Clan Staff: Select your area of specialty to assist members more effectively. This helps route member tickets to the most knowledgeable staff member.
@@ -1580,7 +1585,7 @@ async def send_support_panel(channel: discord.TextChannel):
 🎓 **Mentor Support:** For staff members who are also official mentors and can assist with PvM/raid-related questions from Mentors, Mentor Ticket control, and assist with adding new Mentors.""",
         color=discord.Color.teal()
     )
-    
+
     # Check if the panel already exists
     async for message in channel.history(limit=5):
         if message.author == bot.user and message.embeds and message.embeds[0].title == embed.title:
@@ -1642,7 +1647,7 @@ class CollatButtons(discord.ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user == self.author or (self.mentioned and interaction.user == self.mentioned):
             return True
-        await interaction.response.send_message("You are not involved in this collat.", ephemeral=True)
+        await interaction.response.send_message("You are not allowed to interact with this post.", ephemeral=True)
         return False
 
     async def disable_all(self, interaction: discord.Interaction):
@@ -1792,7 +1797,7 @@ async def support_panel(interaction: discord.Interaction):
     if not channel:
         await interaction.response.send_message("❌ Support panel channel not found. Please set it in the config.", ephemeral=True)
         return
-    
+
     await send_support_panel(channel)
     await interaction.response.send_message(f"✅ Support specialty panel posted in {channel.mention}.", ephemeral=True)
 
@@ -1835,9 +1840,9 @@ class JusticeActionModal(Modal):
         embed.add_field(name="Initiated By", value=interaction.user.mention, inline=False)
         embed.add_field(name="Reason", value=self.reason.value, inline=False)
         embed.set_footer(text="Please review carefully before taking action.")
-        
+
         view = ApprovalView(initiator=interaction.user, target=target, action=self.action, reason=self.reason.value)
-        
+
         await senior_staff_channel.send(embed=embed, view=view)
         await interaction.followup.send(f"✅ Your request to **{self.action} {target.name}** has been sent to Senior Staff for approval.", ephemeral=True)
 
@@ -1855,11 +1860,11 @@ class JusticePanelView(View):
         await interaction.response.send_modal(JusticeActionModal("ban"))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        """Checks if the user has the Trial Staff role."""
-        staff_role = discord.utils.get(interaction.guild.roles, id=TRIAL_STAFF_ROLE_ID)
+        """Checks if the user has the Clan Staff role."""
+        staff_role = discord.utils.get(interaction.guild.roles, id=STAFF_ROLE_ID)
         if staff_role and staff_role in interaction.user.roles:
             return True
-        await interaction.response.send_message("❌ This panel is for Trial Staff members only.", ephemeral=True)
+        await interaction.response.send_message("❌ This panel is for Clan Staff members only.", ephemeral=True)
         return False
 
 
@@ -1874,7 +1879,7 @@ async def justice_panel(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🛡️ Justice Panel 🛡️",
         description=(
-            "This panel serves as a server protection system. It allows Trial Staff to request the removal of a user, subject to approval.\n\n"
+            "This panel serves as a server protection system. It allows Clan Staff to request the removal of a user, subject to approval.\n\n"
             "**Instructions for Trial Staff:**\n"
             "1. Click **Initiate Kick** or **Initiate Ban**.\n"
             "2. Fill out the user's **exact name or ID** and a **detailed reason**.\n"
@@ -1914,7 +1919,7 @@ async def on_message(message: discord.Message):
         if valid_mention or message.attachments or has_pasted_image:
             view = CollatButtons(message.author, valid_mention)
             await message.reply("Collat actions:", view=view, allowed_mentions=discord.AllowedMentions.none())
-        
+
 @bot.event
 async def on_member_update(before: discord.Member, after: discord.Member):
     """Sends a DM to a user when they receive the Inactive role."""
@@ -1930,7 +1935,7 @@ async def on_member_update(before: discord.Member, after: discord.Member):
     roles_added = set(after.roles) - set(before.roles)
 
     inactive_role = discord.utils.get(after.guild.roles, id=INACTIVE_ROLE_ID)
-    
+
     if inactive_role and inactive_role in roles_added:
         message_content = (
             f"Hey {after.display_name}! :wave:\n\n"
@@ -2015,7 +2020,7 @@ async def on_ready():
     if role_channel:
         guild = role_channel.guild
         print("🔄 Purging and reposting role assignment panels...")
-        
+
         # Purge old messages from the bot
         try:
             async for msg in role_channel.history(limit=50):
@@ -2027,7 +2032,7 @@ async def on_ready():
             print(f"❌ Error purging role channel: {e}")
 
         await role_channel.send("https://i.postimg.cc/8G3CWSDP/info.png") # Banner
-        
+
         await role_channel.send(
             "Select your roles below to get pings for group content and events!",
             allowed_mentions=discord.AllowedMentions.none()
@@ -2062,6 +2067,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         print("Bot is shutting down...")
-
-
-
