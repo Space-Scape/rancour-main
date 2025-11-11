@@ -599,23 +599,6 @@ class WelcomeView(View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Approve & Close", style=discord.ButtonStyle.success, custom_id="approve_and_close")
-    async def approve_and_close(self, interaction: discord.Interaction, button: Button):
-        # Permission Check
-        staff_role = discord.utils.get(interaction.guild.roles, id=STAFF_ROLE_ID)
-        if staff_role not in interaction.user.roles:
-            await interaction.response.send_message("❌ You do not have permission to use this button.", ephemeral=True)
-            return
-        
-        if not isinstance(interaction.channel, discord.Thread):
-            await interaction.response.send_message("❌ This button can only be used in a ticket thread.", ephemeral=True)
-            return
-
-        await interaction.response.send_message(f"✅ Ticket approved and closed by {interaction.user.mention}.")
-
-        # Lock and archive the thread
-        await interaction.channel.edit(locked=True, archived=True)
-
 @bot.tree.command(name="welcome", description="Welcome the ticket creator and give them the Recruit role.")
 async def welcome(interaction: discord.Interaction):
     if not isinstance(interaction.channel, discord.Thread):
@@ -1861,7 +1844,7 @@ class JusticePanelView(View):
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Checks if the user has the Clan Staff role."""
-        staff_role = discord.utils.get(interaction.guild.roles, id=STAFF_ROLE_ID)
+        staff_role = discord.utils.get(interaction.guild.roles, id=1431045433798688768)
         if staff_role and staff_role in interaction.user.roles:
             return True
         await interaction.response.send_message("❌ This panel is for Clan Staff members only.", ephemeral=True)
@@ -1879,7 +1862,7 @@ async def justice_panel(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🛡️ Justice Panel 🛡️",
         description=(
-            "This panel serves as a server protection system. It allows Clan Staff to request the removal of a user, subject to approval.\n\n"
+            "This panel serves as a server protection system. It allows Trial Staff to request the removal of a user, subject to approval.\n\n"
             "**Instructions for Trial Staff:**\n"
             "1. Click **Initiate Kick** or **Initiate Ban**.\n"
             "2. Fill out the user's **exact name or ID** and a **detailed reason**.\n"
