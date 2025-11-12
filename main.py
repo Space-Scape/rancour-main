@@ -1076,39 +1076,29 @@ async def rsn_panel_error(interaction: discord.Interaction, error):
 # 🔹 Translator
 # ---------------------------
 async def get_pirate_translation(text: str):
-    """A helper function to call the pirate API with timeouts and debugging."""
+    """A helper function to call the pirate API and return the translation."""
     if not text:
         return None
         
     base_url = "https://pirate.monkeyness.com/api/translate?english="
     encoded_text = urllib.parse.quote_plus(text)
     full_url = f"{base_url}{encoded_text}"
-    
     timeout = aiohttp.ClientTimeout(total=10)
 
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            print(f"[TRANSLATE DEBUG] Making GET request to: {full_url}")
             async with session.get(full_url) as response:
-                print(f"[TRANSLATE DEBUG] Received status code: {response.status}")
                 if response.status == 200:
-                    translation = await response.text()
-                    print(f"[TRANSLATE DEBUG] API returned text: {translation}")
-                    return translation
+                    return await response.text()
                 else:
                     return None
     except Exception as e:
-        # This will catch timeouts and other connection errors
-        print(f"[TRANSLATE ERROR] The API request failed: {e}")
+        print(f"Pirate API request failed: {e}")
         return None
 
 @bot.tree.command(name="pirate", description="Translates text or a message link into pirate speak")
 async def pirate(interaction: discord.Interaction, message: str):
-    """
-    Translates a message or the content of a message link into pirate speak.
-    """
     await interaction.response.defer()
-
     content_to_translate = ""
     
     link_pattern = r"https://discord\.com/channels/(\d+)/(\d+)/(\d+)"
@@ -1118,27 +1108,19 @@ async def pirate(interaction: discord.Interaction, message: str):
         guild_id, channel_id, message_id = map(int, match.groups())
         try:
             channel = bot.get_channel(channel_id)
-            if channel is None:
-                await interaction.followup.send("Arr, I can't seem to find that channel.")
-                return
             fetched_message = await channel.fetch_message(message_id)
             content_to_translate = fetched_message.content
-            if not content_to_translate:
-                await interaction.followup.send("That message be empty, matey! Nothin' to translate.")
-                return
-        except (discord.NotFound, discord.Forbidden, Exception) as e:
-            error_messages = {
-                discord.NotFound: "Shiver me timbers! That message could not be found.",
-                discord.Forbidden: "I don't have permission to view that channel, savvy?",
-            }
-            error_message = error_messages.get(type(e), f"An unknown error occurred while fetchin' the message: {e}")
-            await interaction.followup.send(error_message)
+        except Exception:
+            await interaction.followup.send("Arr, I couldn't seem to fetch that message, matey.")
             return
     else:
         content_to_translate = message
+
     translation = await get_pirate_translation(content_to_translate)
+    
     if translation:
-        await interaction.followup.send(translation)
+        emoji = random.choice(PIRATE_EMOJIS)
+        await interaction.followup.send(f"{emoji} {translation}")
     else:
         await interaction.followup.send("Arr, me translator be shipwrecked! Couldn't get a response.")
 
@@ -1952,8 +1934,11 @@ async def justice_panel(interaction: discord.Interaction):
 # ---------------------------
 TARGET_CHANNEL_ID = 1272629331524587623
 message_counter = 0
-translation_threshold = random.randint(5, 10)
-# ---------------------------------------------
+translation_threshold = random.randint(5, 25)
+PIRATE_EMOJIS = [
+    "⚓", "🏴‍☠️", "☸", "🌊", "🏝️", "🗺️", "🦜", "🧭", "☠️", "🔱", "⚔︎", 
+    "<:sailing:1437972148881850469>", "🪙"
+]
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -1992,14 +1977,15 @@ async def on_message(message: discord.Message):
         if message_counter >= translation_threshold:
             print(f"[DEBUG] Threshold met! Translating '{message.content}'...")
             
-            translation = await get_pirate_translation(message.content)
+            translation = await get_pira te_translation(message.content)
             print(f"[DEBUG] API Response: {translation}")
             
             if translation:
-                await message.channel.send(translation)
+                emoji = random.choice(PIRATE_EMOJIS)
+                await message.channel.send(f"{emoji} {translation}")
             
             message_counter = 0
-            translation_threshold = random.randint(5, 10)
+            translation_threshold = random.randint(1, 5)
             print(f"[DEBUG] Counter reset. New threshold is {translation_threshold}.")
 
 @bot.event
