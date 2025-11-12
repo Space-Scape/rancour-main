@@ -86,7 +86,7 @@ Click a button below to sign up for the event.
 - **Mentor:** Fill out the form to sign up as a mentor.
 - **Withdraw:** Remove your name from this week's signup list.
 
-The form will remember your answers from past events! 
+The form will remember your answers from past events! 
 You only need to edit Kc's and Roles.
 
 Event link: <https://discord.com/events/1272629330115297330/1386302870646816788>
@@ -595,10 +595,10 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         super().__init__(title="Sanguine Sunday Mentor Signup")
         self.cog = cog
         if previous_data:
-             self.roles_known.default = previous_data.get("Favorite Roles", "")
-             kc_val = previous_data.get("KC", "")
-             self.kc.default = str(kc_val) if kc_val not in ["", None, "X"] else ""
-             self.has_scythe.default = "Yes" if previous_data.get("Has_Scythe", False) else "No"
+                 self.roles_known.default = previous_data.get("Favorite Roles", "")
+                 kc_val = previous_data.get("KC", "")
+                 self.kc.default = str(kc_val) if kc_val not in ["", None, "X"] else ""
+                 self.has_scythe.default = "Yes" if previous_data.get("Has_Scythe", False) else "No"
         
         self.previous_data = previous_data # Store for blacklist
 
@@ -705,8 +705,8 @@ class SignupView(View):
         user = interaction.user
         member = interaction.guild.get_member(user.id)
         if not member:
-             await interaction.response.send_message("⚠️ Could not verify your roles. Please try again.", ephemeral=True)
-             return
+                 await interaction.response.send_message("⚠️ Could not verify your roles. Please try again.", ephemeral=True)
+                 return
 
         # Get previous data regardless of role
         previous_data = self.cog.get_previous_signup(str(user.id))
@@ -718,8 +718,8 @@ class SignupView(View):
         # If they previously auto-signed up (KC == "X")
         # clear the "X" so the placeholder text shows instead.
         if previous_data and previous_data.get("KC") == "X":
-             previous_data["KC"] = "" 
-              
+                 previous_data["KC"] = "" 
+                 
         await interaction.response.send_modal(MentorSignupForm(self.cog, previous_data=previous_data))
 
 
@@ -1066,8 +1066,17 @@ class SanguineCog(commands.Cog):
     async def post_signup(self, channel: discord.TextChannel):
         """Posts the main signup message and the live signup embed."""
         # 1. Post the main message with buttons
-        await channel.send(SANG_MESSAGE, view=SignupView(self))
+        signup_message = await channel.send(SANG_MESSAGE, view=SignupView(self))
         print(f"✅ Posted Sanguine Sunday signup in #{channel.name}")
+
+        # --- NEW: Pin the signup message ---
+        try:
+            await signup_message.pin()
+            print(f"📌 Pinned signup message in #{channel.name}")
+        except discord.Forbidden:
+            print(f"⚠️ Could not pin message in #{channel.name}. Missing permissions.")
+        except Exception as e:
+            print(f"🔥 Failed to pin message: {e}")
 
         # 2. Post the live-updating message
         try:
@@ -1374,7 +1383,7 @@ class SanguineCog(commands.Cog):
                 await post_channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
         
         if interaction.channel != post_channel:
-             await interaction.followup.send("✅ Posted no-ping test teams (no voice channels created).", ephemeral=True)
+                 await interaction.followup.send("✅ Posted no-ping test teams (no voice channels created).", ephemeral=True)
 
 
     @app_commands.command(name="sangexport", description="Export the most recently generated teams to a text file.")
