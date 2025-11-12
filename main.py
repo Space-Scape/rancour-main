@@ -11,6 +11,8 @@ from discord import ButtonStyle
 from typing import Optional
 from datetime import datetime, timedelta, timezone, time
 from zoneinfo import ZoneInfo
+import aiohttp
+import urllib.parse
 
 # ---------------------------
 # 🔹 Google Sheets Setup
@@ -1068,6 +1070,66 @@ async def rsn_panel_error(interaction: discord.Interaction, error):
             "⛔ You do not have permission to use this command.",
             ephemeral=True
         )
+
+# ---------------------------
+# 🔹 Translator
+# ---------------------------
+@bot.tree.command(name="pirate", description="Translates text or a message link into pirate speak")
+async def pirate(interaction: discord.Interaction, message: str):
+    """
+    Translates a message or the content of a message link into pirate speak.
+    Usage:
+    /pirate message:Hey what's up guys?
+    /pirate message:https://discord.com/channels/.../.../...
+    """
+    await interaction.response.defer()
+
+    content_to_translate = ""
+    
+    link_pattern = r"https://discord\.com/channels/(\d+)/(\d+)/(\d+)"
+    match = re.match(link_pattern, message)
+
+    if match:
+        guild_id, channel_id, message_id = map(int, match.groups())
+        try:
+            channel = bot.get_channel(channel_id)
+            if channel is None:
+                await interaction.followup.send("Arr, I can't seem to find that channel.")
+                return
+            
+            fetched_message = await channel.fetch_message(message_id)
+            content_to_translate = fetched_message.content
+            
+            if not content_to_translate:
+                await interaction.followup.send("That message be empty, matey! Nothin' to translate.")
+                return
+
+        except discord.NotFound:
+            await interaction.followup.send("Shiver me timbers! That message could not be found.")
+            return
+        except discord.Forbidden:
+            await interaction.followup.send("I don't have permission to view that channel, savvy?")
+            return
+        except Exception as e:
+            await interaction.followup.send(f"An unknown error occurred while fetchin' the message: {e}")
+            return
+    else:
+        content_to_translate = message
+
+    base_url = "https://pirate.monkeyness.com/api/translate?english="
+    encoded_message = urllib.parse.quote_plus(content_to_translate)
+    full_url = f"{base_url}{encoded_message}"
+
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(full_url) as response:
+                if response.status == 200:
+                    translation = await response.text()
+                    await interaction.followup.send(translation)
+                else:
+                    await interaction.followup.send(f"Arr, I couldn't get a translation. The server be returnin' a {response.status} status.")
+        except aiohttp.ClientError as e:
+            await interaction.followup.send(f"Arr, me ship's network be actin' up! Couldn't connect. Error: {e}")
 
 # ---------------------------
 # 🔹 TimeZones
