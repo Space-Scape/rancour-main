@@ -1075,8 +1075,33 @@ async def rsn_panel_error(interaction: discord.Interaction, error):
 # ---------------------------
 # 🔹 Translator
 # ---------------------------
-# Assumes the get_pirate_translation(text) function from the previous step exists
-# and that the necessary imports (re, aiohttp, urllib) are present.
+async def get_pirate_translation(text: str):
+    """A helper function to call the pirate API with timeouts and debugging."""
+    if not text:
+        return None
+        
+    base_url = "https://pirate.monkeyness.com/api/translate?english="
+    encoded_text = urllib.parse.quote_plus(text)
+    full_url = f"{base_url}{encoded_text}"
+    
+    # Set a timeout for the request (e.g., 10 seconds)
+    timeout = aiohttp.ClientTimeout(total=10)
+
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            print(f"[TRANSLATE DEBUG] Making GET request to: {full_url}")
+            async with session.get(full_url) as response:
+                print(f"[TRANSLATE DEBUG] Received status code: {response.status}")
+                if response.status == 200:
+                    translation = await response.text()
+                    print(f"[TRANSLATE DEBUG] API returned text: {translation}")
+                    return translation
+                else:
+                    return None
+    except Exception as e:
+        # This will catch timeouts and other connection errors
+        print(f"[TRANSLATE ERROR] The API request failed: {e}")
+        return None
 
 @bot.tree.command(name="pirate", description="Translates text or a message link into pirate speak")
 async def pirate(interaction: discord.Interaction, message: str):
