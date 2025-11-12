@@ -2112,7 +2112,7 @@ async def on_ready():
         boss_embed = discord.Embed(title="⚔︎ 𝔊𝔯𝔬𝔲p B𝔬𝔰𝔰𝔢𝔰 ⚔︎", description="Roles for God Wars Dungeon, Corporeal Beast, and more.", color=0xC0C0C0)
         await role_channel.send(embed=boss_embed, view=BossesView(guild))
 
-        events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢𝔫𝔱𝔰 ⚔︎", description="Roles for clan events, skill/boss of the week, and PvP.", color=0xCD7F32)
+        events_embed = discord.Embed(title="⚔︎ 𝔈𝔳𝔢𝔫𝔱s/𝔐𝔦𝔫𝔦𝔤𝔞𝔪𝔢𝔰 ⚔︎", description="Roles for clan events, skill/boss of the week, and PvP.", color=0xCD7F32)
         await role_channel.send(embed=events_embed, view=EventsView(guild))
         print("✅ Role assignment panels reposted.")
 
