@@ -1926,9 +1926,10 @@ async def justice_panel(interaction: discord.Interaction):
 # ---------------------------
 # 🔹 Bot Events
 # ---------------------------
-TARGET_CHANNEL_ID = 1272629331524587623
+TARGET_CHANNEL_ID = 1273094409432469605
 message_counter = 0
-translation_threshold = random.randint(1, 10)
+translation_threshold = random.randint(1, 5)
+# ---------------------------------------------
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -1957,18 +1958,25 @@ async def on_message(message: discord.Message):
             view = CollatButtons(message.author, valid_mention)
             await message.reply("Collat actions:", view=view, allowed_mentions=discord.AllowedMentions.none())
 
-    # --- Auto-translator handler ---
+    # --- Auto-translator handler with Debugging ---
     if parent_channel_id == TARGET_CHANNEL_ID:
+        print(f"[DEBUG] Message detected in target channel ({TARGET_CHANNEL_ID}).")
+        
         message_counter += 1
+        print(f"[DEBUG] Counter is now {message_counter}. Threshold is {translation_threshold}.")
 
         if message_counter >= translation_threshold:
+            print(f"[DEBUG] Threshold met! Translating '{message.content}'...")
+            
             translation = await get_pirate_translation(message.content)
+            print(f"[DEBUG] API Response: {translation}")
             
             if translation:
                 await message.channel.send(translation)
             
             message_counter = 0
-            translation_threshold = random.randint(1, 10)
+            translation_threshold = random.randint(1, 5)
+            print(f"[DEBUG] Counter reset. New threshold is {translation_threshold}.")
 
 @bot.event
 async def on_member_update(before: discord.Member, after: discord.Member):
