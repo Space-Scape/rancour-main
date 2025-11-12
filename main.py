@@ -1084,7 +1084,6 @@ async def get_pirate_translation(text: str):
     encoded_text = urllib.parse.quote_plus(text)
     full_url = f"{base_url}{encoded_text}"
     
-    # Set a timeout for the request (e.g., 10 seconds)
     timeout = aiohttp.ClientTimeout(total=10)
 
     try:
@@ -1951,9 +1950,9 @@ async def justice_panel(interaction: discord.Interaction):
 # ---------------------------
 # 🔹 Bot Events
 # ---------------------------
-TARGET_CHANNEL_ID = 1273094409432469605
+TARGET_CHANNEL_ID = 1272629331524587623
 message_counter = 0
-translation_threshold = random.randint(1, 5)
+translation_threshold = random.randint(5, 10)
 # ---------------------------------------------
 
 @bot.event
