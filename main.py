@@ -1925,11 +1925,19 @@ async def justice_panel(interaction: discord.Interaction):
 # ---------------------------
 # 🔹 Bot Events
 # ---------------------------
+#1272629331524587623
+TARGET_CHANNEL_ID = 1273094409432469605
+message_counter = 0
+translation_threshold = random.randint(5, 10)
 
 @bot.event
 async def on_message(message: discord.Message):
+    global message_counter, translation_threshold
+    
     if message.author.bot:
         return
+
+    await bot.process_commands(message)
 
     parent_channel_id = None
     if isinstance(message.channel, discord.Thread):
@@ -1937,9 +1945,7 @@ async def on_message(message: discord.Message):
     elif isinstance(message.channel, discord.TextChannel):
         parent_channel_id = message.channel.id
 
-    # ---------------------------
-    # 📸 Collat handler
-    # ---------------------------
+    # --- Collat handler ---
     if message.channel.id == COLLAT_CHANNEL_ID:
         has_pasted_image = any(embed.image for embed in message.embeds)
         is_reply = message.reference is not None
@@ -1950,6 +1956,19 @@ async def on_message(message: discord.Message):
         if valid_mention or message.attachments or has_pasted_image:
             view = CollatButtons(message.author, valid_mention)
             await message.reply("Collat actions:", view=view, allowed_mentions=discord.AllowedMentions.none())
+
+    # --- Auto-translator handler ---
+    if parent_channel_id == TARGET_CHANNEL_ID:
+        message_counter += 1
+
+        if message_counter >= translation_threshold:
+            translation = await get_pirate_translation(message.content)
+            
+            if translation:
+                await message.channel.send(translation)
+            
+            message_counter = 0
+            translation_threshold = random.randint(1, 10)
 
 @bot.event
 async def on_member_update(before: discord.Member, after: discord.Member):
