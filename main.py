@@ -1999,7 +1999,7 @@ async def on_message(message: discord.Message):
                 await message.channel.send(translation)
             
             message_counter = 0
-            translation_threshold = random.randint(1, 5)
+            translation_threshold = random.randint(5, 10)
             print(f"[DEBUG] Counter reset. New threshold is {translation_threshold}.")
 
 @bot.event
