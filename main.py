@@ -12,6 +12,7 @@ from typing import Optional
 from datetime import datetime, timedelta, timezone, time
 from zoneinfo import ZoneInfo
 import aiohttp
+import random
 import urllib.parse
 
 # ---------------------------
@@ -1925,8 +1926,7 @@ async def justice_panel(interaction: discord.Interaction):
 # ---------------------------
 # 🔹 Bot Events
 # ---------------------------
-#1272629331524587623
-TARGET_CHANNEL_ID = 1273094409432469605
+TARGET_CHANNEL_ID = 1272629331524587623
 message_counter = 0
 translation_threshold = random.randint(1, 10)
 
