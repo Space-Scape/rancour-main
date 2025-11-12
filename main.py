@@ -1977,7 +1977,7 @@ async def on_message(message: discord.Message):
         if message_counter >= translation_threshold:
             print(f"[DEBUG] Threshold met! Translating '{message.content}'...")
             
-            translation = await get_pira te_translation(message.content)
+            translation = await get_pirate_translation(message.content)
             print(f"[DEBUG] API Response: {translation}")
             
             if translation:
