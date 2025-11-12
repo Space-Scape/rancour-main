@@ -1928,7 +1928,7 @@ async def justice_panel(interaction: discord.Interaction):
 #1272629331524587623
 TARGET_CHANNEL_ID = 1273094409432469605
 message_counter = 0
-translation_threshold = random.randint(5, 10)
+translation_threshold = random.randint(1, 10)
 
 @bot.event
 async def on_message(message: discord.Message):
