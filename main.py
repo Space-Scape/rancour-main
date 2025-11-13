@@ -1640,75 +1640,142 @@ async def send_support_panel(channel: discord.TextChannel):
 # ---------------------------
 
 class CollatRequestModal(discord.ui.Modal, title="Request Item"):
+
     target_username = discord.ui.TextInput(
+
         label="Enter the username to notify",
+
         placeholder="Exact username (case-sensitive)",
+
         style=discord.TextStyle.short,
+
         required=True,
+
         max_length=50,
+
     )
 
+
+
     def __init__(self, parent_message: discord.Message, requester: discord.User):
+
         super().__init__()
+
         self.parent_message = parent_message
+
         self.requester = requester
 
+
+
     async def on_submit(self, interaction: discord.Interaction):
+
         entered_name = str(self.target_username.value).strip()
+
         guild = interaction.guild
 
+
+
         target_member = discord.utils.find(
+
             lambda m: m.name == entered_name or m.display_name == entered_name,
+
             guild.members
+
         )
+
+
 
         if not target_member:
+
             await interaction.response.send_message(
+
                 "❌ User not found. Please ensure the name matches exactly.",
+
                 ephemeral=True
+
             )
+
             return
 
+
+
         await self.parent_message.reply(
+
             f"{self.requester.mention} is requesting their item from {target_member.mention}",
+
             mention_author=True,
+
         )
+
         await interaction.response.send_message("Request sent ✅", ephemeral=True)
 
 
+# --- REPLACE THE CollatButtons CLASS WITH THIS ---
+
 class CollatButtons(discord.ui.View):
-    def __init__(self, author: discord.User, mentioned: discord.User | None):
+    # Remove author/mentioned from __init__ and add custom_ids to buttons
+    def __init__(self):
         super().__init__(timeout=None)
-        self.author = author
-        self.mentioned = mentioned
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user == self.author or (self.mentioned and interaction.user == self.mentioned):
-            return True
-        await interaction.response.send_message("You are not allowed to interact with this post.", ephemeral=True)
-        return False
+    async def get_original_message_actors(self, interaction: discord.Interaction) -> tuple[Optional[discord.Message], Optional[discord.Member], Optional[discord.Member]]:
+        """Helper to fetch the original post and its key actors."""
+        
+        # The interaction.message is the bot's reply ("Collat actions:").
+        # We need its reference, which is the *original user's message*.
+        if not interaction.message.reference:
+            await interaction.response.send_message("❌ This button is not attached to a valid message reference.", ephemeral=True)
+            return None, None, None
 
-    @discord.ui.button(label="Request Item", style=discord.ButtonStyle.primary, emoji="🔔")
+        try:
+            # Fetch the original message this button-message is replying to
+            original_message = await interaction.channel.fetch_message(interaction.message.reference.message_id)
+            author = original_message.author
+            mentioned = original_message.mentions[0] if original_message.mentions else None
+            return original_message, author, mentioned
+        
+        except discord.NotFound:
+            await interaction.response.send_message(f"❌ Could not find the original message this is a reply to.", ephemeral=True)
+            return None, None, None
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Could not retrieve the original message. Error: {e}", ephemeral=True)
+            return None, None, None
+
+    @discord.ui.button(label="Request Item", style=discord.ButtonStyle.primary, emoji="🔔", custom_id="collat:request_persistent")
     async def request_item(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not self.mentioned:
-            await interaction.response.send_modal(CollatRequestModal(interaction.message, interaction.user))
+        original_message, author, mentioned = await self.get_original_message_actors(interaction)
+        if not original_message:
+            return # Error already sent by helper
+
+        if not (interaction.user == author or (mentioned and interaction.user == mentioned)):
+            await interaction.response.send_message("You are not allowed to interact with this post.", ephemeral=True)
             return
 
-        target = self.mentioned if interaction.user == self.author else self.author
+        if not mentioned:
+            await interaction.response.send_modal(CollatRequestModal(original_message, interaction.user))
+            return
+
+        target = mentioned if interaction.user == author else author 
 
         await interaction.response.defer()
-        await interaction.message.reply(
+        await original_message.reply(
             f"{interaction.user.mention} is requesting their item from {target.mention}.",
             mention_author=True
         )
 
-    @discord.ui.button(label="Item Returned", style=discord.ButtonStyle.success, emoji="📥")
+    @discord.ui.button(label="Item Returned", style=discord.ButtonStyle.success, emoji="📥", custom_id="collat:returned_persistent")
     async def item_returned(self, interaction: discord.Interaction, button: discord.ui.Button):
+        original_message, author, mentioned = await self.get_original_message_actors(interaction)
+        if not original_message:
+            return # Error already sent
+        
+        if not (interaction.user == author or (mentioned and interaction.user == mentioned)):
+            await interaction.response.send_message("You are not allowed to interact with this post.", ephemeral=True)
+            return
+
         for child in self.children:
             child.disabled = True
         
         await interaction.response.edit_message(view=self)
-        
         await interaction.followup.send("Item marked as returned. ✅", ephemeral=True)
 
 # ---------------------------
