@@ -2044,13 +2044,15 @@ async def on_ready():
     bot.add_view(SupportRoleView())
     bot.add_view(RSNPanelView())
     bot.add_view(CloseThreadView())
+    bot.add_view(CollatButtons())
+    
     # Add persistent views for role panels
     if bot.get_channel(1272648586198519818): # Check if role_channel exists
         guild = bot.get_guild(GUILD_ID)
         if guild:
             bot.add_view(RaidsView(guild))
             bot.add_view(BossesView(guild))
-            bot.add_view(EventsView(guild))
+            bot.add_view(EventsView(guild))            
     # Add persistent view for timezone panel
     if bot.get_channel(1398775387139342386):
         guild = bot.get_guild(GUILD_ID)
