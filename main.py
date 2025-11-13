@@ -1635,114 +1635,87 @@ async def send_support_panel(channel: discord.TextChannel):
     await channel.send(embed=embed, view=SupportRoleView())
 
 
+from discord.ui import Modal, TextInput, View, Button
+from typing import Optional
+# (Make sure other imports like discord, os, etc. are at the top of your file)
+
 # ---------------------------
 # 🔹 Collat Notifier
 # ---------------------------
 
 class CollatRequestModal(discord.ui.Modal, title="Request Item"):
-
     target_username = discord.ui.TextInput(
-
         label="Enter the username to notify",
-
         placeholder="Exact username (case-sensitive)",
-
         style=discord.TextStyle.short,
-
         required=True,
-
         max_length=50,
-
     )
 
-
-
     def __init__(self, parent_message: discord.Message, requester: discord.User):
-
         super().__init__()
-
         self.parent_message = parent_message
-
         self.requester = requester
-
-
 
     async def on_submit(self, interaction: discord.Interaction):
 
         entered_name = str(self.target_username.value).strip()
-
         guild = interaction.guild
 
-
-
         target_member = discord.utils.find(
-
             lambda m: m.name == entered_name or m.display_name == entered_name,
-
             guild.members
-
         )
-
-
-
         if not target_member:
-
             await interaction.response.send_message(
-
                 "❌ User not found. Please ensure the name matches exactly.",
-
                 ephemeral=True
-
             )
-
             return
 
-
-
         await self.parent_message.reply(
-
             f"{self.requester.mention} is requesting their item from {target_member.mention}",
-
             mention_author=True,
-
         )
-
         await interaction.response.send_message("Request sent ✅", ephemeral=True)
 
+async def get_original_message_actors(interaction: discord.Interaction) -> tuple[Optional[discord.Message], Optional[discord.Member], Optional[discord.Member]]:
+    """Helper to fetch the original post and its key actors. Mentioned user can be None."""
+    try:
+        if not interaction.message.reference:
+            await interaction.response.send_message("❌ Button error: Cannot find original message reference.", ephemeral=True)
+            return None, None, None
 
-# --- REPLACE THE CollatButtons CLASS WITH THIS ---
+        original_message = await interaction.channel.fetch_message(interaction.message.reference.message_id)
+        author = original_message.author
+        
+        mentioned_user = None
+        for mention in original_message.mentions:
+            if isinstance(mention, (discord.Member, discord.User)):
+                mentioned_user = mention
+                break 
+        
+        return original_message, author, mentioned_user
+    
+    except discord.NotFound:
+        await interaction.response.send_message(f"❌ Could not find the original message (it may have been deleted).", ephemeral=True)
+        return None, None, None
+    except discord.Forbidden:
+            await interaction.response.send_message(f"❌ I don't have permissions to read this channel's history.", ephemeral=True)
+            return None, None, None
+    except Exception as e:
+        await interaction.response.send_message(f"❌ An unknown error occurred while fetching message details.", ephemeral=True)
+        print(f"Error in get_original_message_actors: {e}")
+        return None, None, None
+
 
 class CollatButtons(discord.ui.View):
-    # Remove author/mentioned from __init__ and add custom_ids to buttons
     def __init__(self):
         super().__init__(timeout=None)
 
-    async def get_original_message_actors(self, interaction: discord.Interaction) -> tuple[Optional[discord.Message], Optional[discord.Member], Optional[discord.Member]]:
-        """Helper to fetch the original post and its key actors."""
-        
-        # The interaction.message is the bot's reply ("Collat actions:").
-        # We need its reference, which is the *original user's message*.
-        if not interaction.message.reference:
-            await interaction.response.send_message("❌ This button is not attached to a valid message reference.", ephemeral=True)
-            return None, None, None
-
-        try:
-            # Fetch the original message this button-message is replying to
-            original_message = await interaction.channel.fetch_message(interaction.message.reference.message_id)
-            author = original_message.author
-            mentioned = original_message.mentions[0] if original_message.mentions else None
-            return original_message, author, mentioned
-        
-        except discord.NotFound:
-            await interaction.response.send_message(f"❌ Could not find the original message this is a reply to.", ephemeral=True)
-            return None, None, None
-        except Exception as e:
-            await interaction.response.send_message(f"❌ Could not retrieve the original message. Error: {e}", ephemeral=True)
-            return None, None, None
-
     @discord.ui.button(label="Request Item", style=discord.ButtonStyle.primary, emoji="🔔", custom_id="collat:request_persistent")
     async def request_item(self, interaction: discord.Interaction, button: discord.ui.Button):
-        original_message, author, mentioned = await self.get_original_message_actors(interaction)
+        original_message, author, mentioned = await get_original_message_actors(interaction)
         if not original_message:
             return # Error already sent by helper
 
@@ -1757,14 +1730,19 @@ class CollatButtons(discord.ui.View):
         target = mentioned if interaction.user == author else author 
 
         await interaction.response.defer()
-        await original_message.reply(
-            f"{interaction.user.mention} is requesting their item from {target.mention}.",
-            mention_author=True
-        )
+        try:
+            await original_message.reply(
+                f"{interaction.user.mention} is requesting their item from {target.mention}.",
+                mention_author=True
+            )
+        except Exception as e:
+            print(f"Error trying to send collat reply: {e}")
+            if not interaction.is_done():
+                await interaction.followup.send(f"❌ Failed to send reply ping. Error: {e}", ephemeral=True)
 
     @discord.ui.button(label="Item Returned", style=discord.ButtonStyle.success, emoji="📥", custom_id="collat:returned_persistent")
     async def item_returned(self, interaction: discord.Interaction, button: discord.ui.Button):
-        original_message, author, mentioned = await self.get_original_message_actors(interaction)
+        original_message, author, mentioned = await get_original_message_actors(interaction)
         if not original_message:
             return # Error already sent
         
@@ -1965,8 +1943,13 @@ class JusticePanelView(View):
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Checks if the user has the Clan Staff role."""
-        staff_role = discord.utils.get(interaction.guild.roles, id=1431045433798688768)
+        # Using STAFF_ROLE_ID from your config as the intended role
+        staff_role = discord.utils.get(interaction.guild.roles, id=STAFF_ROLE_ID) 
         if staff_role and staff_role in interaction.user.roles:
+            return True
+        # Check for the other ID just in case it was intended
+        other_staff_role = discord.utils.get(interaction.guild.roles, id=1431045433798688768)
+        if other_staff_role and other_staff_role in interaction.user.roles:
             return True
         await interaction.response.send_message("❌ This panel is for Clan Staff members only.", ephemeral=True)
         return False
@@ -2021,16 +2004,12 @@ async def on_message(message: discord.Message):
     elif isinstance(message.channel, discord.TextChannel):
         parent_channel_id = message.channel.id
 
-    # --- Collat handler ---
     if message.channel.id == COLLAT_CHANNEL_ID:
         has_pasted_image = any(embed.image for embed in message.embeds)
         is_reply = message.reference is not None
-        valid_mention = None
-        if message.mentions and not is_reply:
-            valid_mention = message.mentions[0]
 
-        if valid_mention and (message.attachments or has_pasted_image):
-            view = CollatButtons(message.author, valid_mention)
+        if (message.attachments or has_pasted_image) and not is_reply:
+            view = CollatButtons() # Stateless view
             await message.reply("Collat actions:", view=view, allowed_mentions=discord.AllowedMentions.none())
 
     if parent_channel_id == TARGET_CHANNEL_ID:
@@ -2056,15 +2035,12 @@ async def on_message(message: discord.Message):
 @bot.event
 async def on_member_update(before: discord.Member, after: discord.Member):
     """Sends a DM to a user when they receive the Inactive role."""
-    # Ignore bots
     if after.bot:
         return
 
-    # Check if roles were changed
     if before.roles == after.roles:
         return
 
-    # Find out which role(s) were added
     roles_added = set(after.roles) - set(before.roles)
 
     inactive_role = discord.utils.get(after.guild.roles, id=INACTIVE_ROLE_ID)
@@ -2119,7 +2095,7 @@ async def on_ready():
         if guild:
             bot.add_view(RaidsView(guild))
             bot.add_view(BossesView(guild))
-            bot.add_view(EventsView(guild))            
+            bot.add_view(EventsView(guild))          
     # Add persistent view for timezone panel
     if bot.get_channel(1398775387139342386):
         guild = bot.get_guild(GUILD_ID)
@@ -2173,7 +2149,7 @@ async def on_ready():
             allowed_mentions=discord.AllowedMentions.none()
             )
 
-        raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦𝔡𝔰 ⚔︎", description="Roles for Chambers of Xeric, Theatre of Blood, and Tombs of Amascut.", color=0xDAA520)
+        raid_embed = discord.Embed(title="⚔︎ ℜ𝔞𝔦d𝔰 ⚔︎", description="Roles for Chambers of Xeric, Theatre of Blood, and Tombs of Amascut.", color=0xDAA520)
         await role_channel.send(embed=raid_embed, view=RaidsView(guild))
 
         boss_embed = discord.Embed(title="⚔︎ 𝔊𝔯𝔬𝔲p B𝔬𝔰𝔰𝔢𝔰 ⚔︎", description="Roles for God Wars Dungeon, Corporeal Beast, and more.", color=0xC0C0C0)
@@ -2195,7 +2171,11 @@ async def main():
                 print(f"🔥 Failed to load extension {cog_name}.")
                 print(f"  Error: {e}")
 
-        await bot.start(os.getenv('DISCORD_BOT_TOKEN'))
+        bot_token = os.getenv('DISCORD_BOT_TOKEN')
+        if not bot_token:
+            print("❌ DISCORD_BOT_TOKEN environment variable not set.")
+            return
+        await bot.start(bot_token)
 
 if __name__ == "__main__":
     try:
