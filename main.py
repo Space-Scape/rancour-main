@@ -1934,7 +1934,7 @@ async def justice_panel(interaction: discord.Interaction):
 # ---------------------------
 TARGET_CHANNEL_ID = 1272629331524587623
 message_counter = 0
-translation_threshold = random.randint(10, 25)
+translation_threshold = random.randint(25, 50)
 PIRATE_EMOJIS = [
     "⚓", "🏴‍☠️", "☸", "🌊", "🏝️", "🗺️", "🦜", "🧭", "☠️", "🔱", "⚔︎", 
     "<:sailing:1437972148881850469>", "🪙"
@@ -1985,7 +1985,7 @@ async def on_message(message: discord.Message):
                 await message.channel.send(f"{emoji} {translation}")
             
             message_counter = 0
-            translation_threshold = random.randint(5, 12)
+            translation_threshold = random.randint(25, 50)
             print(f"[DEBUG] Counter reset. New threshold is {translation_threshold}.")
 
 @bot.event
