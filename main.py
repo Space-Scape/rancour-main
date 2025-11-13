@@ -1688,11 +1688,6 @@ class CollatButtons(discord.ui.View):
         await interaction.response.send_message("You are not allowed to interact with this post.", ephemeral=True)
         return False
 
-    async def disable_all(self, interaction: discord.Interaction):
-        for child in self.children:
-            child.disabled = True
-        await interaction.message.edit(view=self)
-
     @discord.ui.button(label="Request Item", style=discord.ButtonStyle.primary, emoji="🔔")
     async def request_item(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self.mentioned:
@@ -1709,8 +1704,12 @@ class CollatButtons(discord.ui.View):
 
     @discord.ui.button(label="Item Returned", style=discord.ButtonStyle.success, emoji="📥")
     async def item_returned(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.disable_all(interaction)
-        await interaction.response.send_message("Item marked as returned. ✅", ephemeral=True)
+        for child in self.children:
+            child.disabled = True
+        
+        await interaction.response.edit_message(view=self)
+        
+        await interaction.followup.send("Item marked as returned. ✅", ephemeral=True)
 
 # ---------------------------
 # 🔹 Justice Panel (Server Protection)
@@ -1963,11 +1962,10 @@ async def on_message(message: discord.Message):
         if message.mentions and not is_reply:
             valid_mention = message.mentions[0]
 
-        if valid_mention or message.attachments or has_pasted_image:
+        if valid_mention and (message.attachments or has_pasted_image):
             view = CollatButtons(message.author, valid_mention)
             await message.reply("Collat actions:", view=view, allowed_mentions=discord.AllowedMentions.none())
 
-    # --- Auto-translator handler with Debugging ---
     if parent_channel_id == TARGET_CHANNEL_ID:
         print(f"[DEBUG] Message detected in target channel ({TARGET_CHANNEL_ID}).")
         
