@@ -2163,7 +2163,7 @@ async def on_ready():
 
 async def main():
     async with bot:
-        cogs_to_load = ["sanguine_cog"]
+        cogs_to_load = ["sanguine_cog", "Rancour"]
         for cog_name in cogs_to_load:
             try:
                 await bot.load_extension(cog_name)
