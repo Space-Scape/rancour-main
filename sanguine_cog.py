@@ -40,7 +40,9 @@ SANG_MATCHMAKING_VC_ID = 1431953026842624090
 # --- NEW: Added VC Link ---
 SANG_VC_LINK = "https://discord.com/channels/1272629330115297330/1431953026842624090"
 # --- NEW: File to store message ID for live updates ---
-SANG_MESSAGE_ID_FILE = "sang_message_id.txt"
+# --- MODIFICATION: Make file path absolute to script location ---
+SCRIPT_DIR = Path(__file__).parent.resolve()
+SANG_MESSAGE_ID_FILE = SCRIPT_DIR / "sang_message_id.txt"
 
 # GSheet Config
 SANG_SHEET_ID = "1CCpDAJO7Cq581yF_-rz3vx7L_BTettVaKglSvOmvTOE"
@@ -1018,10 +1020,19 @@ class SanguineCog(commands.Cog):
     async def load_live_message_id(self):
         """Reads the persistent message ID from a file on startup."""
         try:
-            if os.path.exists(SANG_MESSAGE_ID_FILE):
-                with open(SANG_MESSAGE_ID_FILE, 'r') as f:
-                    self.live_signup_message_id = int(f.read().strip())
+            # --- MODIFICATION: Use Path.exists() ---
+            if SANG_MESSAGE_ID_FILE.exists():
+                # --- MODIFICATION: Use Path.read_text() ---
+                content = SANG_MESSAGE_ID_FILE.read_text().strip()
+                if content:
+                    self.live_signup_message_id = int(content)
                     print(f"✅ Loaded live signup message ID: {self.live_signup_message_id}")
+                else:
+                    print("ℹ️ Found empty sang_message_id.txt.")
+                    self.live_signup_message_id = None
+            else:
+                print(f"ℹ️ {SANG_MESSAGE_ID_FILE} not found. Will create one when needed.")
+                self.live_signup_message_id = None
         except Exception as e:
             print(f"🔥 Failed to load live signup message ID: {e}")
             self.live_signup_message_id = None
@@ -1031,11 +1042,13 @@ class SanguineCog(commands.Cog):
         self.live_signup_message_id = message_id
         try:
             if message_id is None:
-                if os.path.exists(SANG_MESSAGE_ID_FILE):
-                    os.remove(SANG_MESSAGE_ID_FILE)
+                # --- MODIFICATION: Use Path.unlink() with missing_ok=True ---
+                SANG_MESSAGE_ID_FILE.unlink(missing_ok=True)
+                print(f"ℹ️ Cleared live signup message ID file.")
             else:
-                with open(SANG_MESSAGE_ID_FILE, 'w') as f:
-                    f.write(str(message_id))
+                # --- MODIFICATION: Use Path.write_text() ---
+                SANG_MESSAGE_ID_FILE.write_text(str(message_id))
+                print(f"✅ Saved live signup message ID: {message_id}")
         except Exception as e:
             print(f"🔥 Failed to save live signup message ID: {e}")
 
