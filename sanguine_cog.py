@@ -1453,6 +1453,52 @@ class SanguineCog(commands.Cog):
             
         await interaction.followup.send(summary_message, ephemeral=True)
 
+    @app_commands.command(name="sangcleanup", description="Delete auto-created SanguineSunday voice channels from the last run.")
+    @app_commands.checks.has_any_role("Administrators", "Clan Staff", "Senior Staff", "Staff", "Trial Staff")
+    async def sangcleanup(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        guild = interaction.guild
+        category = guild.get_channel(SANG_VC_CATEGORY_ID)
+        if not category or not isinstance(category, discord.CategoryChannel):
+            await interaction.followup.send("⚠️ Category not found.", ephemeral=True); return
+            
+        deleted = 0
+        failed = 0
+        summary = []
+        
+        # Get a list of channels to delete first, avoid iterating while deleting
+        channels_to_delete = []
+        for ch in category.voice_channels:
+            if ch.name.startswith("SanSun"):
+                channels_to_delete.append(ch)
+                
+        if not channels_to_delete:
+            await interaction.followup.send("🧹 No `SanSun...` voice channels found to delete.", ephemeral=True)
+            return
+            
+        summary.append(f"Found {len(channels_to_delete)} channels to delete...")
+
+        for ch in channels_to_delete:
+            try:
+                await ch.delete(reason="sangcleanup command")
+                summary.append(f"  - Deleted {ch.name}")
+                deleted += 1
+            except discord.Forbidden:
+                summary.append(f"  - 🚫 No permission to delete {ch.name}.")
+                failed += 1
+            except Exception as e:
+                summary.append(f"  - ⚠️ Error deleting {ch.name}: {e}")
+                failed += 1
+                
+        final_message = f"**Cleanup Complete**\n- ✅ Deleted {deleted} channels.\n- ❌ Failed to delete {failed} channels.\n\n"
+        final_message += "\n".join(summary)
+        
+        if len(final_message) > 1900:
+            final_message = final_message[:1900] + "\n... (message trimmed)"
+
+        await interaction.followup.send(final_message, ephemeral=True)
+
+
     @app_commands.command(name="sangsetmessage", description="Manually set the message ID for the live signup embed.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
     @app_commands.describe(message_id="The Message ID of the embed to update.")
@@ -1538,6 +1584,7 @@ class SanguineCog(commands.Cog):
     @sangmatch.error
     @sangexport.error
     @sangmove.error
+    @sangcleanup.error
     @sangsetmessage.error
     @sangpostembed.error
     async def sang_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
