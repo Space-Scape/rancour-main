@@ -1288,102 +1288,6 @@ class SanguineCog(commands.Cog):
             links = [f"Team {i+1}: {vc.mention}" for i, vc in enumerate(created_vcs)]
             await post_channel.send("🔊 **Team Voice Channels**\n" + "\n".join(links))
 
-
-    @app_commands.command(name="sangmatchtest", description="Create ToB teams from the designated VC without pings/creating channels.")
-    @app_commands.checks.has_role(STAFF_ROLE_ID)
-    @app_commands.describe(channel="(Optional) Override the text channel to post teams (testing).")
-    async def sangmatchtest(self, interaction: discord.Interaction, channel: Optional[discord.TextChannel] = None):
-        if not self.sang_sheet:
-            await interaction.response.send_message("⚠️ Error: The Sanguine Sunday sheet is not connected.", ephemeral=True)
-            return
-        await interaction.response.defer(ephemeral=False)
-
-        voice_channel = self.bot.get_channel(SANG_MATCHMAKING_VC_ID)
-        if not voice_channel or not isinstance(voice_channel, discord.VoiceChannel):
-            await interaction.followup.send("⚠️ Matchmaking voice channel not found or is not a voice channel.")
-            return
-
-        channel_name = voice_channel.name
-        if not voice_channel.members:
-            await interaction.followup.send(f"⚠️ No users are in {voice_channel.mention}.")
-            return
-        vc_member_ids = {str(m.id) for m in voice_channel.members if not m.bot}
-        if not vc_member_ids:
-            await interaction.followup.send(f"⚠️ No human users are in {voice_channel.mention}.")
-            return
-
-        try:
-            all_signups_records = self.sang_sheet.get_all_records()
-        except Exception as e:
-            await interaction.followup.send("⚠️ An error occurred fetching signups from the database.")
-            return
-        
-        available_raiders = []
-        for signup in all_signups_records:
-            user_id = str(signup.get("Discord_ID"))
-            if vc_member_ids and user_id not in vc_member_ids: continue
-            
-            roles_str = signup.get("Favorite Roles", "")
-            knows_range, knows_melee = parse_roles(roles_str)
-            kc_raw = signup.get("KC", 0)
-            try: kc_val = int(kc_raw)
-            except (ValueError, TypeError): kc_val = 9999 if signup.get("Proficiency", "").lower() == 'mentor' else 0
-            
-            proficiency_val = signup.get("Proficiency", "").lower()
-            if proficiency_val != 'mentor':
-                if kc_val <= 10: proficiency_val = "new"
-                elif 11 <= kc_val <= 25: proficiency_val = "learner"
-                elif 26 <= kc_val <= 100: proficiency_val = "proficient"
-                else: proficiency_val = "highly proficient"
-
-            # --- NEW: Read blacklist data ---
-            blacklist_str = str(signup.get("Blacklist", ""))
-            blacklist_ids = set(blacklist_str.split(',')) if blacklist_str else set()
-
-            available_raiders.append({
-                "user_id": user_id, "user_name": sanitize_nickname(signup.get("Discord_Name")),
-                "proficiency": proficiency_val, "kc": kc_val,
-                "has_scythe": str(signup.get("Has_Scythe", "FALSE")).upper() == "TRUE",
-                "roles_known": roles_str, "learning_freeze": str(signup.get("Learning Freeze", "FALSE")).upper() == "TRUE",
-                "knows_range": knows_range, "knows_melee": knows_melee,
-                "wants_mentor": str(signup.get("Mentor_Request", "FALSE")).upper() == "TRUE",
-                "blacklist": blacklist_ids # --- NEW: Pass blacklist to algorithm
-            })
-        
-        if not available_raiders:
-            await interaction.followup.send("⚠️ No eligible signups.")
-            return
-
-        teams, stranded_players = matchmaking_algorithm(available_raiders)
-        
-        guild = interaction.guild
-        post_channel = channel or interaction.channel
-
-        embed_title = f"Sanguine Sunday Teams (Test, no pings/VC) - {channel_name}"
-        embed_desc = f"Created {len(teams)} valid team(s) from {len(available_raiders)} available signed-up users."
-
-        team_embeds = await self._create_team_embeds(
-            teams,
-            embed_title,
-            embed_desc,
-            discord.Color.dark_gray(),
-            guild,
-            format_player_line_plain
-        )
-
-        global last_generated_teams
-        last_generated_teams = teams
-        
-        for i, embed in enumerate(team_embeds):
-            if i == 0 and interaction.channel == post_channel:
-                await interaction.followup.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
-            else:
-                await post_channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
-        
-        if interaction.channel != post_channel:
-            await interaction.followup.send("✅ Posted no-ping test teams (no voice channels created).", ephemeral=True)
-
-
     @app_commands.command(name="sangexport", description="Export the most recently generated teams to a text file.")
     @app_commands.checks.has_any_role("Administrators", "Clan Staff", "Senior Staff", "Staff", "Trial Staff")
     async def sangexport(self, interaction: discord.Interaction):
@@ -1426,24 +1330,87 @@ class SanguineCog(commands.Cog):
             print(f"🔥 Failed to write or send export file: {e}")
             await interaction.followup.send(f"⚠️ Failed to write export file: {e}", ephemeral=True)
 
-
-    @app_commands.command(name="sangcleanup", description="Delete auto-created SanguineSunday voice channels from the last run.")
-    @app_commands.checks.has_any_role("Administrators", "Clan Staff", "Senior Staff", "Staff", "Trial Staff")
-    async def sangcleanup(self, interaction: discord.Interaction):
+    @app_commands.command(name="sangmove", description="Move users from matchmaking VC to their team VCs.")
+    @app_commands.checks.has_role(STAFF_ROLE_ID)
+    async def sangmove(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
+        
+        global last_generated_teams
+        if not last_generated_teams:
+            await interaction.followup.send("⚠️ No teams have been generated. Please run `/sangmatch` first.", ephemeral=True)
+            return
+
         guild = interaction.guild
+        
+        # Get the matchmaking VC
+        matchmaking_vc = guild.get_channel(SANG_MATCHMAKING_VC_ID)
+        if not matchmaking_vc or not isinstance(matchmaking_vc, discord.VoiceChannel):
+            await interaction.followup.send(f"⚠️ Matchmaking VC (ID: {SANG_MATCHMAKING_VC_ID}) not found.", ephemeral=True)
+            return
+            
+        # Get the category where team VCs are
         category = guild.get_channel(SANG_VC_CATEGORY_ID)
-        if not category:
-            await interaction.followup.send("⚠️ Category not found.", ephemeral=True); return
-        deleted = 0
-        for ch in list(category.channels):
-            try:
-                if isinstance(ch, discord.VoiceChannel) and ch.name.startswith("SanSun"):
-                    await ch.delete(reason="sangcleanup")
-                    deleted += 1
-            except Exception:
-                pass
-        await interaction.followup.send(f"🧹 Deleted {deleted} voice channels.", ephemeral=True)
+        if not category or not isinstance(category, discord.CategoryChannel):
+            await interaction.followup.send(f"⚠️ Team VC Category (ID: {SANG_VC_CATEGORY_ID}) not found.", ephemeral=True)
+            return
+
+        # Get all members currently in the matchmaking VC
+        members_in_vc = {m.id: m for m in matchmaking_vc.members}
+        if not members_in_vc:
+            await interaction.followup.send(f"⚠️ No one is in the matchmaking VC ({matchmaking_vc.mention}).", ephemeral=True)
+            return
+
+        moved_count = 0
+        failed_to_move = []
+        
+        # Find all team VCs first
+        team_vcs = {}
+        for i, team in enumerate(last_generated_teams, start=1):
+            if not team:
+                continue
+            
+            anchor = team[0]
+            # --- FIX: Ensure anchor name matches VC creation logic ---
+            anchor_name = sanitize_nickname(anchor.get("user_name", f"Team{i}"))
+            vc_name = f"SanSun{anchor_name}"
+            
+            team_vc = discord.utils.get(category.voice_channels, name=vc_name)
+            if team_vc:
+                team_vcs[i] = team_vc
+            else:
+                print(f"⚠️ Could not find VC named '{vc_name}' for Team {i}")
+
+        if not team_vcs:
+            await interaction.followup.send("⚠️ Could not find any of the created team VCs. Did you run `/sangmatch` to create them?", ephemeral=True)
+            return
+
+        # Move players
+        for i, team in enumerate(last_generated_teams, start=1):
+            team_vc = team_vcs.get(i)
+            if not team_vc:
+                continue # VC for this team wasn't found
+
+            for player in team:
+                try:
+                    player_id = int(player["user_id"])
+                    member_to_move = members_in_vc.get(player_id)
+                    
+                    if member_to_move:
+                        await member_to_move.move_to(team_vc)
+                        moved_count += 1
+                        
+                except discord.Forbidden:
+                    failed_to_move.append(player.get("user_name", str(player_id)))
+                    print(f"🔥 No permission to move {player.get('user_name')}")
+                except Exception as e:
+                    failed_to_move.append(player.get("user_name", str(player_id)))
+                    print(f"🔥 Failed to move {player.get('user_name')}: {e}")
+
+        summary = f"✅ Moved {moved_count} players to their team VCs."
+        if failed_to_move:
+            summary += f"\n⚠️ Could not move: {', '.join(failed_to_move)}"
+            
+        await interaction.followup.send(summary, ephemeral=True)
 
     @app_commands.command(name="sangpostembed", description="Post a new live signup embed and set it as the active one.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
@@ -1482,11 +1449,9 @@ class SanguineCog(commands.Cog):
 
     @sangsignup.error
     @sangmatch.error
-    @sangmatchtest.error
     @sangexport.error
-    @sangcleanup.error
+    @sangmove.error
     @sangpostembed.error
-    # --- REMOVED @sangsignups.error ---
     async def sang_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.MissingRole):
             await interaction.response.send_message("❌ You don't have the required role for this command.", ephemeral=True)
