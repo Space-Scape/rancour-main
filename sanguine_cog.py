@@ -1409,53 +1409,53 @@ class SanguineCog(commands.Cog):
         failed_to_move = []
         
         # Find all team VCs first
-        team_vcs = {}
-        for i, team in enumerate(last_generated_teams, start=1):
-            if not team:
-                continue
-            
-            anchor = team[0]
-            # --- FIX: Ensure anchor name matches VC creation logic ---
-            anchor_name = sanitize_nickname(anchor.get("user_name", f"Team{i}"))
-            vc_name = f"SanSun{anchor_name}"
-            
-            team_vc = discord.utils.get(category.voice_channels, name=vc_name)
-            if team_vc:
-                team_vcs[i] = team_vc
-            else:
-                print(f"⚠️ Could not find VC named '{vc_name}' for Team {i}")
+            await interaction.followup.send(summary, ephemeral=True)
 
-        if not team_vcs:
-            await interaction.followup.send("⚠️ Could not find any of the created team VCs. Did you run `/sangmatch` to create them?", ephemeral=True)
+    @app_commands.command(name="sangsetmessage", description="Manually set the message ID for the live signup embed.")
+    @app_commands.checks.has_role(STAFF_ROLE_ID)
+    @app_commands.describe(message_id="The Message ID of the embed to update.")
+    async def sangsetmessage(self, interaction: discord.Interaction, message_id: str):
+        """
+        Manually sets the live signup message ID.
+        """
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        
+        try:
+            mid = int(message_id)
+        except ValueError:
+            await interaction.followup.send("⚠️ That doesn't look like a valid message ID. It should be a long number.", ephemeral=True)
             return
 
-        # Move players
-        for i, team in enumerate(last_generated_teams, start=1):
-            team_vc = team_vcs.get(i)
-            if not team_vc:
-                continue # VC for this team wasn't found
-
-            for player in team:
-                try:
-                    player_id = int(player["user_id"])
-                    member_to_move = members_in_vc.get(player_id)
-                    
-                    if member_to_move:
-                        await member_to_move.move_to(team_vc)
-                        moved_count += 1
-                        
-                except discord.Forbidden:
-                    failed_to_move.append(player.get("user_name", str(player_id)))
-                    print(f"🔥 No permission to move {player.get('user_name')}")
-                except Exception as e:
-                    failed_to_move.append(player.get("user_name", str(player_id)))
-                    print(f"🔥 Failed to move {player.get('user_name')}: {e}")
-
-        summary = f"✅ Moved {moved_count} players to their team VCs."
-        if failed_to_move:
-            summary += f"\n⚠️ Could not move: {', '.join(failed_to_move)}"
+        # Fetch the message to ensure it exists and we can access it
+        channel = self.bot.get_channel(SANG_CHANNEL_ID)
+        if not channel:
+            await interaction.followup.send(f"⚠️ Cannot find channel ID {SANG_CHANNEL_ID}.", ephemeral=True)
+            return
             
-        await interaction.followup.send(summary, ephemeral=True)
+        try:
+            await channel.fetch_message(mid)
+        except discord.NotFound:
+            await interaction.followup.send(f"⚠️ Could not find a message with that ID in {channel.mention}.", ephemeral=True)
+            return
+        except discord.Forbidden:
+            await interaction.followup.send(f"⚠️ I don't have permission to see that message. Check my permissions in {channel.mention}.", ephemeral=True)
+            return
+        except Exception as e:
+            await interaction.followup.send(f"⚠️ An unknown error occurred while verifying the message: {e}", ephemeral=True)
+            return
+
+        # Save the ID
+        await self.save_live_message_id(mid)
+        
+        # Trigger an immediate update
+        await self.update_live_signup_message()
+
+        await interaction.followup.send(
+            f"✅ Set live signup message to `{mid}`.\n"
+            f"I've updated it with the current signups.",
+            ephemeral=True
+        )
+        print(f"✅ Manually set live signup message ID to: {mid}")
 
     @app_commands.command(name="sangpostembed", description="Post a new live signup embed and set it as the active one.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
@@ -1496,6 +1496,7 @@ class SanguineCog(commands.Cog):
     @sangmatch.error
     @sangexport.error
     @sangmove.error
+    @sangsetmessage.error
     @sangpostembed.error
     async def sang_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.MissingRole):
