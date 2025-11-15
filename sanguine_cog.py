@@ -6,16 +6,14 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 import asyncio
 import re
-# --- NEW IMPORT ---
 import functools
 from discord import ui, ButtonStyle, Member
 from discord.ui import View, Button, Modal, TextInput
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone, time as dt_time
 from zoneinfo import ZoneInfo
-# --- REMOVED gspread.exceptions IMPORT ---
 import math
-from pathlib import Path # Import Path for export function
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 # ---------------------------
@@ -373,9 +371,9 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         for i in range(T):
             team_has_mentor = any(normalize_role(p) == "mentor" for p in teams[i])
             if team_has_mentor and can_add(player, teams[i], max_sizes[i]): # can_add checks blacklist
-               teams[i].append(player)
-               placed = True
-               break
+                teams[i].append(player)
+                placed = True
+                break
         
         if placed:
             continue
@@ -595,10 +593,10 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         super().__init__(title="Sanguine Sunday Mentor Signup")
         self.cog = cog
         if previous_data:
-                 self.roles_known.default = previous_data.get("Favorite Roles", "")
-                 kc_val = previous_data.get("KC", "")
-                 self.kc.default = str(kc_val) if kc_val not in ["", None, "X"] else ""
-                 self.has_scythe.default = "Yes" if previous_data.get("Has_Scythe", False) else "No"
+            self.roles_known.default = previous_data.get("Favorite Roles", "")
+            kc_val = previous_data.get("KC", "")
+            self.kc.default = str(kc_val) if kc_val not in ["", None, "X"] else ""
+            self.has_scythe.default = "Yes" if previous_data.get("Has_Scythe", False) else "No"
         
         self.previous_data = previous_data # Store for blacklist
 
@@ -705,8 +703,8 @@ class SignupView(View):
         user = interaction.user
         member = interaction.guild.get_member(user.id)
         if not member:
-                 await interaction.response.send_message("⚠️ Could not verify your roles. Please try again.", ephemeral=True)
-                 return
+            await interaction.response.send_message("⚠️ Could not verify your roles. Please try again.", ephemeral=True)
+            return
 
         # Get previous data regardless of role
         previous_data = self.cog.get_previous_signup(str(user.id))
@@ -718,8 +716,8 @@ class SignupView(View):
         # If they previously auto-signed up (KC == "X")
         # clear the "X" so the placeholder text shows instead.
         if previous_data and previous_data.get("KC") == "X":
-                 previous_data["KC"] = "" 
-                 
+            previous_data["KC"] = ""    
+            
         await interaction.response.send_modal(MentorSignupForm(self.cog, previous_data=previous_data))
 
 
@@ -1383,7 +1381,7 @@ class SanguineCog(commands.Cog):
                 await post_channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
         
         if interaction.channel != post_channel:
-                 await interaction.followup.send("✅ Posted no-ping test teams (no voice channels created).", ephemeral=True)
+            await interaction.followup.send("✅ Posted no-ping test teams (no voice channels created).", ephemeral=True)
 
 
     @app_commands.command(name="sangexport", description="Export the most recently generated teams to a text file.")
@@ -1447,11 +1445,47 @@ class SanguineCog(commands.Cog):
                 pass
         await interaction.followup.send(f"🧹 Deleted {deleted} voice channels.", ephemeral=True)
 
+    @app_commands.command(name="sangpostembed", description="Post a new live signup embed and set it as the active one.")
+    @app_commands.checks.has_role(STAFF_ROLE_ID)
+    async def sangpostembed(self, interaction: discord.Interaction):
+        """
+        Manually posts a new live signup embed. This new embed will
+        become the one that receives live updates.
+        """
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        
+        channel = self.bot.get_channel(SANG_CHANNEL_ID)
+        if not channel:
+            await interaction.followup.send(f"⚠️ Cannot find channel ID {SANG_CHANNEL_ID}.", ephemeral=True)
+            return
+            
+        try:
+            # 1. Generate the embed
+            new_embed = await self._generate_signups_embed()
+            
+            # 2. Post it
+            live_message = await channel.send(embed=new_embed)
+            
+            # 3. Save its ID as the new active message
+            await self.save_live_message_id(live_message.id)
+            
+            await interaction.followup.send(
+                f"✅ Posted new live signup embed in {channel.mention}.\n"
+                f"This message ({live_message.id}) will now receive live updates.",
+                ephemeral=True
+            )
+            print(f"✅ Manually posted new live signup embed: {live_message.id}")
+
+        except Exception as e:
+            print(f"🔥 Failed to post manual live embed: {e}")
+            await interaction.followup.send(f"⚠️ An error occurred: {e}", ephemeral=True)
+
     @sangsignup.error
     @sangmatch.error
     @sangmatchtest.error
     @sangexport.error
     @sangcleanup.error
+    @sangpostembed.error
     # --- REMOVED @sangsignups.error ---
     async def sang_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.MissingRole):
