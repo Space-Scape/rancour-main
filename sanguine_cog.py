@@ -669,22 +669,25 @@ class WithdrawalButton(ui.Button):
             await interaction.response.send_message("⚠️ Error: The Sanguine Signup sheet is not connected.", ephemeral=True)
             return
 
+        # --- MODIFICATION: Defer response first ---
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         try:
-            cell = self.cog.sang_sheet.find(user_id, in_column=1)
-            if cell is None:
-                await interaction.response.send_message(f"ℹ️ {user_name}, you are not currently signed up for this week's event.", ephemeral=True)
-                return
+            # --- MODIFICATION: Use threaded withdrawal function ---
+            result = await self.cog._withdraw_from_sheets_in_thread(user_id)
             
-            self.cog.sang_sheet.delete_rows(cell.row)
-            
-            # --- NEW: Update the live message on withdrawal ---
-            await self.cog.update_live_signup_message()
-            
-            await interaction.response.send_message(f"✅ **{user_name}**, you have been successfully withdrawn from this week's Sanguine Sunday signups.", ephemeral=True)
-            print(f"✅ User {user_id} ({user_name}) withdrew from SangSignups.")
+            if result == "deleted":
+                await interaction.followup.send(f"✅ **{user_name}**, you have been successfully withdrawn from this week's Sanguine Sunday signups.", ephemeral=True)
+                print(f"✅ User {user_id} ({user_name}) withdrew from SangSignups.")
+            elif result == "not_found":
+                await interaction.followup.send(f"ℹ️ {user_name}, you are not currently signed up for this week's event.", ephemeral=True)
+            else: # result == "error"
+                await interaction.followup.send("⚠️ An error occurred while processing your withdrawal. Please contact staff.", ephemeral=True)
+        
         except Exception as e:
-            print(f"🔥 GSpread error on withdrawal: {e}")
-            await interaction.response.send_message("⚠️ An error occurred while processing your withdrawal.", ephemeral=True)
+            # Catch any other unexpected errors
+            print(f"🔥 Unhandled error in withdrawal callback: {e}")
+            await interaction.followup.send("⚠️ A critical error occurred while processing your withdrawal.", ephemeral=True)
 
 class SignupView(View):
     """The persistent view with the 3 main buttons: Raider, Mentor, Withdraw."""
@@ -867,6 +870,35 @@ class SanguineCog(commands.Cog):
 
         return sang_sheet_success, history_sheet_success
 
+
+    async def _withdraw_from_sheets_in_thread(self, user_id: str) -> str:
+        """
+        Runs blocking gspread delete operations in a separate thread.
+        Returns "deleted", "not_found", or "error".
+        """
+        
+        def _blocking_sheet_delete():
+            try:
+                cell = self.sang_sheet.find(user_id, in_column=1)
+                if cell is None:
+                    print(f"ℹ️ User {user_id} not found in sheet for withdrawal.")
+                    return "not_found" # Differentiate "not found" from "error"
+                
+                self.sang_sheet.delete_rows(cell.row)
+                return "deleted" # Deletion successful
+            except Exception as e:
+                print(f"🔥 GSpread error on withdrawal delete: {e}")
+                return "error"
+        
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None, _blocking_sheet_delete
+        )
+        
+        if result == "deleted":
+            await self.update_live_signup_message()
+            
+        return result
 
     async def _create_team_embeds(self, teams, title, description, color, guild, format_func):
         """Helper function to build and paginate team embeds."""
