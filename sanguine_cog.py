@@ -286,7 +286,7 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             return False
                     
         if (normalize_role(player) == "new" or player.get("wants_mentor")) and not any(normalize_role(p) == "mentor" for p in team):
-                 return False # BLOCK: No mentor on team.
+               return False # BLOCK: No mentor on team.
 
         return True
 
@@ -504,9 +504,9 @@ def format_player_line_mention(guild: discord.Guild, p: dict) -> str:
 class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
     """Modal form for regular raiders to sign up."""
     roles_known = TextInput(label="Favorite Roles (Leave blank if None)", placeholder="Inputs: All, Nfrz, Sfrz, Mdps, Rdps", style=discord.TextStyle.short, max_length=4, required=False)
-    kc = TextInput(label="What is your N͟o͟r͟m͟a͟l͟ Mode ToB KC?", placeholder="0-10 = New, 11-25 = Learner, 26-100 = Proficient, 100+ = Highly Proficient", style=discord.TextStyle.short, max_length=5, required=True)
-    has_scythe = TextInput(label="Do you have a Scythe? (Yes/No)", placeholder="Yes or No O͟N͟L͟Y͟", style=discord.TextStyle.short, max_length=3, required=True)
-    learning_freeze = TextInput(label="Learn freeze role? (Yes or leave blank)", placeholder="Yes or blank/No O͟N͟L͟Y͟", style=discord.TextStyle.short, max_length=3, required=False)
+    kc = TextInput(label="What is your Normal Mode ToB KC?", placeholder="0-10 = New, 11-25 = Learner, 26-100 = Proficient, 100+ = Highly Proficient", style=discord.TextStyle.short, max_length=5, required=True)
+    has_scythe = TextInput(label="Do you have a Scythe? (Yes/No)", placeholder="Yes or No ONLY", style=discord.TextStyle.short, max_length=3, required=True)
+    learning_freeze = TextInput(label="Learn freeze role? (Yes or leave blank)", placeholder="Yes or blank/No ONLY", style=discord.TextStyle.short, max_length=3, required=False)
     wants_mentor = TextInput(label="Do you want assistance from a Mentor?", placeholder="Yes or No/Blank", style=discord.TextStyle.short, max_length=3, required=False)
 
     def __init__(self, cog: 'SanguineCog', previous_data: dict = None):
@@ -588,17 +588,17 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
 class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
     """Modal form for Mentors to sign up."""
     roles_known = TextInput(label="Favorite Roles (Leave blank if None)", placeholder="Inputs: All, Nfrz, Sfrz, Mdps, Rdps", style=discord.TextStyle.short, max_length=4, required=True)
-    kc = TextInput(label="What is your N͟o͟r͟m͟a͟l͟ Mode ToB KC?", placeholder="150+", style=discord.TextStyle.short, max_length=5, required=True)
+    kc = TextInput(label="What is your Normal Mode ToB KC?", placeholder="150+", style=discord.TextStyle.short, max_length=5, required=True)
     has_scythe = TextInput(label="Do you have a Scythe? (Yes/No)", placeholder="Yes or No", style=discord.TextStyle.short, max_length=3, required=True)
 
     def __init__(self, cog: 'SanguineCog', previous_data: dict = None):
         super().__init__(title="Sanguine Sunday Mentor Signup")
         self.cog = cog
         if previous_data:
-            self.roles_known.default = previous_data.get("Favorite Roles", "")
-            kc_val = previous_data.get("KC", "")
-            self.kc.default = str(kc_val) if kc_val not in ["", None, "X"] else ""
-            self.has_scythe.default = "Yes" if previous_data.get("Has_Scythe", False) else "No"
+                 self.roles_known.default = previous_data.get("Favorite Roles", "")
+                 kc_val = previous_data.get("KC", "")
+                 self.kc.default = str(kc_val) if kc_val not in ["", None, "X"] else ""
+                 self.has_scythe.default = "Yes" if previous_data.get("Has_Scythe", False) else "No"
         
         self.previous_data = previous_data # Store for blacklist
 
@@ -664,32 +664,27 @@ class WithdrawalButton(ui.Button):
         self.cog = cog
 
     async def callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
         user_id = str(interaction.user.id)
         user_name = interaction.user.display_name
 
         if not self.cog.sang_sheet:
-            await interaction.response.send_message("⚠️ Error: The Sanguine Signup sheet is not connected.", ephemeral=True)
+            await interaction.followup.send("⚠️ Error: The Sanguine Signup sheet is not connected.", ephemeral=True)
             return
 
-        # --- MODIFICATION: Defer response first ---
-        await interaction.response.defer(ephemeral=True, thinking=True)
-
         try:
-            # --- MODIFICATION: Use threaded withdrawal function ---
-            result = await self.cog._withdraw_from_sheets_in_thread(user_id)
+            # --- MODIFIED LOGIC: Run GSpread logic in a thread ---
+            deleted = await self.cog._withdraw_user_in_thread(user_id)
             
-            if result == "deleted":
+            if deleted:
                 await interaction.followup.send(f"✅ **{user_name}**, you have been successfully withdrawn from this week's Sanguine Sunday signups.", ephemeral=True)
                 print(f"✅ User {user_id} ({user_name}) withdrew from SangSignups.")
-            elif result == "not_found":
+            else:
                 await interaction.followup.send(f"ℹ️ {user_name}, you are not currently signed up for this week's event.", ephemeral=True)
-            else: # result == "error"
-                await interaction.followup.send("⚠️ An error occurred while processing your withdrawal. Please contact staff.", ephemeral=True)
-        
+                
         except Exception as e:
-            # Catch any other unexpected errors
-            print(f"🔥 Unhandled error in withdrawal callback: {e}")
-            await interaction.followup.send("⚠️ A critical error occurred while processing your withdrawal.", ephemeral=True)
+            print(f"🔥 GSpread error on withdrawal: {e}")
+            await interaction.followup.send("⚠️ An error occurred while processing your withdrawal.", ephemeral=True)
 
 class SignupView(View):
     """The persistent view with the 3 main buttons: Raider, Mentor, Withdraw."""
@@ -708,8 +703,8 @@ class SignupView(View):
         user = interaction.user
         member = interaction.guild.get_member(user.id)
         if not member:
-            await interaction.response.send_message("⚠️ Could not verify your roles. Please try again.", ephemeral=True)
-            return
+                 await interaction.response.send_message("⚠️ Could not verify your roles. Please try again.", ephemeral=True)
+                 return
 
         # Get previous data regardless of role
         previous_data = self.cog.get_previous_signup(str(user.id))
@@ -721,8 +716,8 @@ class SignupView(View):
         # If they previously auto-signed up (KC == "X")
         # clear the "X" so the placeholder text shows instead.
         if previous_data and previous_data.get("KC") == "X":
-            previous_data["KC"] = ""    
-            
+                 previous_data["KC"] = "" 
+                 
         await interaction.response.send_modal(MentorSignupForm(self.cog, previous_data=previous_data))
 
 
@@ -872,35 +867,34 @@ class SanguineCog(commands.Cog):
 
         return sang_sheet_success, history_sheet_success
 
-
-    async def _withdraw_from_sheets_in_thread(self, user_id: str) -> str:
+    async def _withdraw_user_in_thread(self, user_id: str) -> bool:
         """
         Runs blocking gspread delete operations in a separate thread.
-        Returns "deleted", "not_found", or "error".
+        Returns True if a user was deleted, False otherwise.
         """
         
         def _blocking_sheet_delete():
             try:
                 cell = self.sang_sheet.find(user_id, in_column=1)
                 if cell is None:
-                    print(f"ℹ️ User {user_id} not found in sheet for withdrawal.")
-                    return "not_found" # Differentiate "not found" from "error"
+                    return False # User not found, nothing to delete
                 
                 self.sang_sheet.delete_rows(cell.row)
-                return "deleted" # Deletion successful
+                return True # Deletion successful
             except Exception as e:
-                print(f"🔥 GSpread error on withdrawal delete: {e}")
-                return "error"
+                print(f"🔥 GSpread error on withdrawal (in thread): {e}")
+                raise e # Re-raise to be caught by the outer try/except
         
+        # Run the blocking function in an executor
         loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(
-            None, _blocking_sheet_delete
-        )
+        deleted = await loop.run_in_executor(None, _blocking_sheet_delete)
         
-        if result == "deleted":
+        # --- NEW: Trigger live update after delete ---
+        if deleted:
             await self.update_live_signup_message()
             
-        return result
+        return deleted
+
 
     async def _create_team_embeds(self, teams, title, description, color, guild, format_func):
         """Helper function to build and paginate team embeds."""
@@ -1207,8 +1201,6 @@ class SanguineCog(commands.Cog):
             else:
                 await interaction.followup.send("⚠️ Could not post the reminder.")
 
-    # --- REMOVED /sangsignups command ---
-
     @app_commands.command(name="sangmatch", description="Create ToB teams from users in the designated voice channel.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
     async def sangmatch(self, interaction: discord.Interaction):
@@ -1333,6 +1325,7 @@ class SanguineCog(commands.Cog):
             links = [f"Team {i+1}: {vc.mention}" for i, vc in enumerate(created_vcs)]
             await post_channel.send("🔊 **Team Voice Channels**\n" + "\n".join(links))
 
+
     @app_commands.command(name="sangexport", description="Export the most recently generated teams to a text file.")
     @app_commands.checks.has_any_role("Administrators", "Clan Staff", "Senior Staff", "Staff", "Trial Staff")
     async def sangexport(self, interaction: discord.Interaction):
@@ -1375,41 +1368,90 @@ class SanguineCog(commands.Cog):
             print(f"🔥 Failed to write or send export file: {e}")
             await interaction.followup.send(f"⚠️ Failed to write export file: {e}", ephemeral=True)
 
-    @app_commands.command(name="sangmove", description="Move users from matchmaking VC to their team VCs.")
-    @app_commands.checks.has_role(STAFF_ROLE_ID)
+
+    @app_commands.command(name="sangmove", description="Move users from Matchmaking VC to their auto-created team VCs.")
+    @app_commands.checks.has_any_role("Administrators", "Clan Staff", "Senior Staff", "Staff", "Trial Staff")
     async def sangmove(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
-        
         global last_generated_teams
-        if not last_generated_teams:
-            await interaction.followup.send("⚠️ No teams have been generated. Please run `/sangmatch` first.", ephemeral=True)
-            return
-
-        guild = interaction.guild
-        
-        # Get the matchmaking VC
-        matchmaking_vc = guild.get_channel(SANG_MATCHMAKING_VC_ID)
-        if not matchmaking_vc or not isinstance(matchmaking_vc, discord.VoiceChannel):
-            await interaction.followup.send(f"⚠️ Matchmaking VC (ID: {SANG_MATCHMAKING_VC_ID}) not found.", ephemeral=True)
+        teams = last_generated_teams
+        if not teams:
+            await interaction.followup.send("⚠️ No teams have been generated. Run `/sangmatch` first.", ephemeral=True)
             return
             
-        # Get the category where team VCs are
+        guild = interaction.guild
         category = guild.get_channel(SANG_VC_CATEGORY_ID)
         if not category or not isinstance(category, discord.CategoryChannel):
-            await interaction.followup.send(f"⚠️ Team VC Category (ID: {SANG_VC_CATEGORY_ID}) not found.", ephemeral=True)
+            await interaction.followup.send("⚠️ Could not find the Sanguine VC category.", ephemeral=True)
             return
-
-        # Get all members currently in the matchmaking VC
-        members_in_vc = {m.id: m for m in matchmaking_vc.members}
-        if not members_in_vc:
-            await interaction.followup.send(f"⚠️ No one is in the matchmaking VC ({matchmaking_vc.mention}).", ephemeral=True)
+            
+        matchmaking_vc = self.bot.get_channel(SANG_MATCHMAKING_VC_ID)
+        if not matchmaking_vc or not isinstance(matchmaking_vc, discord.VoiceChannel):
+            await interaction.followup.send("⚠️ Could not find the Matchmaking VC.", ephemeral=True)
             return
-
+            
+        # Create a lookup map of team VCs in the category
+        team_vcs = {}
+        for vc in category.voice_channels:
+            if vc.name.startswith("SanSun"):
+                # Key = "SanSunAnchorName", Value = vc
+                team_vcs[vc.name] = vc
+                
+        if not team_vcs:
+            await interaction.followup.send("⚠️ No `SanSun...` voice channels found in the category. Run `/sangmatch` to create them.", ephemeral=True)
+            return
+            
         moved_count = 0
-        failed_to_move = []
+        failed_count = 0
+        summary = []
+
+        # Iterate over the *generated teams*, not the VCs
+        for i, team in enumerate(teams):
+            if not team:
+                continue
+                
+            # Find the corresponding VC for this team
+            # The VC name is "SanSun" + sanitized anchor name
+            anchor_name = sanitize_nickname(team[0].get("user_name", f"Team{i+1}"))
+            vc_name = f"SanSun{anchor_name}"
+            target_vc = team_vcs.get(vc_name)
+
+            if not target_vc:
+                summary.append(f"❌ Could not find VC named `{vc_name}` for Team {i+1}.")
+                failed_count += len(team)
+                continue
+                
+            summary.append(f"✅ Moving Team {i+1} ({anchor_name}) to {target_vc.mention}...")
+            
+            # Move each player *in this team* to that VC
+            for player in team:
+                try:
+                    player_id = int(player["user_id"])
+                    # Get the member object *from the matchmaking VC*
+                    member = matchmaking_vc.get_member(player_id)
+                    
+                    if member:
+                        await member.move_to(target_vc, reason="SangMove command")
+                        moved_count += 1
+                        print(f"Moved {member.display_name} to {target_vc.name}")
+                    else:
+                        # Player wasn't in the matchmaking VC
+                        failed_count += 1
+                except discord.Forbidden:
+                    summary.append(f"  - 🚫 No permission to move {player['user_name']}.")
+                    failed_count += 1
+                except Exception as e:
+                    summary.append(f"  - ⚠️ Error moving {player['user_name']}: {e}")
+                    failed_count += 1
+
+        summary_message = f"**Move Complete**\n- Moved {moved_count} members.\n- Failed to move {failed_count} members.\n\n"
+        summary_message += "\n".join(summary)
         
-        # Find all team VCs first
-            await interaction.followup.send(summary, ephemeral=True)
+        # Trim message if too long for an ephemeral response
+        if len(summary_message) > 1900:
+            summary_message = summary_message[:1900] + "\n... (message trimmed)"
+            
+        await interaction.followup.send(summary_message, ephemeral=True)
 
     @app_commands.command(name="sangsetmessage", description="Manually set the message ID for the live signup embed.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
@@ -1461,8 +1503,8 @@ class SanguineCog(commands.Cog):
     @app_commands.checks.has_role(STAFF_ROLE_ID)
     async def sangpostembed(self, interaction: discord.Interaction):
         """
-        Manually posts a new live signup embed. This new embed will
-        become the one that receives live updates.
+        Posts a new live signup embed and saves its ID.
+        This is a manual fallback if the old message is lost or deleted.
         """
         await interaction.response.defer(ephemeral=True, thinking=True)
         
@@ -1472,25 +1514,25 @@ class SanguineCog(commands.Cog):
             return
             
         try:
-            # 1. Generate the embed
+            # 1. Post the new embed
             new_embed = await self._generate_signups_embed()
-            
-            # 2. Post it
             live_message = await channel.send(embed=new_embed)
             
-            # 3. Save its ID as the new active message
+            # 2. Save its ID, overwriting the old one
             await self.save_live_message_id(live_message.id)
             
             await interaction.followup.send(
                 f"✅ Posted new live signup embed in {channel.mention}.\n"
-                f"This message ({live_message.id}) will now receive live updates.",
+                f"This message (`{live_message.id}`) will now be updated automatically.",
                 ephemeral=True
             )
-            print(f"✅ Manually posted new live signup embed: {live_message.id}")
-
+            print(f"✅ Manually posted new live embed: {live_message.id}")
+            
+        except discord.Forbidden:
+            await interaction.followup.send(f"⚠️ I don't have permission to post messages in {channel.mention}.", ephemeral=True)
         except Exception as e:
-            print(f"🔥 Failed to post manual live embed: {e}")
-            await interaction.followup.send(f"⚠️ An error occurred: {e}", ephemeral=True)
+            await interaction.followup.send(f"⚠️ An unknown error occurred: {e}", ephemeral=True)
+
 
     @sangsignup.error
     @sangmatch.error
