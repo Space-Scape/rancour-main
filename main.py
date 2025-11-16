@@ -2075,6 +2075,7 @@ async def on_ready():
     if not has_synced:
         try:
             guild = discord.Object(id=GUILD_ID)
+            bot.tree.copy_global_to(guild=guild)
             synced = await bot.tree.sync(guild=guild)
             print(f"✅ Synced {len(synced)} commands to the guild.")
             has_synced = True
