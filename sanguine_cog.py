@@ -1335,20 +1335,6 @@ class SanguineCog(commands.Cog):
             return
         await interaction.response.defer(ephemeral=False)
 
-        voice_channel = self.bot.get_channel(SANG_MATCHMAKING_VC_ID)
-        if not voice_channel or not isinstance(voice_channel, discord.VoiceChannel):
-            await interaction.followup.send("⚠️ Matchmaking voice channel not found or is not a voice channel.")
-            return
-
-        channel_name = voice_channel.name
-        if not voice_channel.members:
-            await interaction.followup.send(f"⚠️ No users are in {voice_channel.mention}.")
-            return
-        vc_member_ids = {str(m.id) for m in voice_channel.members if not m.bot}
-        if not vc_member_ids:
-            await interaction.followup.send(f"⚠️ No human users are in {voice_channel.mention}.")
-            return
-
         try:
             all_signups_records = self.sang_sheet.get_all_records()
         except Exception as e:
