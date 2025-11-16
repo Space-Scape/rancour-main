@@ -1321,19 +1321,26 @@ class SanguineCog(commands.Cog):
             else:
                 await post_channel.send(embed=embed)
         
-        # --- REMOVED VC LIST FOLLOW-UP MESSAGE ---
-        # if created_vcs:
-        #     links = [f"Team {i+1}: {vc.mention}" for i, vc in enumerate(created_vcs)]
-        #     await post_channel.send("🔊 **Team Voice Channels**\n" + "\n".join(links))
-
-    @app_commands.command(name="sangmatchtest", description="Create ToB teams from the designated VC without pings/creating channels.")
+    @app_commands.command(name="sangmatchtest", description="Create ToB teams without pinging or creating voice channels; show plain-text nicknames.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
-    @app_commands.describe(channel="(Optional) Override the text channel to post teams (testing).")
-    async def sangmatchtest(self, interaction: discord.Interaction, channel: Optional[discord.TextChannel] = None):
+    @app_commands.describe(voice_channel="Optional: The voice channel to pull users from. If omitted, uses all signups.", channel="(Optional) Override the text channel to post teams (testing).")
+    async def sangmatchtest(self, interaction: discord.Interaction, voice_channel: Optional[discord.VoiceChannel] = None, channel: Optional[discord.TextChannel] = None):
         if not self.sang_sheet:
             await interaction.response.send_message("⚠️ Error: The Sanguine Sunday sheet is not connected.", ephemeral=True)
             return
         await interaction.response.defer(ephemeral=False)
+
+        vc_member_ids = None
+        channel_name = "All Signups"
+        if voice_channel:
+            channel_name = voice_channel.name
+            if not voice_channel.members:
+                await interaction.followup.send(f"⚠️ No users are in {voice_channel.mention}.")
+                return
+            vc_member_ids = {str(m.id) for m in voice_channel.members if not m.bot}
+            if not vc_member_ids:
+                await interaction.followup.send(f"⚠️ No human users are in {voice_channel.mention}.")
+                return
 
         try:
             all_signups_records = self.sang_sheet.get_all_records()
@@ -1404,8 +1411,7 @@ class SanguineCog(commands.Cog):
                 await post_channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
         
         if interaction.channel != post_channel:
-                 await interaction.followup.send("✅ Posted no-ping test teams (no voice channels created).", ephemeral=True)
-
+             await interaction.followup.send("✅ Posted no-ping test teams (no voice channels created).", ephemeral=True)
 
     @app_commands.command(name="sangexport", description="Export the most recently generated teams to a text file.")
     @app_commands.checks.has_any_role("Administrators", "Clan Staff", "Senior Staff", "Staff", "Trial Staff")
