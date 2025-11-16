@@ -33,7 +33,7 @@ SENIOR_STAFF_CHANNEL_ID = 1336473990302142484
 ADMINISTRATOR_ROLE_ID = 1272961765034164318
 SENIOR_STAFF_ROLE_ID = 1336473488159936512
 # --- UPDATED VC CATEGORY ID ---
-SANG_VC_CATEGORY_ID = 1376645103803830322
+SANG_VC_CATEGORY_ID = 1272808271392014336
 SANG_POST_CHANNEL_ID = 1338295765759688767
 # --- NEW: Matchmaking VC ID ---
 SANG_MATCHMAKING_VC_ID = 1431953026842624090
@@ -1321,9 +1321,10 @@ class SanguineCog(commands.Cog):
             else:
                 await post_channel.send(embed=embed)
         
-        if created_vcs:
-            links = [f"Team {i+1}: {vc.mention}" for i, vc in enumerate(created_vcs)]
-            await post_channel.send("🔊 **Team Voice Channels**\n" + "\n".join(links))
+        # --- REMOVED VC LIST FOLLOW-UP MESSAGE ---
+        # if created_vcs:
+        #     links = [f"Team {i+1}: {vc.mention}" for i, vc in enumerate(created_vcs)]
+        #     await post_channel.send("🔊 **Team Voice Channels**\n" + "\n".join(links))
 
 
     @app_commands.command(name="sangexport", description="Export the most recently generated teams to a text file.")
@@ -1390,6 +1391,9 @@ class SanguineCog(commands.Cog):
             await interaction.followup.send("⚠️ Could not find the Matchmaking VC.", ephemeral=True)
             return
             
+        # --- NEW: Get a list of members currently in the matchmaking VC ---
+        members_in_matchmaking_vc = matchmaking_vc.members
+            
         # Create a lookup map of team VCs in the category
         team_vcs = {}
         for vc in category.voice_channels:
@@ -1427,15 +1431,21 @@ class SanguineCog(commands.Cog):
             for player in team:
                 try:
                     player_id = int(player["user_id"])
-                    # Get the member object *from the matchmaking VC*
-                    member = matchmaking_vc.get_member(player_id)
                     
-                    if member:
-                        await member.move_to(target_vc, reason="SangMove command")
+                    # --- FIX: Find the member in the matchmaking VC ---
+                    member_to_move = None
+                    for member in members_in_matchmaking_vc:
+                        if member.id == player_id:
+                            member_to_move = member
+                            break
+                    
+                    if member_to_move:
+                        await member_to_move.move_to(target_vc, reason="SangMove command")
                         moved_count += 1
-                        print(f"Moved {member.display_name} to {target_vc.name}")
+                        print(f"Moved {member_to_move.display_name} to {target_vc.name}")
                     else:
                         # Player wasn't in the matchmaking VC
+                        print(f"Player {player['user_name']} ({player_id}) not in matchmaking VC.")
                         failed_count += 1
                 except discord.Forbidden:
                     summary.append(f"  - 🚫 No permission to move {player['user_name']}.")
