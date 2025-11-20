@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 import aiohttp
 import random
 import urllib.parse
+import requests
 
 # ---------------------------
 # 🔹 Google Sheets Setup
@@ -1072,6 +1073,47 @@ async def rsn_panel_error(interaction: discord.Interaction, error):
             "⛔ You do not have permission to use this command.",
             ephemeral=True
         )
+
+CLOG_LINE_INDEX = 44
+
+@bot.tree.command(name="clog", description="Check the Collection Log count for an OSRS player")
+@app_commands.describe(username="The OSRS username to check")
+async def clog(interaction: discord.Interaction, username: str):
+    await interaction.response.defer()
+
+    safe_username = username.replace(" ", "%20")
+    url = f"https://secure.runescape.com/m=hiscore_oldschool/index_lite.ws?player={safe_username}"
+
+    try:
+        response = requests.get(url, timeout=5)
+
+        if response.status_code == 404:
+            await interaction.followup.send(f"❌ User **{username}** not found on the Hiscores.")
+            return
+        
+        if response.status_code != 200:
+            await interaction.followup.send(f"⚠️ API Error (Status {response.status_code}). Jagex servers might be down.")
+            return
+
+        lines = response.text.strip().split('\n')
+        
+        if len(lines) <= CLOG_LINE_INDEX:
+             await interaction.followup.send("⚠️ API Error: Hiscores format changed. The bot owner needs to update the index.")
+             return
+
+        clog_line = lines[CLOG_LINE_INDEX]
+        parts = clog_line.split(',')
+        
+        if len(parts) >= 2:
+            score = parts[1]
+            formatted_score = f"{int(score):,}"
+            
+            await interaction.followup.send(f"<:clogger:1406233084311113808> **{username}** has **{formatted_score}** Collection Log slots filled!")
+        else:
+            await interaction.followup.send("⚠️ Error parsing the specific Collection Log line.")
+
+    except Exception as e:
+        await interaction.followup.send(f"⚠️ An unexpected error occurred: {e}")
 
 # ---------------------------
 # 🔹 Translator
