@@ -381,18 +381,24 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             placed_together = False
             for i in range(T):
                 # Check if both can fit on this team
-                if (len(teams[i]) + 2 <= max_sizes[i] and
-                    can_add(player, teams[i], max_sizes[i]) and
-                    can_add(partners[0], teams[i], max_sizes[i])):
+                if (len(teams[i]) + 2 <= max_sizes[i] and can_add(player, teams[i], max_sizes[i])):
+                    # Temporarily add first player
                     teams[i].append(player)
-                    teams[i].append(partners[0])
-                    leftovers.remove(player)
-                    leftovers.remove(partners[0])
-                    placed_pairs.add(id(player))
-                    placed_pairs.add(id(partners[0]))
-                    placed_together = True
-                    print(f"   ✅ Placed whitelist pair on Team {i+1}")
-                    break
+
+                    # Now check if second player can be added to the updated team
+                    if can_add(partners[0], teams[i], max_sizes[i]):
+                        # Both fit! Add second player
+                        teams[i].append(partners[0])
+                        leftovers.remove(player)
+                        leftovers.remove(partners[0])
+                        placed_pairs.add(id(player))
+                        placed_pairs.add(id(partners[0]))
+                        placed_together = True
+                        print(f"   ✅ Placed whitelist pair on Team {i+1} (now {len(teams[i])}/{max_sizes[i]})")
+                        break
+                    else:
+                        # Second player doesn't fit, remove first player
+                        teams[i].remove(player)
 
             if not placed_together:
                 print(f"   ⚠️ Could not place whitelist pair together (no team with space for both)")
@@ -535,17 +541,33 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         # Keep balancing until no team has 2+ New players while another has 0
         max_iterations = 10
         for iteration in range(max_iterations):
+            # Build a list of (team, team_index, new_count) for mentor teams
+            mentor_team_info = []
+            for i, team in enumerate(teams):
+                if any(normalize_role(p) == "mentor" for p in team):
+                    mentor_team_info.append((team, i, get_new_player_count(team)))
+
             # Sort by New player count
-            mentor_teams_by_count = sorted(mentor_teams, key=get_new_player_count)
+            mentor_team_info.sort(key=lambda x: x[2])  # Sort by new_count
 
-            lowest_team = mentor_teams_by_count[0]
-            highest_team = mentor_teams_by_count[-1]
-
-            lowest_count = get_new_player_count(lowest_team)
-            highest_count = get_new_player_count(highest_team)
+            lowest_team, lowest_idx, lowest_count = mentor_team_info[0]
+            highest_team, highest_idx, highest_count = mentor_team_info[-1]
 
             # Stop if balanced (no team has 2+ more New players than another)
             if highest_count - lowest_count < 2:
+                break
+
+            # Check if lowest team can accept a New player
+            lowest_max_size = max_sizes[lowest_idx]
+
+            # Can't add to trio (size 3) - trios only allow proficient+
+            if lowest_max_size == 3:
+                print(f"⚠️ Cannot balance New players: Team {lowest_idx+1} is a trio (size 3)")
+                break
+
+            # Can't add if team is already at max capacity
+            if len(lowest_team) >= lowest_max_size:
+                print(f"⚠️ Cannot balance New players: Team {lowest_idx+1} is at max capacity ({len(lowest_team)}/{lowest_max_size})")
                 break
 
             # Get New players from the team with most
@@ -556,12 +578,11 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                 player_to_move = new_from_high[0]
 
                 # Check if the move violates blacklist
-                temp_lowest_team = lowest_team
-                if not is_blacklist_violation(player_to_move, temp_lowest_team):
+                if not is_blacklist_violation(player_to_move, lowest_team):
                     # Perform the move
                     highest_team.remove(player_to_move)
                     lowest_team.append(player_to_move)
-                    print(f"🔄 Balancing: Moved {player_to_move.get('user_name')} from Team with {highest_count} New players to Team with {lowest_count} New players")
+                    print(f"🔄 Balancing: Moved {player_to_move.get('user_name')} from Team {highest_idx+1} ({highest_count} New) to Team {lowest_idx+1} ({lowest_count} New)")
                 else:
                     print(f"⚠️ Cannot balance New players: blacklist violation")
                     break
