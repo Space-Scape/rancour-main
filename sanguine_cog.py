@@ -290,12 +290,18 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                 players_to_add = []
                 for player in pool:
                     if is_whitelist_match(anchor, player):
+                        print(f"🔗 WHITELIST MATCH: {anchor.get('user_name')} (ID: {anchor.get('user_id')}) <-> {player.get('user_name')} (ID: {player.get('user_id')})")
+                        print(f"   Anchor whitelist: {anchor.get('whitelist')}")
+                        print(f"   Player whitelist: {player.get('whitelist')}")
                         players_to_add.append(player)
 
                 for player in players_to_add:
                     if len(teams[i]) < target_size and not is_blacklist_violation(player, teams[i]):
                         teams[i].append(player)
                         pool.remove(player)
+                        print(f"   ✅ Added {player.get('user_name')} to {anchor.get('user_name')}'s team")
+                    else:
+                        print(f"   ❌ Could not add {player.get('user_name')} to team (size: {len(teams[i])}/{target_size}, blacklist: {is_blacklist_violation(player, teams[i])})")
         else:
             teams.append([])
 
