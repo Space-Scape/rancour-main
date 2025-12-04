@@ -1327,6 +1327,10 @@ class SanguineCog(commands.Cog):
             whitelist_str = str(signup.get("Whitelist", "")).strip()
             whitelist_ids = set(id.strip() for id in whitelist_str.split(',') if id.strip()) if whitelist_str and whitelist_str != "None" else set()
 
+            # Debug logging for whitelist data
+            if whitelist_ids:
+                print(f"📋 Player {sanitize_nickname(signup.get('Discord_Name'))} (ID: {user_id}) has whitelist: {whitelist_ids}")
+
             available_raiders.append({
                 "user_id": user_id,
                 "user_name": sanitize_nickname(signup.get("Discord_Name")),
@@ -1441,6 +1445,10 @@ class SanguineCog(commands.Cog):
             # --- Read whitelist data ---
             whitelist_str = str(signup.get("Whitelist", "")).strip()
             whitelist_ids = set(id.strip() for id in whitelist_str.split(',') if id.strip()) if whitelist_str and whitelist_str != "None" else set()
+
+            # Debug logging for whitelist data
+            if whitelist_ids:
+                print(f"📋 Player {sanitize_nickname(signup.get('Discord_Name'))} (ID: {user_id}) has whitelist: {whitelist_ids}")
 
             available_raiders.append({
                 "user_id": user_id, "user_name": sanitize_nickname(signup.get("Discord_Name")),
