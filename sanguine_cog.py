@@ -48,7 +48,7 @@ SANG_MESSAGE_ID_FILE = SCRIPT_DIR / "sang_message_id.txt"
 SANG_SHEET_ID = "1CCpDAJO7Cq581yF_-rz3vx7L_BTettVaKglSvOmvTOE"
 SANG_SHEET_TAB_NAME = "SangSignups"
 SANG_HISTORY_TAB_NAME = "History"
-SANG_SHEET_HEADER = ["Discord_ID", "Discord_Name", "Favorite Roles", "KC", "Has_Scythe", "Proficiency", "Learning Freeze", "Mentor_Request", "Timestamp", "Blacklist"]
+SANG_SHEET_HEADER = ["Discord_ID", "Discord_Name", "Favorite Roles", "KC", "Has_Scythe", "Proficiency", "Learning Freeze", "Mentor_Request", "Timestamp", "Blacklist", "Whitelist"]
 
 # Message Content
 SANG_MESSAGE_IDENTIFIER = "Sanguine Sunday Sign Up"
@@ -175,10 +175,10 @@ def is_blacklist_violation(player: Dict[str, Any], team: List[Dict[str, Any]]) -
     """Checks if a player joining a team violates any blacklists."""
     player_blacklist = player.get("blacklist", set())
     player_id_str = str(player.get("user_id"))
-    
+
     for p_in_team in team:
         p_in_team_id_str = str(p_in_team.get("user_id"))
-        
+
         # Check 1: Does the player on the team (a mentor) exist in the new player's blacklist?
         if p_in_team_id_str in player_blacklist:
             return True # Player blacklists someone on team
@@ -187,8 +187,34 @@ def is_blacklist_violation(player: Dict[str, Any], team: List[Dict[str, Any]]) -
         p_in_team_blacklist = p_in_team.get("blacklist", set())
         if player_id_str in p_in_team_blacklist:
             return True # Someone on team blacklists player
-            
+
     return False
+
+def is_whitelist_match(player: Dict[str, Any], other_player: Dict[str, Any]) -> bool:
+    """Checks if two players have each other on their whitelists (mutual whitelist)."""
+    player_whitelist = player.get("whitelist", set())
+    other_whitelist = other_player.get("whitelist", set())
+
+    player_id_str = str(player.get("user_id"))
+    other_id_str = str(other_player.get("user_id"))
+
+    # Both players must have each other on their whitelists
+    return other_id_str in player_whitelist and player_id_str in other_whitelist
+
+def has_whitelist_match_on_team(player: Dict[str, Any], team: List[Dict[str, Any]]) -> bool:
+    """Checks if a player has a mutual whitelist match with anyone on the team."""
+    for p_in_team in team:
+        if is_whitelist_match(player, p_in_team):
+            return True
+    return False
+
+def count_whitelist_matches_on_team(player: Dict[str, Any], team: List[Dict[str, Any]]) -> int:
+    """Counts how many mutual whitelist matches a player has on a team."""
+    count = 0
+    for p_in_team in team:
+        if is_whitelist_match(player, p_in_team):
+            count += 1
+    return count
 
 def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     """
@@ -301,13 +327,20 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             placed = False
             idxs = mentor_idxs if forward else mentor_idxs[::-1]
             forward = not forward
-            
-            for i in idxs:
+
+            # --- NEW: Prioritize mentor teams with whitelist matches ---
+            mentee = mentees[0]
+            idxs_with_whitelist = sorted(
+                idxs,
+                key=lambda i: -count_whitelist_matches_on_team(mentee, teams[i])
+            )
+
+            for i in idxs_with_whitelist:
                 if can_add(mentees[0], teams[i], max_sizes[i]):
                     teams[i].append(mentees.pop(0))
                     placed = True
                     break
-            
+
             if not placed:
                 break
 
@@ -320,8 +353,16 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         placed_any = False
         idxs = list(range(T)) if forward else list(range(T-1, -1, -1))
         forward = not forward
-        
-        for i in idxs:
+
+        # --- NEW: Prioritize teams with whitelist matches ---
+        player = leftovers[0]
+        # Sort indices by whitelist match count (descending), then by original order
+        idxs_with_whitelist = sorted(
+            idxs,
+            key=lambda i: -count_whitelist_matches_on_team(player, teams[i])
+        )
+
+        for i in idxs_with_whitelist:
             if not leftovers:
                 break
             if can_add(leftovers[0], teams[i], max_sizes[i]):
@@ -561,8 +602,9 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
         
         blacklist_value = self.previous_data.get("Blacklist", "") if self.previous_data else ""
-        
-        row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, wants_mentor_bool, timestamp, blacklist_value]
+        whitelist_value = self.previous_data.get("Whitelist", "") if self.previous_data else ""
+
+        row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, wants_mentor_bool, timestamp, blacklist_value, whitelist_value]
         
         # --- MODIFIED LOGIC: Run GSpread logic in a thread ---
         try:
@@ -635,13 +677,14 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
         
         blacklist_value = self.previous_data.get("Blacklist", "") if self.previous_data else ""
-        
-        row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, False, timestamp, blacklist_value]
-        
+        whitelist_value = self.previous_data.get("Whitelist", "") if self.previous_data else ""
+
+        row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, False, timestamp, blacklist_value, whitelist_value]
+
         # --- MODIFIED LOGIC: Run GSpread logic in a thread ---
         try:
             sang_sheet_success, history_sheet_success = await self.cog._write_to_sheets_in_thread(user_id, row_data)
-            
+
             if sang_sheet_success and history_sheet_success:
                 await interaction.followup.send(
                     f"✅ **You are signed up as a Mentor!**\n"
@@ -831,7 +874,7 @@ class SanguineCog(commands.Cog):
                     self.sang_sheet.append_row(row_data)
                 else:
                     # User found, update them
-                    self.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:J{cell.row}')
+                    self.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:K{cell.row}')
                 sang_success = True
             except Exception as e:
                 print(f"🔥 GSpread error on SangSignups: {e}")
@@ -845,7 +888,7 @@ class SanguineCog(commands.Cog):
                         self.history_sheet.append_row(row_data)
                     else:
                         # User found, update them
-                        self.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:J{history_cell.row}')
+                        self.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:K{history_cell.row}')
                     hist_success = True
                 except Exception as e:
                     print(f"🔥 GSpread error on History: {e}")
@@ -1256,9 +1299,13 @@ class SanguineCog(commands.Cog):
                 elif 26 <= kc_val <= 100: proficiency_val = "proficient"
                 else: proficiency_val = "highly proficient"
 
-            # --- NEW: Read blacklist data ---
+            # --- Read blacklist data ---
             blacklist_str = str(signup.get("Blacklist", ""))
             blacklist_ids = set(blacklist_str.split(',')) if blacklist_str else set()
+
+            # --- Read whitelist data ---
+            whitelist_str = str(signup.get("Whitelist", ""))
+            whitelist_ids = set(whitelist_str.split(',')) if whitelist_str else set()
 
             available_raiders.append({
                 "user_id": user_id,
@@ -1271,7 +1318,8 @@ class SanguineCog(commands.Cog):
                 "knows_range": knows_range,
                 "knows_melee": knows_melee,
                 "wants_mentor": str(signup.get("Mentor_Request", "FALSE")).upper() == "TRUE",
-                "blacklist": blacklist_ids # --- NEW: Pass blacklist to algorithm
+                "blacklist": blacklist_ids,
+                "whitelist": whitelist_ids
             })
 
         if not available_raiders:
@@ -1279,7 +1327,7 @@ class SanguineCog(commands.Cog):
             return
 
         teams, stranded_players = matchmaking_algorithm(available_raiders)
-        
+
         guild = interaction.guild
         category = guild.get_channel(SANG_VC_CATEGORY_ID)
         created_vcs = []
@@ -1366,9 +1414,13 @@ class SanguineCog(commands.Cog):
                 elif 26 <= kc_val <= 100: proficiency_val = "proficient"
                 else: proficiency_val = "highly proficient"
 
-            # --- NEW: Read blacklist data ---
+            # --- Read blacklist data ---
             blacklist_str = str(signup.get("Blacklist", ""))
             blacklist_ids = set(blacklist_str.split(',')) if blacklist_str else set()
+
+            # --- Read whitelist data ---
+            whitelist_str = str(signup.get("Whitelist", ""))
+            whitelist_ids = set(whitelist_str.split(',')) if whitelist_str else set()
 
             available_raiders.append({
                 "user_id": user_id, "user_name": sanitize_nickname(signup.get("Discord_Name")),
@@ -1377,15 +1429,16 @@ class SanguineCog(commands.Cog):
                 "roles_known": roles_str, "learning_freeze": str(signup.get("Learning Freeze", "FALSE")).upper() == "TRUE",
                 "knows_range": knows_range, "knows_melee": knows_melee,
                 "wants_mentor": str(signup.get("Mentor_Request", "FALSE")).upper() == "TRUE",
-                "blacklist": blacklist_ids # --- NEW: Pass blacklist to algorithm
+                "blacklist": blacklist_ids,
+                "whitelist": whitelist_ids
             })
-        
+
         if not available_raiders:
             await interaction.followup.send("⚠️ No eligible signups.")
             return
 
         teams, stranded_players = matchmaking_algorithm(available_raiders)
-        
+
         guild = interaction.guild
         post_channel = channel or interaction.channel
 
