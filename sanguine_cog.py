@@ -526,41 +526,47 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             if not placed:
                 final_stranded.append(player)
     
-    # --- Phase 5: Balance "New" Player KC across Mentor Teams ---
+    # --- Phase 5: Balance "New" Player distribution across Mentor Teams ---
     mentor_teams = [t for t in teams if any(normalize_role(p) == "mentor" for p in t)]
     if len(mentor_teams) > 1:
-        def get_new_player_kc(team):
-            return sum(int(p.get("kc", 0)) for p in team if normalize_role(p) == "new")
-            
-        mentor_teams.sort(key=get_new_player_kc)
-        
-        lowest_team = mentor_teams[0]
-        highest_team = mentor_teams[-1]
-        
-        if get_new_player_kc(highest_team) > get_new_player_kc(lowest_team):
-            new_from_high = sorted([p for p in highest_team if normalize_role(p) == "new"], key=lambda p: -int(p.get("kc", 0)))
-            new_from_low = sorted([p for p in lowest_team if normalize_role(p) == "new"], key=lambda p: int(p.get("kc", 0)))
+        def get_new_player_count(team):
+            return len([p for p in team if normalize_role(p) == "new"])
 
-            if new_from_high and new_from_low:
-                player_to_move_up = new_from_high[0]
-                player_to_move_down = new_from_low[0]
-                
-                if int(player_to_move_up.get("kc", 0)) > int(player_to_move_down.get("kc", 0)):
-                    # --- Blacklist check before swapping ---
-                    temp_lowest_team = [p for p in lowest_team if p != player_to_move_down]
-                    temp_highest_team = [p for p in highest_team if p != player_to_move_up]
-                    
-                    violates_lowest = is_blacklist_violation(player_to_move_up, temp_lowest_team)
-                    violates_highest = is_blacklist_violation(player_to_move_down, temp_highest_team)
+        # Keep balancing until no team has 2+ New players while another has 0
+        max_iterations = 10
+        for iteration in range(max_iterations):
+            # Sort by New player count
+            mentor_teams_by_count = sorted(mentor_teams, key=get_new_player_count)
 
-                    if not violates_lowest and not violates_highest:
-                        # Perform the swap
-                        lowest_team.remove(player_to_move_down)
-                        lowest_team.append(player_to_move_up)
-                        highest_team.remove(player_to_move_up)
-                        highest_team.append(player_to_move_down)
-                        print(f"Balancing Swap: Moved {player_to_move_up.get('user_name')} to {lowest_team[0].get('user_name')}'s team.")
-                        print(f"Balancing Swap: Moved {player_to_move_down.get('user_name')} to {highest_team[0].get('user_name')}'s team.")
+            lowest_team = mentor_teams_by_count[0]
+            highest_team = mentor_teams_by_count[-1]
+
+            lowest_count = get_new_player_count(lowest_team)
+            highest_count = get_new_player_count(highest_team)
+
+            # Stop if balanced (no team has 2+ more New players than another)
+            if highest_count - lowest_count < 2:
+                break
+
+            # Get New players from the team with most
+            new_from_high = [p for p in highest_team if normalize_role(p) == "new"]
+
+            if new_from_high:
+                # Try to move a New player from highest to lowest
+                player_to_move = new_from_high[0]
+
+                # Check if the move violates blacklist
+                temp_lowest_team = lowest_team
+                if not is_blacklist_violation(player_to_move, temp_lowest_team):
+                    # Perform the move
+                    highest_team.remove(player_to_move)
+                    lowest_team.append(player_to_move)
+                    print(f"🔄 Balancing: Moved {player_to_move.get('user_name')} from Team with {highest_count} New players to Team with {lowest_count} New players")
+                else:
+                    print(f"⚠️ Cannot balance New players: blacklist violation")
+                    break
+            else:
+                break
 
 
     return teams, final_stranded
