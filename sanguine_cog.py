@@ -1333,15 +1333,24 @@ class SanguineCog(commands.Cog):
         created_vcs = []
         
         if category and isinstance(category, discord.CategoryChannel):
+            # Get the Member role to grant view/connect permissions
+            member_role = guild.get_role(MEMBER_ROLE_ID)
+            overwrites = {}
+            if member_role:
+                overwrites[member_role] = discord.PermissionOverwrite(
+                    view_channel=True,
+                    connect=True
+                )
+
             for i, team in enumerate(teams):
                 try:
                     mentor_name = f"Team{i+1}"
                     if team: # Make sure team is not empty
                         # First player in sorted team is the anchor/mentor
                         mentor_name = sanitize_nickname(team[0].get("user_name", mentor_name))
-                    
+
                     vc_name = f"SanSun{mentor_name}"
-                    new_vc = await category.create_voice_channel(name=vc_name)
+                    new_vc = await category.create_voice_channel(name=vc_name, overwrites=overwrites)
                     created_vcs.append(new_vc)
                 except Exception as e:
                     print(f"Error creating VC: {e}") 
