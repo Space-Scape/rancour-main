@@ -368,7 +368,8 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             if can_add(leftovers[0], teams[i], max_sizes[i]):
                 teams[i].append(leftovers.pop(0))
                 placed_any = True
-        
+                break  # Place one player at a time so whitelist priority is recalculated for each player
+
         if not placed_any:
             need_idxs = [i for i in range(T) if max_sizes[i] == 3 and len(teams[i]) < 3]
             borrowed = False
