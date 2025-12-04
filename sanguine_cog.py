@@ -565,21 +565,17 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                 print(f"⚠️ Cannot balance New players: Team {lowest_idx+1} is a trio (size 3)")
                 break
 
-            # Can't add if team is already at max capacity
-            if len(lowest_team) >= lowest_max_size:
-                print(f"⚠️ Cannot balance New players: Team {lowest_idx+1} is at max capacity ({len(lowest_team)}/{lowest_max_size})")
-                break
-
             # Get New players from the team with most
             new_from_high = [p for p in highest_team if normalize_role(p) == "new"]
 
-            if new_from_high:
-                # Try to move a New player from highest to lowest
-                player_to_move = new_from_high[0]
+            if not new_from_high:
+                break
 
-                # Check if the move violates blacklist
+            player_to_move = new_from_high[0]
+
+            # If lowest team has room, just move the New player
+            if len(lowest_team) < lowest_max_size:
                 if not is_blacklist_violation(player_to_move, lowest_team):
-                    # Perform the move
                     highest_team.remove(player_to_move)
                     lowest_team.append(player_to_move)
                     print(f"🔄 Balancing: Moved {player_to_move.get('user_name')} from Team {highest_idx+1} ({highest_count} New) to Team {lowest_idx+1} ({lowest_count} New)")
@@ -587,7 +583,31 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                     print(f"⚠️ Cannot balance New players: blacklist violation")
                     break
             else:
-                break
+                # Lowest team is full - need to SWAP
+                # Find a non-New, non-Mentor player from lowest team to swap with the New player
+                swappable = [p for p in lowest_team if normalize_role(p) not in ["new", "mentor"]]
+
+                if swappable:
+                    player_to_swap_out = swappable[0]
+
+                    # Check blacklist constraints for the swap
+                    temp_lowest = [p for p in lowest_team if p != player_to_swap_out]
+                    temp_highest = [p for p in highest_team if p != player_to_move]
+
+                    if (not is_blacklist_violation(player_to_move, temp_lowest) and
+                        not is_blacklist_violation(player_to_swap_out, temp_highest)):
+                        # Perform the swap
+                        lowest_team.remove(player_to_swap_out)
+                        lowest_team.append(player_to_move)
+                        highest_team.remove(player_to_move)
+                        highest_team.append(player_to_swap_out)
+                        print(f"🔄 Balancing SWAP: {player_to_move.get('user_name')} (Team {highest_idx+1}) ↔ {player_to_swap_out.get('user_name')} (Team {lowest_idx+1})")
+                    else:
+                        print(f"⚠️ Cannot balance New players: swap would violate blacklist")
+                        break
+                else:
+                    print(f"⚠️ Cannot balance New players: Team {lowest_idx+1} is full and has no swappable players")
+                    break
 
 
     return teams, final_stranded
