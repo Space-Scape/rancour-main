@@ -365,6 +365,39 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
 
     # ---------- Distribute leftovers ----------
     leftovers = strong_pool + learners + news + mentees + extra_mentors
+
+    # First pass: Try to place whitelist pairs together
+    placed_pairs = set()
+    for player_idx, player in enumerate(list(leftovers)):
+        if id(player) in placed_pairs:
+            continue
+
+        # Find whitelist partners still in leftovers
+        partners = [p for p in leftovers if p != player and is_whitelist_match(player, p)]
+
+        if partners:
+            print(f"🔗 Found whitelist pair: {player.get('user_name')} <-> {partners[0].get('user_name')}")
+            # Try to place this pair together on a team
+            placed_together = False
+            for i in range(T):
+                # Check if both can fit on this team
+                if (len(teams[i]) + 2 <= max_sizes[i] and
+                    can_add(player, teams[i], max_sizes[i]) and
+                    can_add(partners[0], teams[i], max_sizes[i])):
+                    teams[i].append(player)
+                    teams[i].append(partners[0])
+                    leftovers.remove(player)
+                    leftovers.remove(partners[0])
+                    placed_pairs.add(id(player))
+                    placed_pairs.add(id(partners[0]))
+                    placed_together = True
+                    print(f"   ✅ Placed whitelist pair on Team {i+1}")
+                    break
+
+            if not placed_together:
+                print(f"   ⚠️ Could not place whitelist pair together (no team with space for both)")
+
+    # Second pass: Place remaining leftovers normally
     forward = True
     safety = 0
     while leftovers and safety < 10000:
