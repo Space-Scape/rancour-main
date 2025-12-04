@@ -557,7 +557,7 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             if highest_count - lowest_count < 2:
                 break
 
-            # Check if lowest team can accept a New player
+            # Check if lowest team can accept a player
             lowest_max_size = max_sizes[lowest_idx]
 
             # Can't add to trio (size 3) - trios only allow proficient+
@@ -565,7 +565,43 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                 print(f"⚠️ Cannot balance New players: Team {lowest_idx+1} is a trio (size 3)")
                 break
 
-            # Get New players from the team with most
+            # PRIORITY 1: Try to move a Learner from highest team to lowest team
+            # Learners (11-25 KC) can function more independently than New players (0-10 KC)
+            learners_from_high = [p for p in highest_team if normalize_role(p) == "learner"]
+
+            if learners_from_high:
+                learner_to_move = learners_from_high[0]
+
+                # If lowest team has room, just move the Learner
+                if len(lowest_team) < lowest_max_size:
+                    if not is_blacklist_violation(learner_to_move, lowest_team):
+                        highest_team.remove(learner_to_move)
+                        lowest_team.append(learner_to_move)
+                        print(f"🔄 Balancing: Moved {learner_to_move.get('user_name')} (Learner) from Team {highest_idx+1} to Team {lowest_idx+1} (frees up mentor capacity)")
+                        continue
+                    else:
+                        print(f"⚠️ Cannot move Learner: blacklist violation")
+                else:
+                    # Lowest team is full - try to swap Learner with HP/Proficient
+                    swappable = [p for p in lowest_team if normalize_role(p) in ["highly proficient", "proficient"]]
+
+                    if swappable:
+                        player_to_swap_out = swappable[0]
+
+                        temp_lowest = [p for p in lowest_team if p != player_to_swap_out]
+                        temp_highest = [p for p in highest_team if p != learner_to_move]
+
+                        if (not is_blacklist_violation(learner_to_move, temp_lowest) and
+                            not is_blacklist_violation(player_to_swap_out, temp_highest)):
+                            # Perform the swap
+                            lowest_team.remove(player_to_swap_out)
+                            lowest_team.append(learner_to_move)
+                            highest_team.remove(learner_to_move)
+                            highest_team.append(player_to_swap_out)
+                            print(f"🔄 Balancing SWAP: {learner_to_move.get('user_name')} (Learner, Team {highest_idx+1}) ↔ {player_to_swap_out.get('user_name')} (HP/Prof, Team {lowest_idx+1})")
+                            continue
+
+            # PRIORITY 2: Only if no Learners available, move a New player
             new_from_high = [p for p in highest_team if normalize_role(p) == "new"]
 
             if not new_from_high:
@@ -573,31 +609,23 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
 
             player_to_move = new_from_high[0]
 
-            # If lowest team has room, just move the New player
+            # If lowest team has room, move the New player
             if len(lowest_team) < lowest_max_size:
                 if not is_blacklist_violation(player_to_move, lowest_team):
                     highest_team.remove(player_to_move)
                     lowest_team.append(player_to_move)
-                    print(f"🔄 Balancing: Moved {player_to_move.get('user_name')} from Team {highest_idx+1} ({highest_count} New) to Team {lowest_idx+1} ({lowest_count} New)")
+                    print(f"🔄 Balancing: Moved {player_to_move.get('user_name')} (New) from Team {highest_idx+1} to Team {lowest_idx+1}")
                 else:
                     print(f"⚠️ Cannot balance New players: blacklist violation")
                     break
             else:
-                # Lowest team is full - need to SWAP
-                # Find a non-New, non-Mentor, non-Learner player from lowest team to swap with the New player
-                # Prioritize HP/Proficient over Learners
-                swappable = [p for p in lowest_team if normalize_role(p) not in ["new", "mentor", "learner"]]
-
-                # If no HP/Proficient available, fall back to Learners
-                if not swappable:
-                    swappable = [p for p in lowest_team if normalize_role(p) == "learner"]
+                # Lowest team is full - swap New player with HP/Proficient
+                swappable = [p for p in lowest_team if normalize_role(p) in ["highly proficient", "proficient"]]
 
                 if swappable:
-                    # Sort by prof_rank to prefer HP > Proficient > Learner
                     swappable.sort(key=prof_rank)
                     player_to_swap_out = swappable[0]
 
-                    # Check blacklist constraints for the swap
                     temp_lowest = [p for p in lowest_team if p != player_to_swap_out]
                     temp_highest = [p for p in highest_team if p != player_to_move]
 
@@ -608,12 +636,12 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                         lowest_team.append(player_to_move)
                         highest_team.remove(player_to_move)
                         highest_team.append(player_to_swap_out)
-                        print(f"🔄 Balancing SWAP: {player_to_move.get('user_name')} (Team {highest_idx+1}) ↔ {player_to_swap_out.get('user_name')} (Team {lowest_idx+1})")
+                        print(f"🔄 Balancing SWAP: {player_to_move.get('user_name')} (New, Team {highest_idx+1}) ↔ {player_to_swap_out.get('user_name')} (HP/Prof, Team {lowest_idx+1})")
                     else:
                         print(f"⚠️ Cannot balance New players: swap would violate blacklist")
                         break
                 else:
-                    print(f"⚠️ Cannot balance New players: Team {lowest_idx+1} is full and has no swappable players")
+                    print(f"⚠️ Cannot balance New players: Team {lowest_idx+1} is full and has no swappable HP/Proficient players")
                     break
 
 
