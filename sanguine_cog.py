@@ -584,10 +584,17 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                     break
             else:
                 # Lowest team is full - need to SWAP
-                # Find a non-New, non-Mentor player from lowest team to swap with the New player
-                swappable = [p for p in lowest_team if normalize_role(p) not in ["new", "mentor"]]
+                # Find a non-New, non-Mentor, non-Learner player from lowest team to swap with the New player
+                # Prioritize HP/Proficient over Learners
+                swappable = [p for p in lowest_team if normalize_role(p) not in ["new", "mentor", "learner"]]
+
+                # If no HP/Proficient available, fall back to Learners
+                if not swappable:
+                    swappable = [p for p in lowest_team if normalize_role(p) == "learner"]
 
                 if swappable:
+                    # Sort by prof_rank to prefer HP > Proficient > Learner
+                    swappable.sort(key=prof_rank)
                     player_to_swap_out = swappable[0]
 
                     # Check blacklist constraints for the swap
