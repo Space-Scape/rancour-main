@@ -1314,12 +1314,12 @@ class SanguineCog(commands.Cog):
                 else: proficiency_val = "highly proficient"
 
             # --- Read blacklist data ---
-            blacklist_str = str(signup.get("Blacklist", ""))
-            blacklist_ids = set(blacklist_str.split(',')) if blacklist_str else set()
+            blacklist_str = str(signup.get("Blacklist", "")).strip()
+            blacklist_ids = set(id.strip() for id in blacklist_str.split(',') if id.strip()) if blacklist_str and blacklist_str != "None" else set()
 
             # --- Read whitelist data ---
-            whitelist_str = str(signup.get("Whitelist", ""))
-            whitelist_ids = set(whitelist_str.split(',')) if whitelist_str else set()
+            whitelist_str = str(signup.get("Whitelist", "")).strip()
+            whitelist_ids = set(id.strip() for id in whitelist_str.split(',') if id.strip()) if whitelist_str and whitelist_str != "None" else set()
 
             available_raiders.append({
                 "user_id": user_id,
@@ -1429,12 +1429,12 @@ class SanguineCog(commands.Cog):
                 else: proficiency_val = "highly proficient"
 
             # --- Read blacklist data ---
-            blacklist_str = str(signup.get("Blacklist", ""))
-            blacklist_ids = set(blacklist_str.split(',')) if blacklist_str else set()
+            blacklist_str = str(signup.get("Blacklist", "")).strip()
+            blacklist_ids = set(id.strip() for id in blacklist_str.split(',') if id.strip()) if blacklist_str and blacklist_str != "None" else set()
 
             # --- Read whitelist data ---
-            whitelist_str = str(signup.get("Whitelist", ""))
-            whitelist_ids = set(whitelist_str.split(',')) if whitelist_str else set()
+            whitelist_str = str(signup.get("Whitelist", "")).strip()
+            whitelist_ids = set(id.strip() for id in whitelist_str.split(',') if id.strip()) if whitelist_str and whitelist_str != "None" else set()
 
             available_raiders.append({
                 "user_id": user_id, "user_name": sanitize_nickname(signup.get("Discord_Name")),
