@@ -280,9 +280,22 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             if pool:
                 anchor = pool.pop(0)
                 break
-        
+
         if anchor:
             teams.append([anchor])
+
+            # Immediately add any players with mutual whitelists to this team
+            all_pools = [mentors, strong_pool, learners, news, mentees]
+            for pool in all_pools:
+                players_to_add = []
+                for player in pool:
+                    if is_whitelist_match(anchor, player):
+                        players_to_add.append(player)
+
+                for player in players_to_add:
+                    if len(teams[i]) < target_size and not is_blacklist_violation(player, teams[i]):
+                        teams[i].append(player)
+                        pool.remove(player)
         else:
             teams.append([])
 
