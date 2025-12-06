@@ -940,11 +940,18 @@ class SanguineCog(commands.Cog):
             try:
                 self.sang_sheet = sang_google_sheet.worksheet(SANG_SHEET_TAB_NAME)
                 header = self.sang_sheet.row_values(1)
-                # --- CHANGED: Check for new header ---
-                if header != SANG_SHEET_HEADER:
-                    print("⚠️ Sanguine sheet header mismatch. Re-writing...")
-                    self.sang_sheet.clear()
-                    self.sang_sheet.append_row(SANG_SHEET_HEADER)
+                # --- CHANGED: Check for new header (only compare first N columns to avoid false positives from trailing empty cells) ---
+                expected_len = len(SANG_SHEET_HEADER)
+                header_trimmed = header[:expected_len] if len(header) >= expected_len else header
+
+                if header_trimmed != SANG_SHEET_HEADER:
+                    print(f"⚠️ Sanguine sheet header mismatch. Expected: {SANG_SHEET_HEADER}, Got: {header_trimmed}")
+                    print(f"⚠️ Full header from sheet: {header}")
+                    # Only rewrite header if it's actually wrong, not just extra columns
+                    if len(header) < expected_len or header_trimmed != SANG_SHEET_HEADER:
+                        print("⚠️ Re-writing header row (preserving data)...")
+                        # Don't clear the whole sheet! Just update the header row
+                        self.sang_sheet.update('A1:K1', [SANG_SHEET_HEADER])
             except gspread.exceptions.WorksheetNotFound:
                 print(f"'{SANG_SHEET_TAB_NAME}' not found. Creating...")
                 self.sang_sheet = sang_google_sheet.add_worksheet(title=SANG_SHEET_TAB_NAME, rows="100", cols="20")
@@ -953,11 +960,18 @@ class SanguineCog(commands.Cog):
             try:
                 self.history_sheet = sang_google_sheet.worksheet(SANG_HISTORY_TAB_NAME)
                 header = self.history_sheet.row_values(1)
-                # --- CHANGED: Check for new header ---
-                if header != SANG_SHEET_HEADER:
-                    print("⚠️ Sanguine history sheet header mismatch. Re-writing...")
-                    self.history_sheet.clear()
-                    self.history_sheet.append_row(SANG_SHEET_HEADER)
+                # --- CHANGED: Check for new header (only compare first N columns to avoid false positives from trailing empty cells) ---
+                expected_len = len(SANG_SHEET_HEADER)
+                header_trimmed = header[:expected_len] if len(header) >= expected_len else header
+
+                if header_trimmed != SANG_SHEET_HEADER:
+                    print(f"⚠️ Sanguine history sheet header mismatch. Expected: {SANG_SHEET_HEADER}, Got: {header_trimmed}")
+                    print(f"⚠️ Full header from sheet: {header}")
+                    # Only rewrite header if it's actually wrong, not just extra columns
+                    if len(header) < expected_len or header_trimmed != SANG_SHEET_HEADER:
+                        print("⚠️ Re-writing header row (preserving data)...")
+                        # Don't clear the whole sheet! Just update the header row
+                        self.history_sheet.update('A1:K1', [SANG_SHEET_HEADER])
             except gspread.exceptions.WorksheetNotFound:
                 print(f"'{SANG_HISTORY_TAB_NAME}' not found. Creating...")
                 self.history_sheet = sang_google_sheet.add_worksheet(title=SANG_HISTORY_TAB_NAME, rows="1000", cols="20")
