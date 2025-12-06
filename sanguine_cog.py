@@ -1020,7 +1020,8 @@ class SanguineCog(commands.Cog):
                 cell = self.sang_sheet.find(user_id, in_column=1)
                 if cell is None:
                     # User not found, append them
-                    self.sang_sheet.append_row(row_data)
+                    # Specify table_range to ensure we append starting from column A
+                    self.sang_sheet.append_row(row_data, value_input_option='USER_ENTERED', table_range='A1:K1')
                 else:
                     # User found, update them
                     self.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:K{cell.row}')
@@ -1034,7 +1035,8 @@ class SanguineCog(commands.Cog):
                     history_cell = self.history_sheet.find(user_id, in_column=1)
                     if history_cell is None:
                         # User not found, append them
-                        self.history_sheet.append_row(row_data)
+                        # Specify table_range to ensure we append starting from column A
+                        self.history_sheet.append_row(row_data, value_input_option='USER_ENTERED', table_range='A1:K1')
                     else:
                         # User found, update them
                         self.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:K{history_cell.row}')
