@@ -1362,10 +1362,8 @@ def get_current_total_and_holders_and_owed():
 
         if entry_type == "deposit":
             total += amount
-            inferred_holders[name] = inferred_holders.get(name, 0) + amount
         elif entry_type == "withdraw":
             total -= amount
-            inferred_holders[name] = inferred_holders.get(name, 0) - amount
 
     for row in records:
         name = row.get("Name")
