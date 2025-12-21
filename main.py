@@ -457,7 +457,9 @@ For large-scale events, such as bingo or team competitions, winners will be able
     )
     await interaction.channel.send(embed=tzkal_embed)
     await asyncio.sleep(0.5)
-
+   
+    await interaction.channel.send("https://postimg.cc/JHqGsw4C")
+    await asyncio.sleep(0.5)
     # --- Pet Hunter Embed ---
     pet_hunter_embed = discord.Embed(
         title="Pet hunter - <:pethunter:1406225392989114378>",
@@ -487,7 +489,7 @@ For large-scale events, such as bingo or team competitions, winners will be able
         title="Maxed - <:maxed:1426589648141946992>",
         description="""
 ✦ 5 Weeks in the Clan
-✦ 2277 total level
+✦ 2376 total level
         """,
         color=discord.Color.from_rgb(160, 40, 40)
     )
@@ -1114,58 +1116,6 @@ async def clog(interaction: discord.Interaction, username: str):
 
     except Exception as e:
         await interaction.followup.send(f"⚠️ An unexpected error occurred: {e}")
-
-# ---------------------------
-# 🔹 Translator
-# ---------------------------
-async def get_pirate_translation(text: str):
-    """A helper function to call the pirate API and return the translation."""
-    if not text:
-        return None
-        
-    base_url = "https://pirate.monkeyness.com/api/translate?english="
-    encoded_text = urllib.parse.quote_plus(text)
-    full_url = f"{base_url}{encoded_text}"
-    timeout = aiohttp.ClientTimeout(total=10)
-
-    try:
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(full_url) as response:
-                if response.status == 200:
-                    return await response.text()
-                else:
-                    return None
-    except Exception as e:
-        print(f"Pirate API request failed: {e}")
-        return None
-
-@bot.tree.command(name="pirate", description="Translates text or a message link into pirate speak")
-async def pirate(interaction: discord.Interaction, message: str):
-    await interaction.response.defer()
-    content_to_translate = ""
-    
-    link_pattern = r"https://discord\.com/channels/(\d+)/(\d+)/(\d+)"
-    match = re.match(link_pattern, message)
-
-    if match:
-        guild_id, channel_id, message_id = map(int, match.groups())
-        try:
-            channel = bot.get_channel(channel_id)
-            fetched_message = await channel.fetch_message(message_id)
-            content_to_translate = fetched_message.content
-        except Exception:
-            await interaction.followup.send("Arr, I couldn't seem to fetch that message, matey.")
-            return
-    else:
-        content_to_translate = message
-
-    translation = await get_pirate_translation(content_to_translate)
-    
-    if translation:
-        emoji = random.choice(PIRATE_EMOJIS)
-        await interaction.followup.send(f"{emoji} {translation}")
-    else:
-        await interaction.followup.send("Arr, me translator be shipwrecked! Couldn't get a response.")
 
 # ---------------------------
 # 🔹 TimeZones
@@ -2022,13 +1972,6 @@ async def justice_panel(interaction: discord.Interaction):
 # ---------------------------
 # 🔹 Bot Events
 # ---------------------------
-TARGET_CHANNEL_ID = 1272629331524587623
-message_counter = 0
-translation_threshold = random.randint(25, 50)
-PIRATE_EMOJIS = [
-    "⚓", "🏴‍☠️", "☸", "🌊", "🏝️", "🗺️", "🦜", "🧭", "☠️", "🔱", "⚔︎", 
-    "<:sailing:1437972148881850469>", "🪙"
-]
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -2052,26 +1995,6 @@ async def on_message(message: discord.Message):
         if (message.attachments or has_pasted_image) and not is_reply:
             view = CollatButtons() # Stateless view
             await message.reply("Collat actions:", view=view, allowed_mentions=discord.AllowedMentions.none())
-
-    if parent_channel_id == TARGET_CHANNEL_ID:
-        print(f"[DEBUG] Message detected in target channel ({TARGET_CHANNEL_ID}).")
-        
-        message_counter += 1
-        print(f"[DEBUG] Counter is now {message_counter}. Threshold is {translation_threshold}.")
-
-        if message_counter >= translation_threshold:
-            print(f"[DEBUG] Threshold met! Translating '{message.content}'...")
-            
-            translation = await get_pirate_translation(message.content)
-            print(f"[DEBUG] API Response: {translation}")
-            
-            if translation:
-                emoji = random.choice(PIRATE_EMOJIS)
-                await message.channel.send(f"{emoji} {translation}")
-            
-            message_counter = 0
-            translation_threshold = random.randint(25, 50)
-            print(f"[DEBUG] Counter reset. New threshold is {translation_threshold}.")
 
 @bot.event
 async def on_member_update(before: discord.Member, after: discord.Member):
