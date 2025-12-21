@@ -458,7 +458,7 @@ For large-scale events, such as bingo or team competitions, winners will be able
     await interaction.channel.send(embed=tzkal_embed)
     await asyncio.sleep(0.5)
    
-    await interaction.channel.send("https://postimg.cc/JHqGsw4C")
+    await interaction.channel.send("https://i.postimg.cc/qgfnZ0Pq/img.png")
     await asyncio.sleep(0.5)
     # --- Pet Hunter Embed ---
     pet_hunter_embed = discord.Embed(
