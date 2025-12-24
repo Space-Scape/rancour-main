@@ -15,6 +15,10 @@ import aiohttp
 import random
 import urllib.parse
 import requests
+import google.generativeai as genai
+
+genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 # ---------------------------
 # 🔹 Google Sheets Setup
@@ -1655,6 +1659,28 @@ async def bank(interaction: discord.Interaction):
         f"**{ceo_bank_line}**\n**{clan_coffer_line}**\n\n{holder_text}\n\n{owed_text}",
         ephemeral=False
     )
+
+
+
+
+@tree.command(name="ask", description="Ask Gemini a question.")
+@app_commands.describe(question="What would you like to ask the AI?")
+async def ask(interaction: discord.Interaction, question: str):
+    """Sends a prompt to Gemini and returns the AI-generated response."""
+    await interaction.response.defer(thinking=True)
+
+    try:
+        response = model.generate_content(question)
+        
+        answer = response.text
+        if len(answer) > 2000:
+            answer = answer[:1990] + "..."
+
+        await interaction.followup.send(f"**Question:** {question}\n\n{answer}")
+        
+    except Exception as e:
+        print(f"Gemini Error: {e}")
+        await interaction.followup.send("⚠️ I ran into an error trying to think of an answer. Please try again later.")
 
 # ---------------------------
 # 🔹 Panel Init()
