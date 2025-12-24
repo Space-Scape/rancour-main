@@ -1660,30 +1660,37 @@ async def bank(interaction: discord.Interaction):
     )
 
 
-@tree.command(name="ask", description="Ask Gemini a question using the updated google.genai library.")
+@tree.command(name="ask", description="Ask Gemini a question using the 2.0-flash model.")
 @app_commands.describe(question="What would you like to ask the AI?")
 async def ask(interaction: discord.Interaction, question: str):
-    """Sends a prompt to the new Gemini client and returns the AI response."""
-    # AI responses take time, so we must defer to avoid timeouts
+    """Sends a prompt to the Gemini 2.0 model for fast, accurate responses."""
+    # Defer to avoid the 3-second Discord interaction timeout
     await interaction.response.defer(thinking=True)
 
     try:
-        # Generate the response using the updated client syntax
+        # Using gemini-2.0-flash for better compatibility and performance in 2025
         response = client.models.generate_content(
-            model="gemini-1.5-flash", 
+            model="gemini-2.0-flash", 
             contents=question
         )
         
-        # Discord has a 2000 character limit for messages
         answer = response.text
+        
+        # Enforce Discord's 2000 character limit
         if len(answer) > 2000:
-            answer = answer[:1990] + "..."
-
-        await interaction.followup.send(f"**Question:** {question}\n\n{answer}")
+            chunks = [answer[i:i+1990] for i in range(0, len(answer), 1990)]
+            await interaction.followup.send(f"**Question:** {question}\n\n{chunks[0]}...")
+            # Optionally send the rest in follow-up messages if needed
+        else:
+            await interaction.followup.send(f"**Question:** {question}\n\n{answer}")
         
     except Exception as e:
-        print(f"Gemini Error: {e}")
-        await interaction.followup.send("⚠️ I ran into an error with the new AI client. Please try again later.")
+        print(f"Gemini API Error: {e}")
+        await interaction.followup.send(
+            "⚠️ The AI is currently unavailable or the model name has changed. "
+            "Please check the logs or try again later.", 
+            ephemeral=True
+        )
 
 
 # ---------------------------
