@@ -1660,40 +1660,60 @@ async def bank(interaction: discord.Interaction):
     )
 
 
-@tree.command(name="ask", description="Ask Gemini a question (handles long responses).")
-@app_commands.describe(question="What would you like to ask the AI?")
-async def ask(interaction: discord.Interaction, question: str):
-    """Sends a prompt to Gemini and splits the response if it exceeds 2000 characters."""
-    await interaction.response.defer(thinking=True)
+# ---------------------------
+# 🔹 Chat Export Tool
+# ---------------------------
 
+@tree.command(name="exportchat", description="Export messages for review.")
+@app_commands.checks.has_any_role("Administrators")
+async def exportchat(interaction: discord.Interaction, user: Optional[discord.Member] = None, keyword: Optional[str] = None):
+    await interaction.response.defer(ephemeral=True)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Timestamp", "Channel", "Author", "Content"])
+
+    found_count = 0
+    for channel in interaction.guild.text_channels:
+        try:
+            async for msg in channel.history(limit=1000, oldest_first=True):
+                if user and msg.author.id != user.id: continue
+                if keyword and keyword.lower() not in msg.content.lower(): continue
+                writer.writerow([msg.created_at.strftime("%Y-%m-%d"), f"#{channel.name}", str(msg.author), msg.content])
+                found_count += 1
+        except: continue
+
+    if found_count == 0:
+        await interaction.followup.send("No messages found.")
+        return
+
+    output.seek(0)
+    file = discord.File(fp=io.BytesIO(output.getvalue().encode()), filename="export.csv")
+    await interaction.followup.send(f"✅ Exported {found_count} messages.", file=file)
+
+# ---------------------------
+# 🔹 Ask Gemini (Fixed Syntax & Limits)
+# ---------------------------
+
+@tree.command(name="ask", description="Ask Gemini a question.")
+async def ask(interaction: discord.Interaction, question: str):
+    await interaction.response.defer(thinking=True)
     try:
-        response = client.models.generate_content(
-            model="gemini-2.0-flash", 
-            contents=question
-        )
+        response = client.models.generate_content(model="gemini-2.0-flash", contents=question)
         answer = response.text
-        
-        # Define the header and calculate available space
         header = f"**Question:** {question}\n\n"
         
-        # If the combined length is safe, send in one go
         if len(header) + len(answer) <= 2000:
             await interaction.followup.send(f"{header}{answer}")
         else:
-            # Send the first part with the header
-            first_chunk_limit = 2000 - len(header)
-            await interaction.followup.send(f"{header}{answer[:first_chunk_limit]}")
-            
-            # Send the remaining text in chunks of 2000
-            remaining_text = answer[first_chunk_limit:]
-            for i in range(0, len(remaining_text), 2000):
-                chunk = remaining_text[i:i+2000]
-                if chunk:
-                    await interaction.followup.send(chunk)
-        
+            limit = 2000 - len(header)
+            await interaction.followup.send(f"{header}{answer[:limit]}")
+            remaining = answer[limit:]
+            for i in range(0, len(remaining), 2000):
+                chunk = remaining[i:i+2000]
+                if chunk: await interaction.followup.send(chunk)
     except Exception as e:
         print(f"Gemini API Error: {e}")
-        await interaction.followup.send("⚠️ I encountered an error. The response might have been too large or blocked."))
+        await interaction.followup.send("⚠️ I encountered an error. The response might have been too large or blocked.")
 
 # ---------------------------
 # 🔹 Panel Init()
