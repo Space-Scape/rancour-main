@@ -1660,38 +1660,40 @@ async def bank(interaction: discord.Interaction):
     )
 
 
-@tree.command(name="ask", description="Ask Gemini a question using the 2.0-flash model.")
+@tree.command(name="ask", description="Ask Gemini a question (handles long responses).")
 @app_commands.describe(question="What would you like to ask the AI?")
 async def ask(interaction: discord.Interaction, question: str):
-    """Sends a prompt to the Gemini 2.0 model for fast, accurate responses."""
-    # Defer to avoid the 3-second Discord interaction timeout
+    """Sends a prompt to Gemini and splits the response if it exceeds 2000 characters."""
     await interaction.response.defer(thinking=True)
 
     try:
-        # Using gemini-2.0-flash for better compatibility and performance in 2025
         response = client.models.generate_content(
             model="gemini-2.0-flash", 
             contents=question
         )
-        
         answer = response.text
         
-        # Enforce Discord's 2000 character limit
-        if len(answer) > 2000:
-            chunks = [answer[i:i+1990] for i in range(0, len(answer), 1990)]
-            await interaction.followup.send(f"**Question:** {question}\n\n{chunks[0]}...")
-            # Optionally send the rest in follow-up messages if needed
+        # Define the header and calculate available space
+        header = f"**Question:** {question}\n\n"
+        
+        # If the combined length is safe, send in one go
+        if len(header) + len(answer) <= 2000:
+            await interaction.followup.send(f"{header}{answer}")
         else:
-            await interaction.followup.send(f"**Question:** {question}\n\n{answer}")
+            # Send the first part with the header
+            first_chunk_limit = 2000 - len(header)
+            await interaction.followup.send(f"{header}{answer[:first_chunk_limit]}")
+            
+            # Send the remaining text in chunks of 2000
+            remaining_text = answer[first_chunk_limit:]
+            for i in range(0, len(remaining_text), 2000):
+                chunk = remaining_text[i:i+2000]
+                if chunk:
+                    await interaction.followup.send(chunk)
         
     except Exception as e:
         print(f"Gemini API Error: {e}")
-        await interaction.followup.send(
-            "⚠️ The AI is currently unavailable or the model name has changed. "
-            "Please check the logs or try again later.", 
-            ephemeral=True
-        )
-
+        await interaction.followup.send("⚠️ I encountered an error. The response might have been too large or blocked."))
 
 # ---------------------------
 # 🔹 Panel Init()
