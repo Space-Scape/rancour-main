@@ -15,11 +15,10 @@ import aiohttp
 import random
 import urllib.parse
 import requests
-import google.generativeai as genai
+from google import genai
 
-genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-model = genai.GenerativeModel('gemini-1.5-flash')
-
+# Configure the new Gemini client
+client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
 # ---------------------------
 # 🔹 Google Sheets Setup
 # ---------------------------
@@ -1661,17 +1660,21 @@ async def bank(interaction: discord.Interaction):
     )
 
 
-
-
-@tree.command(name="ask", description="Ask Gemini a question.")
+@tree.command(name="ask", description="Ask Gemini a question using the updated google.genai library.")
 @app_commands.describe(question="What would you like to ask the AI?")
 async def ask(interaction: discord.Interaction, question: str):
-    """Sends a prompt to Gemini and returns the AI-generated response."""
+    """Sends a prompt to the new Gemini client and returns the AI response."""
+    # AI responses take time, so we must defer to avoid timeouts
     await interaction.response.defer(thinking=True)
 
     try:
-        response = model.generate_content(question)
+        # Generate the response using the updated client syntax
+        response = client.models.generate_content(
+            model="gemini-1.5-flash", 
+            contents=question
+        )
         
+        # Discord has a 2000 character limit for messages
         answer = response.text
         if len(answer) > 2000:
             answer = answer[:1990] + "..."
@@ -1680,7 +1683,8 @@ async def ask(interaction: discord.Interaction, question: str):
         
     except Exception as e:
         print(f"Gemini Error: {e}")
-        await interaction.followup.send("⚠️ I ran into an error trying to think of an answer. Please try again later.")
+        await interaction.followup.send("⚠️ I ran into an error with the new AI client. Please try again later.")
+
 
 # ---------------------------
 # 🔹 Panel Init()
