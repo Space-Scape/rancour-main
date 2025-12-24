@@ -1698,7 +1698,7 @@ async def exportchat(interaction: discord.Interaction, user: Optional[discord.Me
 async def ask(interaction: discord.Interaction, question: str):
     await interaction.response.defer(thinking=True)
     try:
-        response = client.models.generate_content(model="gemini-3-flash", contents=question)
+        response = client.models.generate_content(model="gemini-3-flash-preview", contents=question)
         answer = response.text
         header = f"**Question:** {question}\n\n"
         
