@@ -1121,7 +1121,7 @@ async def clog(interaction: discord.Interaction, username: str):
 # 🔹 Santa's Naughty or Nice List
 # ---------------------------
 
-# Exhuastive word lists for an 18+ OSRS community (No slurs/hate speech)
+# Comprehensive word lists for an 18+ OSRS community
 NAUGHTY_KEYWORDS = [
     "ban him", "touch grass", "noob", "sit", "trash", "kid", "diff", "free", 
     "pleae", "rat", "gf", "ez", "garbage", "get good", "gtfo", "idiot", "loser", 
@@ -1146,48 +1146,47 @@ NICE_KEYWORDS = [
 @tree.command(name="santalist", description="Determines a user's status by balancing naughty vs. nice words in their history.")
 @app_commands.describe(member="The user to check (defaults to you if left blank)")
 async def santalist(interaction: discord.Interaction, member: Optional[discord.Member] = None):
-    """Calculates the balance of sentiment and picks a random example from the dominant category."""
-    # Defer response to handle the API time required to scan message history
+    """Calculates balance using whole-word matching to avoid false positives like 'gl' in 'Global'."""
     await interaction.response.defer(thinking=True)
     
     target = member or interaction.user
     naughty_matches = []
     nice_matches = []
 
-    # Scan history with a limit of 500 to capture 100 messages from the specific user
+    # Scan history with a limit of 500 to find at least 100 messages from the target user
     user_msg_count = 0
     async for message in interaction.channel.history(limit=500):
         if message.author == target:
             user_msg_count += 1
             content_lower = message.content.lower()
 
-            # Check for and collect naughty matches
-            if any(word in content_lower for word in NAUGHTY_KEYWORDS):
-                naughty_matches.append(message.content)
+            # Check for Naughty matches using word boundaries (\b)
+            for word in NAUGHTY_KEYWORDS:
+                if re.search(rf"\b{re.escape(word)}\b", content_lower):
+                    naughty_matches.append(message.content)
+                    break # Move to next message once a match is found
             
-            # Check for and collect nice matches
-            if any(word in content_lower for word in NICE_KEYWORDS):
-                nice_matches.append(message.content)
+            # Check for Nice matches using word boundaries (\b)
+            for word in NICE_KEYWORDS:
+                if re.search(rf"\b{re.escape(word)}\b", content_lower):
+                    nice_matches.append(message.content)
+                    break # Move to next message once a match is found
             
-            # Stop once we have analyzed 100 messages from the target user
             if user_msg_count >= 100:
                 break
 
-    # Determine status based on the volume of each category
     naughty_count = len(naughty_matches)
     nice_count = len(nice_matches)
 
-    # Comparison Logic: If counts are equal, the user is neutral
+    # Output randomized result based on dominant category
     if naughty_count > nice_count:
-        # User is Naughty: Select a random example from their naughty posts
         selected_msg = random.choice(naughty_matches)
         await interaction.followup.send(
             f"{target.mention} has been naughty! 😈 (Score: {naughty_count} Naughty vs {nice_count} Nice)\n"
             f"> \"{selected_msg}\"\n"
-            "Go shovel coal, you bad little elf ⚫"
+            "Go shovel coal ⚫🪏"
         )
     elif nice_count > naughty_count:
-        # User is Nice: Select a random example from their nice posts
         selected_msg = random.choice(nice_matches)
         await interaction.followup.send(
             f"{target.mention} has been nice! 🎅 (Score: {nice_count} Nice vs {naughty_count} Naughty)\n"
@@ -1195,7 +1194,7 @@ async def santalist(interaction: discord.Interaction, member: Optional[discord.M
             "Have a cookie! 🍪"
         )
     else:
-        # Neutral status if counts are equal or no keywords were found
+        # Balanced result if no keywords found or counts are equal
         await interaction.followup.send(
             f"I scanned 100 messages and found {naughty_count} Naughty and {nice_count} Nice words. "
             f"{target.display_name} is perfectly balanced... for now. 👀"
