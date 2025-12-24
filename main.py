@@ -1184,7 +1184,7 @@ async def santalist(interaction: discord.Interaction, member: Optional[discord.M
         await interaction.followup.send(
             f"{target.mention} has been naughty! 😈 (Score: {naughty_count} Naughty vs {nice_count} Nice)\n"
             f"> \"{selected_msg}\"\n"
-            "Go shovel coal ⚫🪏"
+            "Go shovel coal ⚫ bad little elf!"
         )
     elif nice_count > naughty_count:
         selected_msg = random.choice(nice_matches)
