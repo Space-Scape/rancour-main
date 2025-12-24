@@ -1118,6 +1118,76 @@ async def clog(interaction: discord.Interaction, username: str):
         await interaction.followup.send(f"⚠️ An unexpected error occurred: {e}")
 
 # ---------------------------
+# 🔹 Santa's Naughty or Nice List
+# ---------------------------
+
+# Expanded for an 18+ gaming community (No hate speech or slurs)
+NAUGHTY_KEYWORDS = [
+    "ban him", "touch grass", "noob", "sit", "trash", "kid", "diff", "free", 
+    "pleae", "rat", "gf", "ez", "garbage", "get good", "gtfo", "idiot", "loser", 
+    "dumb", "moron", "washed", "hardstuck", "thrower", "mald", "seethe", "cope", 
+    "clown", "dogwater", "bot", "boosted", "cleared", "planked", "hop", "l0l", 
+    "skill issue", "shitter",
+    "shit", "fuck", "hell", "damn", "ass", "pissed", "stfu", "wanker", "prick", 
+    "dick", "bastard", "bitch", "crap", "bloody", "piss", "bollocks"
+]
+
+NICE_KEYWORDS = [
+    "sorry", "sorry about what happened", "apologies", "apologize", "my bad",
+    "so handsome", "neat", "everyone's welcome", "come along",
+    "gz", "grats", "congrats", "congratulations", "nice", "gl", "hf", "huge", 
+    "beast", "clean", "pog", "poggers", "ty", "thanks", "thx", "lfg", "lets go",
+    "cracked", "insane", "amazing", "big loot", "spooned", "vouch", "unreal",
+    "help", "teach", "well done", "good job", "gj", "proud", "keep it up", 
+    "carry", "mentor", "guide", "tips", "share", "split", "happy to help", 
+    "no problem", "np", "nw", "you're welcome", "welcome", "legend", "champion"
+]
+
+@tree.command(name="santalist", description="Checks a user's last 100 messages for naughty or nice behavior.")
+@app_commands.describe(member="The user to check (defaults to you if left blank)")
+async def santalist(interaction: discord.Interaction, member: Optional[discord.Member] = None):
+    """Scans channel history for OSRS culture, encouragement, and adult expressions."""
+    await interaction.response.defer(thinking=True)
+    
+    target = member or interaction.user
+    found_naughty = None
+    found_nice = None
+
+    user_msg_count = 0
+    async for message in interaction.channel.history(limit=500):
+        if message.author == target:
+            user_msg_count += 1
+            content_lower = message.content.lower()
+
+            if any(word in content_lower for word in NAUGHTY_KEYWORDS):
+                found_naughty = message.content
+                break 
+            
+            if not found_nice and any(word in content_lower for word in NICE_KEYWORDS):
+                found_nice = message.content
+            
+            if user_msg_count >= 100:
+                break
+
+    if found_naughty:
+        await interaction.followup.send(
+            f"{target.mention} has been naughty! 😈\n"
+            f"> \"{found_naughty}\"\n"
+            "Go shovel coal ⚫🪏"
+        )
+    elif found_nice:
+        await interaction.followup.send(
+            f"{target.mention} has been nice! 🎅\n"
+            f"> \"{found_nice}\"\n"
+            "Have a cookie! 🍪"
+        )
+    else:
+        await interaction.followup.send(
+            f"I scanned 100 messages and couldn't find enough evidence on {target.display_name}. "
+            "They are neutral... for now. 👀"
+        )
+
+# ---------------------------
 # 🔹 TimeZones
 # ---------------------------
 
