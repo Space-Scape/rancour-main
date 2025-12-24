@@ -1120,87 +1120,57 @@ async def clog(interaction: discord.Interaction, username: str):
     except Exception as e:
         await interaction.followup.send(f"⚠️ An unexpected error occurred: {e}")
 
-# ---------------------------
-# 🔹 Santa's Naughty or Nice List
-# ---------------------------
-
-# Comprehensive word lists for an 18+ OSRS community
-NAUGHTY_KEYWORDS = [
-    "ban him", "touch grass", "noob", "sit", "trash", "kid", "diff", "free", 
-    "pleae", "rat", "gf", "ez", "garbage", "get good", "gtfo", "idiot", "loser", 
-    "dumb", "moron", "washed", "hardstuck", "thrower", "mald", "seethe", "cope", 
-    "clown", "dogwater", "bot", "boosted", "cleared", "planked", "hop", "l0l", 
-    "skill issue", "shitter", "shit", "fuck", "hell", "damn", "ass", "pissed", 
-    "stfu", "wanker", "prick", "dick", "bastard", "bitch", "crap", "bloody", 
-    "piss", "bollocks"
-]
-
-NICE_KEYWORDS = [
-    "sorry", "sorry about what happened", "apologies", "apologize", "my bad",
-    "so handsome", "neat", "everyone's welcome", "come along", "gz", "grats", 
-    "congrats", "congratulations", "nice", "gl", "hf", "huge", "beast", "clean", 
-    "pog", "poggers", "ty", "thanks", "thx", "lfg", "lets go", "cracked", 
-    "insane", "amazing", "big loot", "spooned", "vouch", "unreal", "help", 
-    "teach", "well done", "good job", "gj", "proud", "keep it up", "carry", 
-    "mentor", "guide", "tips", "share", "split", "happy to help", "no problem", 
-    "np", "nw", "you're welcome", "welcome", "legend", "champion"
-]
-
-@tree.command(name="santalist", description="Determines a user's status by balancing naughty vs. nice words in their history.")
-@app_commands.describe(member="The user to check (defaults to you if left blank)")
+@tree.command(name="santalist", description="Balances naughty vs. nice words. Neutral results are hidden (ephemeral).")
+@app_commands.describe(member="The user to check (defaults to you)")
 async def santalist(interaction: discord.Interaction, member: Optional[discord.Member] = None):
-    """Calculates balance using whole-word matching to avoid false positives like 'gl' in 'Global'."""
-    await interaction.response.defer(thinking=True)
+    # Defer ephemerally so the 'Thinking' state is only visible to you
+    await interaction.response.defer(thinking=True, ephemeral=True)
     
     target = member or interaction.user
     naughty_matches = []
     nice_matches = []
 
-    # Scan history with a limit of 500 to find at least 100 messages from the target user
     user_msg_count = 0
     async for message in interaction.channel.history(limit=500):
         if message.author == target:
             user_msg_count += 1
             content_lower = message.content.lower()
 
-            # Check for Naughty matches using word boundaries (\b)
+            # Whole-word matching for accuracy
             for word in NAUGHTY_KEYWORDS:
                 if re.search(rf"\b{re.escape(word)}\b", content_lower):
                     naughty_matches.append(message.content)
-                    break # Move to next message once a match is found
+                    break
             
-            # Check for Nice matches using word boundaries (\b)
             for word in NICE_KEYWORDS:
                 if re.search(rf"\b{re.escape(word)}\b", content_lower):
                     nice_matches.append(message.content)
-                    break # Move to next message once a match is found
+                    break
             
             if user_msg_count >= 100:
                 break
 
-    naughty_count = len(naughty_matches)
-    nice_count = len(nice_matches)
+    n_count, n_nice = len(naughty_matches), len(nice_matches)
 
-    # Output randomized result based on dominant category
-    if naughty_count > nice_count:
-        selected_msg = random.choice(naughty_matches)
-        await interaction.followup.send(
-            f"{target.mention} has been naughty! 😈 (Score: {naughty_count} Naughty vs {nice_count} Nice)\n"
-            f"> \"{selected_msg}\"\n"
+    if n_count > n_nice:
+        # Public message for Naughty
+        await interaction.channel.send(
+            f"{target.mention} has been naughty! 😈 (Score: {n_count} vs {n_nice})\n"
+            f"> \"{random.choice(naughty_matches)}\"\n"
             "Go shovel coal ⚫ bad little elf!"
         )
-    elif nice_count > naughty_count:
-        selected_msg = random.choice(nice_matches)
-        await interaction.followup.send(
-            f"{target.mention} has been nice! 🎅 (Score: {nice_count} Nice vs {naughty_count} Naughty)\n"
-            f"> \"{selected_msg}\"\n"
+    elif n_nice > n_count:
+        # Public message for Nice
+        await interaction.channel.send(
+            f"{target.mention} has been nice! 🎅 (Score: {n_nice} vs {n_count})\n"
+            f"> \"{random.choice(nice_matches)}\"\n"
             "Have a cookie! 🍪"
         )
     else:
-        # Balanced result if no keywords found or counts are equal
         await interaction.followup.send(
-            f"I scanned 100 messages and found {naughty_count} Naughty and {nice_count} Nice words. "
-            f"{target.display_name} is perfectly balanced... for now. 👀"
+            f"I found {n_count} Naughty and {n_nice} Nice words. "
+            f"{target.display_name} is perfectly balanced... for now. 👀", 
+            ephemeral=True
         )
 
 # ---------------------------
