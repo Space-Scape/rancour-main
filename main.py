@@ -1121,70 +1121,84 @@ async def clog(interaction: discord.Interaction, username: str):
 # 🔹 Santa's Naughty or Nice List
 # ---------------------------
 
-# Expanded for an 18+ gaming community (No hate speech or slurs)
+# Exhuastive word lists for an 18+ OSRS community (No slurs/hate speech)
 NAUGHTY_KEYWORDS = [
     "ban him", "touch grass", "noob", "sit", "trash", "kid", "diff", "free", 
     "pleae", "rat", "gf", "ez", "garbage", "get good", "gtfo", "idiot", "loser", 
     "dumb", "moron", "washed", "hardstuck", "thrower", "mald", "seethe", "cope", 
     "clown", "dogwater", "bot", "boosted", "cleared", "planked", "hop", "l0l", 
-    "skill issue", "shitter",
-    "shit", "fuck", "hell", "damn", "ass", "pissed", "stfu", "wanker", "prick", 
-    "dick", "bastard", "bitch", "crap", "bloody", "piss", "bollocks"
+    "skill issue", "shitter", "shit", "fuck", "hell", "damn", "ass", "pissed", 
+    "stfu", "wanker", "prick", "dick", "bastard", "bitch", "crap", "bloody", 
+    "piss", "bollocks"
 ]
 
 NICE_KEYWORDS = [
     "sorry", "sorry about what happened", "apologies", "apologize", "my bad",
-    "so handsome", "neat", "everyone's welcome", "come along",
-    "gz", "grats", "congrats", "congratulations", "nice", "gl", "hf", "huge", 
-    "beast", "clean", "pog", "poggers", "ty", "thanks", "thx", "lfg", "lets go",
-    "cracked", "insane", "amazing", "big loot", "spooned", "vouch", "unreal",
-    "help", "teach", "well done", "good job", "gj", "proud", "keep it up", 
-    "carry", "mentor", "guide", "tips", "share", "split", "happy to help", 
-    "no problem", "np", "nw", "you're welcome", "welcome", "legend", "champion"
+    "so handsome", "neat", "everyone's welcome", "come along", "gz", "grats", 
+    "congrats", "congratulations", "nice", "gl", "hf", "huge", "beast", "clean", 
+    "pog", "poggers", "ty", "thanks", "thx", "lfg", "lets go", "cracked", 
+    "insane", "amazing", "big loot", "spooned", "vouch", "unreal", "help", 
+    "teach", "well done", "good job", "gj", "proud", "keep it up", "carry", 
+    "mentor", "guide", "tips", "share", "split", "happy to help", "no problem", 
+    "np", "nw", "you're welcome", "welcome", "legend", "champion"
 ]
 
-@tree.command(name="santalist", description="Checks a user's last 100 messages for naughty or nice behavior.")
+@tree.command(name="santalist", description="Determines a user's status by balancing naughty vs. nice words in their history.")
 @app_commands.describe(member="The user to check (defaults to you if left blank)")
 async def santalist(interaction: discord.Interaction, member: Optional[discord.Member] = None):
-    """Scans channel history for OSRS culture, encouragement, and adult expressions."""
+    """Calculates the balance of sentiment and picks a random example from the dominant category."""
+    # Defer response to handle the API time required to scan message history
     await interaction.response.defer(thinking=True)
     
     target = member or interaction.user
-    found_naughty = None
-    found_nice = None
+    naughty_matches = []
+    nice_matches = []
 
+    # Scan history with a limit of 500 to capture 100 messages from the specific user
     user_msg_count = 0
     async for message in interaction.channel.history(limit=500):
         if message.author == target:
             user_msg_count += 1
             content_lower = message.content.lower()
 
+            # Check for and collect naughty matches
             if any(word in content_lower for word in NAUGHTY_KEYWORDS):
-                found_naughty = message.content
-                break 
+                naughty_matches.append(message.content)
             
-            if not found_nice and any(word in content_lower for word in NICE_KEYWORDS):
-                found_nice = message.content
+            # Check for and collect nice matches
+            if any(word in content_lower for word in NICE_KEYWORDS):
+                nice_matches.append(message.content)
             
+            # Stop once we have analyzed 100 messages from the target user
             if user_msg_count >= 100:
                 break
 
-    if found_naughty:
+    # Determine status based on the volume of each category
+    naughty_count = len(naughty_matches)
+    nice_count = len(nice_matches)
+
+    # Comparison Logic: If counts are equal, the user is neutral
+    if naughty_count > nice_count:
+        # User is Naughty: Select a random example from their naughty posts
+        selected_msg = random.choice(naughty_matches)
         await interaction.followup.send(
-            f"{target.mention} has been naughty! 😈\n"
-            f"> \"{found_naughty}\"\n"
-            "Go shovel coal ⚫🪏"
+            f"{target.mention} has been naughty! 😈 (Score: {naughty_count} Naughty vs {nice_count} Nice)\n"
+            f"> \"{selected_msg}\"\n"
+            "Go shovel coal, you bad little elf ⚫"
         )
-    elif found_nice:
+    elif nice_count > naughty_count:
+        # User is Nice: Select a random example from their nice posts
+        selected_msg = random.choice(nice_matches)
         await interaction.followup.send(
-            f"{target.mention} has been nice! 🎅\n"
-            f"> \"{found_nice}\"\n"
+            f"{target.mention} has been nice! 🎅 (Score: {nice_count} Nice vs {naughty_count} Naughty)\n"
+            f"> \"{selected_msg}\"\n"
             "Have a cookie! 🍪"
         )
     else:
+        # Neutral status if counts are equal or no keywords were found
         await interaction.followup.send(
-            f"I scanned 100 messages and couldn't find enough evidence on {target.display_name}. "
-            "They are neutral... for now. 👀"
+            f"I scanned 100 messages and found {naughty_count} Naughty and {nice_count} Nice words. "
+            f"{target.display_name} is perfectly balanced... for now. 👀"
         )
 
 # ---------------------------
