@@ -1729,7 +1729,7 @@ async def askpro(interaction: discord.Interaction, question: str):
     try:
         # Using the flagship 'Pro' model for advanced reasoning
         response = client.models.generate_content(
-            model="gemini-2.0-pro", 
+            model="gemini-3-pro-preview", 
             contents=question
         )
         answer = response.text
