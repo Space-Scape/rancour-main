@@ -1698,7 +1698,7 @@ async def exportchat(interaction: discord.Interaction, user: Optional[discord.Me
 async def ask(interaction: discord.Interaction, question: str):
     await interaction.response.defer(thinking=True)
     try:
-        response = client.models.generate_content(model="gemini-2.0-flash", contents=question)
+        response = client.models.generate_content(model="gemini-3-flash", contents=question)
         answer = response.text
         header = f"**Question:** {question}\n\n"
         
@@ -1729,7 +1729,7 @@ async def askpro(interaction: discord.Interaction, question: str):
     try:
         # Using the flagship 'Pro' model for advanced reasoning
         response = client.models.generate_content(
-            model="gemini-3-pro-preview", 
+            model="gemini-3-pro", 
             contents=question
         )
         answer = response.text
