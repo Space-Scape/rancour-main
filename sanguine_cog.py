@@ -366,25 +366,42 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         print(f"🎓 Learner Team {team_idx + 1}: Added mentor {mentor.get('user_name')}")
 
         # 2. Add learners/new (up to 2 per team)
+        # Prioritize learners with whitelist matches to the mentor
         learners_added = 0
         for _ in range(2):
             if not players_needing_mentor:
                 break
+
+            # Sort learners by whitelist match (prioritize those matching mentor)
+            sorted_learners = sorted(
+                players_needing_mentor,
+                key=lambda p: (-1 if is_whitelist_match(p, mentor) else 0, prof_rank(p))
+            )
+
             # Find a learner that can be added (check blacklist)
-            for learner in list(players_needing_mentor):
+            for learner in sorted_learners:
                 if not is_blacklist_violation(learner, team):
                     team.append(learner)
                     players_needing_mentor.remove(learner)
                     learners_added += 1
-                    print(f"   Added {normalize_role(learner)} {learner.get('user_name')} ({learner.get('kc', 0)} KC)")
+                    wl_note = " (whitelist match)" if is_whitelist_match(learner, mentor) else ""
+                    print(f"   Added {normalize_role(learner)} {learner.get('user_name')} ({learner.get('kc', 0)} KC){wl_note}")
                     break
 
         # 3. Fill remaining spots (to reach size 4) with prioritized strong players
+        # Prioritize whitelist matches with anyone on the team
         used_ids = {p["user_id"] for p in team + used_strong}
         priority_pool = build_priority_pool(used_ids)
 
         while len(team) < 4 and priority_pool:
-            for candidate in list(priority_pool):
+            # Sort candidates by whitelist matches with team members
+            priority_pool_sorted = sorted(
+                priority_pool,
+                key=lambda p: -count_whitelist_matches_on_team(p, team)
+            )
+
+            placed = False
+            for candidate in priority_pool_sorted:
                 if not is_blacklist_violation(candidate, team):
                     # Check learning_freeze constraint
                     if candidate.get('learning_freeze') and any(p.get('learning_freeze') for p in team):
@@ -393,9 +410,13 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                     priority_pool.remove(candidate)
                     used_strong.append(candidate)
                     role_desc = "helper" if is_helper(candidate) else f"{candidate.get('kc', 0)} KC"
-                    print(f"   🎯 Added {candidate.get('user_name')} ({role_desc}) as strong player")
+                    wl_count = count_whitelist_matches_on_team(candidate, team[:-1])  # Exclude self
+                    wl_note = f" (whitelist: {wl_count})" if wl_count > 0 else ""
+                    print(f"   🎯 Added {candidate.get('user_name')} ({role_desc}) as strong player{wl_note}")
+                    placed = True
                     break
-            else:
+
+            if not placed:
                 # No valid candidate found
                 break
 
@@ -478,20 +499,53 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     non_learner_teams: List[List[Dict[str, Any]]] = []
     remaining_strong.sort(key=lambda p: (prof_rank(p), not p.get("has_scythe"), -int(p.get("kc", 0))))
 
+    # First, identify whitelist pairs and try to place them together
+    whitelist_pairs_placed = set()
+
     # Build non-learner teams
     for size in non_learner_sizes:
         team = []
-        for _ in range(size):
-            if not remaining_strong:
-                break
-            # Find a player that can be added
+
+        # If team is empty, try to start with a whitelist pair
+        if not team and remaining_strong:
             for player in list(remaining_strong):
+                if player["user_id"] in whitelist_pairs_placed:
+                    continue
+                # Find whitelist partners
+                partners = [p for p in remaining_strong if p != player and is_whitelist_match(player, p) and p["user_id"] not in whitelist_pairs_placed]
+                if partners and len(team) + 2 <= size:
+                    partner = partners[0]
+                    if not is_blacklist_violation(partner, [player]):
+                        team.append(player)
+                        team.append(partner)
+                        remaining_strong.remove(player)
+                        remaining_strong.remove(partner)
+                        whitelist_pairs_placed.add(player["user_id"])
+                        whitelist_pairs_placed.add(partner["user_id"])
+                        print(f"   🔗 Started team with whitelist pair: {player.get('user_name')} + {partner.get('user_name')}")
+                        break
+
+        # Fill remaining spots
+        while len(team) < size and remaining_strong:
+            # Sort by whitelist matches with current team members
+            candidates = sorted(
+                remaining_strong,
+                key=lambda p: -count_whitelist_matches_on_team(p, team) if team else 0
+            )
+
+            placed = False
+            for player in candidates:
                 if not is_blacklist_violation(player, team):
                     if player.get('learning_freeze') and any(p.get('learning_freeze') for p in team):
                         continue
                     team.append(player)
                     remaining_strong.remove(player)
+                    placed = True
                     break
+
+            if not placed:
+                break
+
         if team:
             non_learner_teams.append(team)
 
