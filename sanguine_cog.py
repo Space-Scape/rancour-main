@@ -485,71 +485,83 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
 
     # ==========================================================================
     # PHASE 5: PROFICIENT + HP TEAMS (Size 3-5)
-    # Fill whitelist teams first, then create new teams
+    # ROUND-ROBIN distribution to mix HP and Proficient evenly
     # ==========================================================================
-    print("\n💪 PHASE 5: Building Proficient/HP teams...")
+    print("\n💪 PHASE 5: Building Proficient/HP teams (round-robin)...")
 
     remaining = [p for p in (hp_non_helpers + prof_non_helpers + helpers)
                 if p["user_id"] not in placed_ids]
     remaining.sort(key=lambda p: (-int(p.get("kc", 0)), not p.get("has_scythe")))
 
-    # Fill whitelist teams to size 4-5
-    for team in whitelist_teams:
-        target_size = 4
-        while len(team) < target_size and remaining:
-            added = False
-            for p in list(remaining):
-                if not is_blacklist_violation(p, team):
-                    team.append(p)
-                    placed_ids.add(p["user_id"])
-                    remaining.remove(p)
-                    added = True
+    if remaining:
+        # Calculate how many teams we need (prefer size 4)
+        n = len(remaining)
+        if n <= 2:
+            num_strong_teams = 0
+        elif n == 3:
+            num_strong_teams = 1
+        elif n <= 5:
+            num_strong_teams = 1
+        else:
+            # Prefer teams of 4, allow 3-5
+            num_strong_teams = max(1, n // 4)
+            # Adjust to avoid bad remainders
+            while num_strong_teams > 1:
+                avg_size = n / num_strong_teams
+                if 3 <= avg_size <= 5:
                     break
-            if not added:
-                break
-        teams.append(team)
-        print(f"   ✅ Whitelist team filled: {[p.get('user_name') for p in team]}")
+                num_strong_teams -= 1
 
-    # Create new teams from remaining players
-    while len(remaining) >= 3:
-        # Determine team size
-        if len(remaining) == 3:
-            target_size = 3
-        elif len(remaining) == 4:
-            target_size = 4
-        elif len(remaining) == 5:
-            target_size = 5
-        elif len(remaining) % 4 == 0:
-            target_size = 4
-        elif len(remaining) % 5 == 0:
-            target_size = 5
-        elif len(remaining) % 4 == 1:
-            target_size = 5  # Avoid leaving 1 person
-        elif len(remaining) % 4 == 2:
-            target_size = 3  # Will leave enough for another team
-        else:
-            target_size = 4
+        # Include whitelist teams in distribution
+        strong_teams: List[List[Dict[str, Any]]] = whitelist_teams.copy()
 
-        team = []
-        for p in list(remaining):
-            if len(team) >= target_size:
-                break
-            if not is_blacklist_violation(p, team):
-                team.append(p)
-                remaining.remove(p)
-                placed_ids.add(p["user_id"])
+        # Add empty teams as needed
+        teams_to_add = max(0, num_strong_teams - len(whitelist_teams))
+        for _ in range(teams_to_add):
+            strong_teams.append([])
 
-        if len(team) >= 3:
-            teams.append(team)
-            print(f"   ✅ Strong team: {[p.get('user_name') for p in team]}")
-        else:
-            # Put back
-            for p in team:
-                remaining.append(p)
-                placed_ids.discard(p["user_id"])
-            break
+        if not strong_teams and remaining:
+            strong_teams.append([])
 
-    # Strand remaining (less than 3)
+        print(f"   Creating {len(strong_teams)} strong teams from {len(remaining)} players")
+
+        # Round-robin distribute: strongest player to team 1, next to team 2, etc.
+        # This ensures every team gets a mix of strong and weaker players
+        team_idx = 0
+        for player in list(remaining):
+            placed = False
+            attempts = 0
+            start_idx = team_idx
+
+            while attempts < len(strong_teams):
+                team = strong_teams[team_idx]
+                if not is_blacklist_violation(player, team):
+                    team.append(player)
+                    placed_ids.add(player["user_id"])
+                    remaining.remove(player)
+                    placed = True
+                    break
+                team_idx = (team_idx + 1) % len(strong_teams)
+                attempts += 1
+
+            if placed:
+                # Move to next team for round-robin
+                team_idx = (start_idx + 1) % len(strong_teams)
+            else:
+                print(f"   ⚠️ Could not place {player.get('user_name')} due to blacklist")
+
+        # Add all strong teams to main teams list
+        for team in strong_teams:
+            if len(team) >= 3:
+                teams.append(team)
+                print(f"   ✅ Strong team: {[p.get('user_name') for p in team]}")
+            elif len(team) > 0:
+                # Team too small, strand players
+                for p in team:
+                    stranded.append(p)
+                    print(f"   ⚠️ {p.get('user_name')} stranded (team too small)")
+
+    # Strand any remaining
     for p in remaining:
         if p["user_id"] not in placed_ids:
             stranded.append(p)
