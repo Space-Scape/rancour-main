@@ -528,6 +528,8 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         print(f"   Creating {num_teams} strong teams from {len(remaining)} players (snake draft)")
 
         # Snake draft: forward (0,1,2,3), then backward (3,2,1,0), then forward...
+        # Max team size is 5 for HP/Prof teams
+        MAX_STRONG_TEAM_SIZE = 5
         team_idx = 0
         direction = 1  # 1 = forward, -1 = backward
 
@@ -535,9 +537,10 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             placed = False
             attempts = 0
 
-            while attempts < num_teams:
+            while attempts < num_teams * 2:  # Allow more attempts to find a non-full team
                 team = strong_teams[team_idx]
-                if not is_blacklist_violation(player, team):
+                # Check team size AND blacklist
+                if len(team) < MAX_STRONG_TEAM_SIZE and not is_blacklist_violation(player, team):
                     team.append(player)
                     placed_ids.add(player["user_id"])
                     remaining.remove(player)
@@ -563,7 +566,7 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                     team_idx = 0
                     direction = 1
             else:
-                print(f"   ⚠️ Could not place {player.get('user_name')} due to blacklist")
+                print(f"   ⚠️ Could not place {player.get('user_name')} (teams full or blacklist)")
 
         # Add all strong teams to main teams list
         for team in strong_teams:
