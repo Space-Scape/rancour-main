@@ -485,8 +485,7 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
 
     # ==========================================================================
     # PHASE 5: PROFICIENT + HP TEAMS (Size 3-5)
-    # SNAKE DRAFT distribution: 1,2,3,4 then 4,3,2,1 then 1,2,3,4...
-    # This ensures each team gets a mix of high and low KC players
+    # SNAKE DRAFT: Balances teams so each gets mix of high and low KC
     # ==========================================================================
     print("\n💪 PHASE 5: Building Proficient/HP teams (snake draft)...")
 
@@ -495,8 +494,9 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     remaining.sort(key=lambda p: (-int(p.get("kc", 0)), not p.get("has_scythe")))
 
     if remaining:
-        # Calculate how many teams we need (prefer size 4)
         n = len(remaining)
+
+        # Calculate number of teams (prefer size 4, allow 3-5)
         if n <= 2:
             num_strong_teams = 0
         elif n == 3:
@@ -504,80 +504,71 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         elif n <= 5:
             num_strong_teams = 1
         else:
-            # Prefer teams of 4, allow 3-5
-            num_strong_teams = max(1, n // 4)
-            # Adjust to avoid bad remainders
-            while num_strong_teams > 1:
-                avg_size = n / num_strong_teams
-                if 3 <= avg_size <= 5:
-                    break
-                num_strong_teams -= 1
+            num_strong_teams = n // 4
+            remainder = n - (num_strong_teams * 4)
+            # Adjust to avoid leaving 1-2 people
+            if remainder == 1 and num_strong_teams > 1:
+                num_strong_teams = max(1, n // 5)
+            elif remainder == 2 and num_strong_teams > 1:
+                num_strong_teams = max(1, (n + 2) // 5)
 
-        # Include whitelist teams in distribution
-        strong_teams: List[List[Dict[str, Any]]] = whitelist_teams.copy()
+        if num_strong_teams > 0:
+            # Create empty teams (don't mix with whitelist teams)
+            strong_teams: List[List[Dict[str, Any]]] = [[] for _ in range(num_strong_teams)]
 
-        # Add empty teams as needed
-        teams_to_add = max(0, num_strong_teams - len(whitelist_teams))
-        for _ in range(teams_to_add):
-            strong_teams.append([])
+            print(f"   Creating {num_strong_teams} teams from {n} players")
+            print(f"   Top KCs: {[p.get('kc') for p in remaining[:8]]}")
 
-        if not strong_teams and remaining:
-            strong_teams.append([])
+            # SNAKE DRAFT using index math:
+            # Round 0 (even): T0, T1, T2, T3, T4, T5 (forward)
+            # Round 1 (odd):  T5, T4, T3, T2, T1, T0 (backward)
+            # Round 2 (even): T0, T1, T2, T3, T4, T5 (forward)
+            # etc.
 
-        num_teams = len(strong_teams)
-        print(f"   Creating {num_teams} strong teams from {len(remaining)} players (snake draft)")
+            for i, player in enumerate(remaining):
+                round_num = i // num_strong_teams
+                pos_in_round = i % num_strong_teams
 
-        # Snake draft: forward (0,1,2,3), then backward (3,2,1,0), then forward...
-        # Max team size is 5 for HP/Prof teams
-        MAX_STRONG_TEAM_SIZE = 5
-        team_idx = 0
-        direction = 1  # 1 = forward, -1 = backward
+                # Even rounds go forward, odd rounds go backward
+                if round_num % 2 == 0:
+                    team_idx = pos_in_round
+                else:
+                    team_idx = num_strong_teams - 1 - pos_in_round
 
-        for player in list(remaining):
-            placed = False
-            attempts = 0
-
-            while attempts < num_teams * 2:  # Allow more attempts to find a non-full team
-                team = strong_teams[team_idx]
-                # Check team size AND blacklist
-                if len(team) < MAX_STRONG_TEAM_SIZE and not is_blacklist_violation(player, team):
-                    team.append(player)
+                # Check blacklist - if violated, find alternate team
+                target_team = strong_teams[team_idx]
+                if is_blacklist_violation(player, target_team):
+                    placed = False
+                    for alt_idx in range(num_strong_teams):
+                        if not is_blacklist_violation(player, strong_teams[alt_idx]):
+                            strong_teams[alt_idx].append(player)
+                            placed_ids.add(player["user_id"])
+                            placed = True
+                            break
+                    if not placed:
+                        stranded.append(player)
+                        placed_ids.add(player["user_id"])
+                        print(f"   ⚠️ {player.get('user_name')} stranded (blacklist)")
+                else:
+                    target_team.append(player)
                     placed_ids.add(player["user_id"])
-                    remaining.remove(player)
-                    placed = True
-                    break
-                # Try next team in current direction
-                team_idx += direction
-                if team_idx >= num_teams:
-                    team_idx = num_teams - 1
-                    direction = -1
-                elif team_idx < 0:
-                    team_idx = 0
-                    direction = 1
-                attempts += 1
 
-            if placed:
-                # Move to next team in snake pattern
-                team_idx += direction
-                if team_idx >= num_teams:
-                    team_idx = num_teams - 1
-                    direction = -1
-                elif team_idx < 0:
-                    team_idx = 0
-                    direction = 1
-            else:
-                print(f"   ⚠️ Could not place {player.get('user_name')} (teams full or blacklist)")
+            # Add whitelist teams first
+            for team in whitelist_teams:
+                if len(team) >= 2:
+                    teams.append(team)
+                    print(f"   ✅ Whitelist team: {[p.get('user_name') for p in team]}")
 
-        # Add all strong teams to main teams list
-        for team in strong_teams:
-            if len(team) >= 3:
-                teams.append(team)
-                print(f"   ✅ Strong team: {[p.get('user_name') for p in team]}")
-            elif len(team) > 0:
-                # Team too small, strand players
-                for p in team:
-                    stranded.append(p)
-                    print(f"   ⚠️ {p.get('user_name')} stranded (team too small)")
+            # Add strong teams
+            for idx, team in enumerate(strong_teams):
+                if len(team) >= 3:
+                    teams.append(team)
+                    kcs = sorted([p.get('kc') for p in team], reverse=True)
+                    print(f"   ✅ Team {idx+1} (KCs: {kcs})")
+                elif len(team) > 0:
+                    for p in team:
+                        stranded.append(p)
+                        print(f"   ⚠️ {p.get('user_name')} stranded (team too small)")
 
     # Strand any remaining
     for p in remaining:
