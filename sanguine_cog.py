@@ -139,8 +139,8 @@ def normalize_role(p: dict) -> str:
         # Fallback for "X" KC or other non-int
         return prof
     if kc <= 10: return "new"
-    if 11 <= kc <= 25: return "learner"
-    if 26 <= kc <= 100: return "proficient"
+    if 11 <= kc <= 49: return "learner"
+    if 50 <= kc <= 100: return "proficient"
     return "highly proficient"
 
 PROF_ORDER = {"mentor": 0, "highly proficient": 1, "proficient": 2, "learner": 3, "new": 4}
@@ -485,9 +485,10 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
 
     # ==========================================================================
     # PHASE 5: PROFICIENT + HP TEAMS (Size 3-5)
-    # ROUND-ROBIN distribution to mix HP and Proficient evenly
+    # SNAKE DRAFT distribution: 1,2,3,4 then 4,3,2,1 then 1,2,3,4...
+    # This ensures each team gets a mix of high and low KC players
     # ==========================================================================
-    print("\n💪 PHASE 5: Building Proficient/HP teams (round-robin)...")
+    print("\n💪 PHASE 5: Building Proficient/HP teams (snake draft)...")
 
     remaining = [p for p in (hp_non_helpers + prof_non_helpers + helpers)
                 if p["user_id"] not in placed_ids]
@@ -523,17 +524,18 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         if not strong_teams and remaining:
             strong_teams.append([])
 
-        print(f"   Creating {len(strong_teams)} strong teams from {len(remaining)} players")
+        num_teams = len(strong_teams)
+        print(f"   Creating {num_teams} strong teams from {len(remaining)} players (snake draft)")
 
-        # Round-robin distribute: strongest player to team 1, next to team 2, etc.
-        # This ensures every team gets a mix of strong and weaker players
+        # Snake draft: forward (0,1,2,3), then backward (3,2,1,0), then forward...
         team_idx = 0
+        direction = 1  # 1 = forward, -1 = backward
+
         for player in list(remaining):
             placed = False
             attempts = 0
-            start_idx = team_idx
 
-            while attempts < len(strong_teams):
+            while attempts < num_teams:
                 team = strong_teams[team_idx]
                 if not is_blacklist_violation(player, team):
                     team.append(player)
@@ -541,12 +543,25 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                     remaining.remove(player)
                     placed = True
                     break
-                team_idx = (team_idx + 1) % len(strong_teams)
+                # Try next team in current direction
+                team_idx += direction
+                if team_idx >= num_teams:
+                    team_idx = num_teams - 1
+                    direction = -1
+                elif team_idx < 0:
+                    team_idx = 0
+                    direction = 1
                 attempts += 1
 
             if placed:
-                # Move to next team for round-robin
-                team_idx = (start_idx + 1) % len(strong_teams)
+                # Move to next team in snake pattern
+                team_idx += direction
+                if team_idx >= num_teams:
+                    team_idx = num_teams - 1
+                    direction = -1
+                elif team_idx < 0:
+                    team_idx = 0
+                    direction = 1
             else:
                 print(f"   ⚠️ Could not place {player.get('user_name')} due to blacklist")
 
