@@ -241,9 +241,17 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     """
     Core algorithm for sorting players into teams.
 
-    Learner teams (with learner/new players) are ALWAYS size 4.
-    Non-learner teams can be size 3, 4, or 5.
+    Key rules:
+    - Mentor teams: size 4 (Mentor + 1 learner/new + 2 helpers)
+    - Non-mentor teams: size 4 (can be 3 or 5 in edge cases)
+    - Learners spread across teams (max 1 per team ideally)
+    - Whitelist pairs placed together
+    - Players distributed evenly, not sequentially
     """
+
+    N = len(available_raiders)
+    if N == 0:
+        return [], []
 
     # ---------- Sort and segment ----------
     available_raiders.sort(
@@ -251,361 +259,232 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     )
 
     mentors = [p for p in available_raiders if normalize_role(p) == "mentor"]
-    non_mentors = [p for p in available_raiders if normalize_role(p) != "mentor"]
+    highly_prof = [p for p in available_raiders if normalize_role(p) == "highly proficient"]
+    proficient = [p for p in available_raiders if normalize_role(p) == "proficient"]
+    learners = [p for p in available_raiders if normalize_role(p) == "learner"]
+    news = [p for p in available_raiders if normalize_role(p) == "new"]
 
-    strong_pool = [p for p in non_mentors if prof_rank(p) <= PROF_ORDER["proficient"]]    # HP/Pro
-    learners    = [p for p in non_mentors if normalize_role(p) == "learner"]
-    news        = [p for p in non_mentors if normalize_role(p) == "new"]
+    # Sort each pool by KC descending (strongest first)
+    for pool in [highly_prof, proficient, learners, news]:
+        pool.sort(key=lambda p: (-int(p.get("kc", 0)), not p.get("has_scythe")))
 
-    mentees = [p for p in non_mentors if p.get("wants_mentor")]
-    mentee_ids = {m["user_id"] for m in mentees}
-    def _without_mentees(pool): return [p for p in pool if p["user_id"] not in mentee_ids]
-    strong_pool = _without_mentees(strong_pool)
-    learners    = _without_mentees(learners)
-    news        = _without_mentees(news)
-
-    N = len(available_raiders)
-    if N == 0:
-        return [], []
-
-    # ---------- Helper for safe placement ----------
-    def can_add_to_team(player, team, max_size, is_learner_team=False) -> bool:
-        """Checks if a player can be added to a team based on constraints."""
-        if len(team) >= max_size:
-            return False
-
-        if is_blacklist_violation(player, team):
-            return False
-
-        # For trios (non-learner teams of 3), only allow proficient+
-        if max_size == 3 and not is_learner_team:
-            if normalize_role(player) == "mentor":
-                return False
-            if not is_proficient_plus(player):
-                return False
-            if not all(is_proficient_plus(p) for p in team):
-                return False
-
-        if player.get('learning_freeze') and any(p.get('learning_freeze') for p in team):
-            return False
-
-        # New players and mentees require a mentor on team
-        if (normalize_role(player) == "new" or player.get("wants_mentor")) and not any(normalize_role(p) == "mentor" for p in team):
-            return False
-
-        return True
+    print(f"📊 Players: {len(mentors)} mentors, {len(highly_prof)} HP, {len(proficient)} Prof, {len(learners)} learners, {len(news)} new")
 
     # ==========================================================================
-    # PHASE 1: BUILD MENTOR TEAMS (always size 4)
-    # Composition: Mentor + 1 NEW/Learner + 2 Helpers
-    # NEW players (0-10 KC) MUST be on mentor teams
-    # Learners (11-25 KC) CAN be on mentor teams but don't require it
+    # STEP 1: Calculate team sizes (prefer 4s, allow 3s and 5s)
     # ==========================================================================
+    def calculate_team_sizes(n: int) -> List[int]:
+        if n == 0: return []
+        if n <= 2: return []  # Can't make valid teams
+        if n == 3: return [3]
+        if n == 4: return [4]
+        if n == 5: return [5]
+        if n == 6: return [3, 3]
+        if n == 7: return [4, 3]
+        if n == 8: return [4, 4]
+        if n == 9: return [5, 4]
+        if n == 10: return [5, 5]
+        if n == 11: return [4, 4, 3]
 
-    # NEW players MUST have mentors - they are the priority
-    new_players = [p for p in news]  # Copy the list
-    # Add mentees who are also new
-    for m in mentees:
-        if normalize_role(m) == "new" and m["user_id"] not in {p["user_id"] for p in new_players}:
-            new_players.append(m)
+        # For larger, prefer 4s
+        for num_4s in range(n // 4, -1, -1):
+            rem = n - 4 * num_4s
+            if rem == 0:
+                return [4] * num_4s
+            if rem % 5 == 0:
+                return [4] * num_4s + [5] * (rem // 5)
+            if rem % 3 == 0 and rem // 3 <= 2:
+                return [4] * num_4s + [3] * (rem // 3)
 
-    # Learners can OPTIONALLY go on mentor teams (they don't require it)
-    # But we'll add them to the pool so they can fill spots if we have extra mentors
-    learner_players = [p for p in learners]  # Copy
-    for m in mentees:
-        if normalize_role(m) == "learner" and m["user_id"] not in {p["user_id"] for p in learner_players}:
-            learner_players.append(m)
-
-    # Combined pool: NEW first, then learners
-    players_needing_mentor = new_players + learner_players
-    # Remove duplicates
-    seen_ids = set()
-    unique_needing_mentor = []
-    for p in players_needing_mentor:
-        if p["user_id"] not in seen_ids:
-            seen_ids.add(p["user_id"])
-            unique_needing_mentor.append(p)
-    players_needing_mentor = unique_needing_mentor
-
-    num_new = len(new_players)
-    num_mentors = len(mentors)
-
-    # We need at least enough mentor teams for all NEW players (1 per team)
-    # But limited by available mentors
-    num_learner_teams = min(num_mentors, num_new) if num_new > 0 else 0
-    # If we have extra mentors and learners, we can make more teams
-    if num_mentors > num_new and learner_players:
-        extra_teams = min(num_mentors - num_new, len(learner_players))
-        num_learner_teams += extra_teams
-
-    print(f"📊 Building {num_learner_teams} mentor teams for {num_new} NEW players + {len(learner_players)} learners with {num_mentors} mentors")
-
-    learner_teams: List[List[Dict[str, Any]]] = []
-    used_mentors = []
-    used_strong = []
-
-    # Build prioritized pool for filling learner team spots
-    # Priority: extra mentors → helpers → highest KC with scythe → highest KC
-    def build_priority_pool(exclude_ids: set) -> List[Dict[str, Any]]:
-        pool = []
-        all_strong = [p for p in strong_pool if p["user_id"] not in exclude_ids]
-
-        # Helpers first (regardless of proficiency)
-        helpers = [p for p in all_strong if is_helper(p)]
-        helpers.sort(key=lambda p: (not p.get("has_scythe"), -int(p.get("kc", 0))))
-        pool.extend(helpers)
-
-        # Non-helpers sorted by scythe then KC
-        non_helpers = [p for p in all_strong if not is_helper(p)]
-        non_helpers.sort(key=lambda p: (not p.get("has_scythe"), -int(p.get("kc", 0))))
-        pool.extend(non_helpers)
-
-        return pool
-
-    # Create learner teams
-    for team_idx in range(num_learner_teams):
-        if not mentors:
-            print(f"⚠️ No more mentors available for learner team {team_idx + 1}")
-            break
-
-        team = []
-
-        # 1. Add mentor as anchor
-        mentor = mentors.pop(0)
-        team.append(mentor)
-        used_mentors.append(mentor)
-        print(f"🎓 Learner Team {team_idx + 1}: Added mentor {mentor.get('user_name')}")
-
-        # 2. Add ONE learner or new player (not 2 - team is Mentor + 1 learner/new + 2 helpers)
-        # Priority: NEW players first (they MUST have mentor), then learners
-        if players_needing_mentor:
-            # Sort: NEW players first (must have mentor), then learners, then whitelist
-            def learner_priority(p):
-                role = normalize_role(p)
-                # NEW players come first (priority 0), learners second (priority 1), proficient+ last (priority 2)
-                if role == "new":
-                    priority = 0
-                elif role == "learner":
-                    priority = 1
-                else:
-                    priority = 2
-                # Within same priority, prefer whitelist matches
-                has_whitelist = 1 if is_whitelist_match(p, mentor) else 0
-                # Then sort by KC (lower KC = more help needed)
-                kc = int(p.get("kc", 0))
-                return (priority, -has_whitelist, kc)
-
-            sorted_learners = sorted(players_needing_mentor, key=learner_priority)
-
-            # Find a learner/new that can be added (check blacklist)
-            for learner in sorted_learners:
-                if not is_blacklist_violation(learner, team):
-                    team.append(learner)
-                    players_needing_mentor.remove(learner)
-                    wl_note = " (whitelist match)" if is_whitelist_match(learner, mentor) else ""
-                    print(f"   Added {normalize_role(learner)} {learner.get('user_name')} ({learner.get('kc', 0)} KC){wl_note}")
-                    break
-
-        # 3. Fill remaining spots (to reach size 4) with 2 helpers/strong players
-        # Prioritize whitelist matches with anyone on the team
-        used_ids = {p["user_id"] for p in team + used_strong}
-        priority_pool = build_priority_pool(used_ids)
-
-        while len(team) < 4 and priority_pool:
-            # Sort candidates by whitelist matches with team members
-            priority_pool_sorted = sorted(
-                priority_pool,
-                key=lambda p: -count_whitelist_matches_on_team(p, team)
-            )
-
-            placed = False
-            for candidate in priority_pool_sorted:
-                if not is_blacklist_violation(candidate, team):
-                    # Check learning_freeze constraint
-                    if candidate.get('learning_freeze') and any(p.get('learning_freeze') for p in team):
-                        continue
-                    team.append(candidate)
-                    priority_pool.remove(candidate)
-                    used_strong.append(candidate)
-                    role_desc = "helper" if is_helper(candidate) else f"{candidate.get('kc', 0)} KC"
-                    wl_count = count_whitelist_matches_on_team(candidate, team[:-1])  # Exclude self
-                    wl_note = f" (whitelist: {wl_count})" if wl_count > 0 else ""
-                    print(f"   🎯 Added {candidate.get('user_name')} ({role_desc}) as strong player{wl_note}")
-                    placed = True
-                    break
-
-            if not placed:
-                # No valid candidate found
-                break
-
-        learner_teams.append(team)
-        print(f"   ✅ Learner Team {team_idx + 1} complete: {len(team)} players")
-
-    # Handle any remaining NEW players that couldn't be placed - they MUST have mentors
-    stranded_new = [p for p in players_needing_mentor if normalize_role(p) == "new"]
-    if stranded_new:
-        print(f"⚠️ {len(stranded_new)} NEW players could not be placed (not enough mentors): {[p.get('user_name') for p in stranded_new]}")
-
-    # Remaining learners from the pool can go on non-mentor teams
-    remaining_learners = [p for p in players_needing_mentor if normalize_role(p) == "learner"]
-
-    # ==========================================================================
-    # PHASE 2: BUILD NON-MENTOR TEAMS from remaining players
-    # These can be size 3, 4, or 5
-    # LEARNERS can go here (they don't require mentors)
-    # NEW players CANNOT go here (they must have mentors)
-    # ==========================================================================
-
-    # Remaining players = all raiders minus those already on mentor teams
-    used_ids = set()
-    for team in learner_teams:
-        for p in team:
-            used_ids.add(p["user_id"])
-
-    remaining_players = [p for p in available_raiders if p["user_id"] not in used_ids]
-
-    # Include learners but NOT new players (new players must have mentors)
-    remaining_strong = [p for p in remaining_players if normalize_role(p) != "new"]
-
-    print(f"📊 Building non-mentor teams from {len(remaining_strong)} remaining players (includes learners)")
-
-    # Calculate optimal team sizes for remaining players
-    M = len(remaining_strong)
-
-    def split_into_teams(n: int) -> List[int]:
-        """Split n players into teams of 3, 4, or 5. Prefer 4s and 5s, use 3s only when necessary."""
-        if n == 0:
-            return []
-        if n <= 2:
-            return []  # Can't make a valid team
-        if n == 3:
-            return [3]
-        if n == 4:
-            return [4]
-        if n == 5:
-            return [5]
-        if n == 6:
-            return [3, 3]
-        if n == 7:
-            return [4, 3]
-        if n == 8:
-            return [4, 4]
-        if n == 9:
-            return [5, 4]
-        if n == 10:
-            return [5, 5]
-        if n == 11:
-            return [4, 4, 3]
-
-        # For larger numbers, prefer 4s and 5s
-        # Try to split into 5s and 4s first
-        for num_5s in range(n // 5, -1, -1):
-            rem = n - 5 * num_5s
-            if rem % 4 == 0:
-                return [5] * num_5s + [4] * (rem // 4)
-
-        # If that doesn't work, include some 3s
-        for num_5s in range(n // 5, -1, -1):
-            for num_4s in range((n - 5 * num_5s) // 4, -1, -1):
-                rem = n - 5 * num_5s - 4 * num_4s
-                if rem % 3 == 0 and rem // 3 <= 2:  # Allow at most 2 trios
-                    return [5] * num_5s + [4] * num_4s + [3] * (rem // 3)
-
-        # Fallback
+        # Fallback: mix of 4s and 5s
+        num_5s = n // 5
+        rem = n - 5 * num_5s
+        if rem % 4 == 0:
+            return [5] * num_5s + [4] * (rem // 4)
         return [4] * (n // 4) + ([n % 4] if n % 4 >= 3 else [])
 
-    non_learner_sizes = split_into_teams(M)
-    print(f"   Team sizes: {non_learner_sizes}")
+    team_sizes = calculate_team_sizes(N)
+    num_teams = len(team_sizes)
+    print(f"📊 Creating {num_teams} teams with sizes: {team_sizes}")
 
-    non_learner_teams: List[List[Dict[str, Any]]] = []
-    remaining_strong.sort(key=lambda p: (prof_rank(p), not p.get("has_scythe"), -int(p.get("kc", 0))))
+    # Create empty teams
+    teams: List[List[Dict[str, Any]]] = [[] for _ in range(num_teams)]
+    placed_ids: set = set()
 
-    # First, identify whitelist pairs and try to place them together
-    whitelist_pairs_placed = set()
+    # ==========================================================================
+    # STEP 2: Place whitelist pairs FIRST
+    # ==========================================================================
+    all_players = mentors + highly_prof + proficient + learners + news
+    whitelist_placed = set()
 
-    # Build non-learner teams
-    for size in non_learner_sizes:
-        team = []
+    for player in all_players:
+        if player["user_id"] in whitelist_placed:
+            continue
+        # Find whitelist partners
+        partners = [p for p in all_players if p != player and
+                   is_whitelist_match(player, p) and
+                   p["user_id"] not in whitelist_placed]
 
-        # If team is empty, try to start with a whitelist pair
-        if not team and remaining_strong:
-            for player in list(remaining_strong):
-                if player["user_id"] in whitelist_pairs_placed:
-                    continue
-                # Find whitelist partners
-                partners = [p for p in remaining_strong if p != player and is_whitelist_match(player, p) and p["user_id"] not in whitelist_pairs_placed]
-                if partners and len(team) + 2 <= size:
-                    partner = partners[0]
-                    if not is_blacklist_violation(partner, [player]):
+        if partners:
+            partner = partners[0]
+            # Find a team that can fit both
+            for i, team in enumerate(teams):
+                if len(team) + 2 <= team_sizes[i]:
+                    if not is_blacklist_violation(player, team) and not is_blacklist_violation(partner, team + [player]):
                         team.append(player)
                         team.append(partner)
-                        remaining_strong.remove(player)
-                        remaining_strong.remove(partner)
-                        whitelist_pairs_placed.add(player["user_id"])
-                        whitelist_pairs_placed.add(partner["user_id"])
-                        print(f"   🔗 Started team with whitelist pair: {player.get('user_name')} + {partner.get('user_name')}")
+                        placed_ids.add(player["user_id"])
+                        placed_ids.add(partner["user_id"])
+                        whitelist_placed.add(player["user_id"])
+                        whitelist_placed.add(partner["user_id"])
+                        print(f"🔗 Whitelist pair: {player.get('user_name')} + {partner.get('user_name')} -> Team {i+1}")
                         break
 
-        # Fill remaining spots
-        while len(team) < size and remaining_strong:
-            # Sort by whitelist matches with current team members
-            candidates = sorted(
-                remaining_strong,
-                key=lambda p: -count_whitelist_matches_on_team(p, team) if team else 0
-            )
+    # ==========================================================================
+    # STEP 3: Place mentors as anchors (1 per team, round-robin)
+    # ==========================================================================
+    mentor_team_indices = []
+    remaining_mentors = [m for m in mentors if m["user_id"] not in placed_ids]
 
-            placed = False
-            for player in candidates:
-                if not is_blacklist_violation(player, team):
-                    if player.get('learning_freeze') and any(p.get('learning_freeze') for p in team):
-                        continue
-                    team.append(player)
-                    remaining_strong.remove(player)
-                    placed = True
-                    break
+    for i, team in enumerate(teams):
+        if remaining_mentors and not any(normalize_role(p) == "mentor" for p in team):
+            mentor = remaining_mentors.pop(0)
+            if not is_blacklist_violation(mentor, team):
+                team.append(mentor)
+                placed_ids.add(mentor["user_id"])
+                mentor_team_indices.append(i)
+                print(f"🎓 Mentor {mentor.get('user_name')} -> Team {i+1}")
 
-            if not placed:
+    # ==========================================================================
+    # STEP 4: Distribute learners/new (1 per team, prioritize mentor teams)
+    # ==========================================================================
+    learners_and_new = [p for p in (learners + news) if p["user_id"] not in placed_ids]
+    learners_and_new.sort(key=lambda p: (prof_rank(p), int(p.get("kc", 0))))  # Most inexperienced first
+
+    # First, add to mentor teams
+    for i in mentor_team_indices:
+        if not learners_and_new:
+            break
+        team = teams[i]
+        # Check if team already has a learner/new
+        has_learner = any(normalize_role(p) in ("learner", "new") for p in team)
+        if has_learner:
+            continue
+
+        for player in list(learners_and_new):
+            if len(team) < team_sizes[i] and not is_blacklist_violation(player, team):
+                team.append(player)
+                placed_ids.add(player["user_id"])
+                learners_and_new.remove(player)
+                print(f"   Added {normalize_role(player)} {player.get('user_name')} -> mentor Team {i+1}")
                 break
 
-        if team:
-            non_learner_teams.append(team)
-
-    # ==========================================================================
-    # COMBINE ALL TEAMS
-    # ==========================================================================
-    all_teams = learner_teams + non_learner_teams
-
-    # Add any remaining strong players to existing teams
-    unplaced_strong = []
-    for player in list(remaining_strong):
+    # Then distribute remaining learners/new round-robin to other teams
+    team_idx = 0
+    for player in list(learners_and_new):
         placed = False
-        for team in all_teams:
-            # Determine if this is a learner team
-            is_learner_team = any(normalize_role(p) in ("learner", "new") or p.get("wants_mentor") for p in team)
-            max_size = 4 if is_learner_team else 5
+        for _ in range(num_teams):
+            team = teams[team_idx]
+            # Skip if team already has a learner/new (spread them out)
+            has_learner = any(normalize_role(p) in ("learner", "new") for p in team)
 
-            if len(team) < max_size and not is_blacklist_violation(player, team):
-                if player.get('learning_freeze') and any(p.get('learning_freeze') for p in team):
-                    continue
+            if not has_learner and len(team) < team_sizes[team_idx] and not is_blacklist_violation(player, team):
                 team.append(player)
+                placed_ids.add(player["user_id"])
+                learners_and_new.remove(player)
                 placed = True
                 break
+
+            team_idx = (team_idx + 1) % num_teams
+
+        # If couldn't place without doubling up, try again allowing doubles
         if not placed:
-            unplaced_strong.append(player)
-            print(f"⚠️ Could not place {player.get('user_name')} on any team")
+            for _ in range(num_teams):
+                team = teams[team_idx]
+                if len(team) < team_sizes[team_idx] and not is_blacklist_violation(player, team):
+                    team.append(player)
+                    placed_ids.add(player["user_id"])
+                    learners_and_new.remove(player)
+                    placed = True
+                    break
+                team_idx = (team_idx + 1) % num_teams
 
-    # Stranded = NEW players without mentors + any unplaced players
-    final_stranded = stranded_new + unplaced_strong
+        team_idx = (team_idx + 1) % num_teams
 
-    print(f"\n📋 Final: {len(all_teams)} teams, {len(final_stranded)} stranded")
-    if stranded_new:
-        print(f"   ⚠️ Stranded NEW players (MUST have mentors): {[p.get('user_name') for p in stranded_new]}")
-    for i, team in enumerate(all_teams):
+    # ==========================================================================
+    # STEP 5: Distribute helpers to mentor teams
+    # ==========================================================================
+    helpers_list = [p for p in (highly_prof + proficient) if is_helper(p) and p["user_id"] not in placed_ids]
+    helpers_list.sort(key=lambda p: -int(p.get("kc", 0)))
+
+    for i in mentor_team_indices:
+        team = teams[i]
+        while len(team) < team_sizes[i] and helpers_list:
+            for helper in list(helpers_list):
+                if not is_blacklist_violation(helper, team):
+                    # Check learning_freeze
+                    if helper.get('learning_freeze') and any(p.get('learning_freeze') for p in team):
+                        continue
+                    team.append(helper)
+                    placed_ids.add(helper["user_id"])
+                    helpers_list.remove(helper)
+                    print(f"   🎯 Helper {helper.get('user_name')} -> mentor Team {i+1}")
+                    break
+            else:
+                break  # No valid helper found
+
+    # ==========================================================================
+    # STEP 6: Distribute remaining strong players ROUND-ROBIN (spread evenly!)
+    # ==========================================================================
+    remaining = [p for p in (highly_prof + proficient) if p["user_id"] not in placed_ids]
+    remaining.sort(key=lambda p: -int(p.get("kc", 0)))  # Strongest first
+
+    # Round-robin distribution - this ensures even spread
+    team_idx = 0
+    for player in remaining:
+        placed = False
+        attempts = 0
+        while attempts < num_teams:
+            team = teams[team_idx]
+            if len(team) < team_sizes[team_idx] and not is_blacklist_violation(player, team):
+                if player.get('learning_freeze') and any(p.get('learning_freeze') for p in team):
+                    team_idx = (team_idx + 1) % num_teams
+                    attempts += 1
+                    continue
+                team.append(player)
+                placed_ids.add(player["user_id"])
+                placed = True
+                break
+            team_idx = (team_idx + 1) % num_teams
+            attempts += 1
+
+        if not placed:
+            print(f"⚠️ Could not place {player.get('user_name')}")
+
+        team_idx = (team_idx + 1) % num_teams  # Move to next team for round-robin
+
+    # ==========================================================================
+    # STEP 7: Fill any remaining spots
+    # ==========================================================================
+    all_unplaced = [p for p in available_raiders if p["user_id"] not in placed_ids]
+    for player in all_unplaced:
+        for i, team in enumerate(teams):
+            if len(team) < team_sizes[i] and not is_blacklist_violation(player, team):
+                team.append(player)
+                placed_ids.add(player["user_id"])
+                break
+
+    # Final stranded
+    final_stranded = [p for p in available_raiders if p["user_id"] not in placed_ids]
+
+    print(f"\n📋 Final: {len(teams)} teams, {len(final_stranded)} stranded")
+    for i, team in enumerate(teams):
+        has_mentor = any(normalize_role(p) == "mentor" for p in team)
         has_learner = any(normalize_role(p) in ("learner", "new") for p in team)
-        team_type = "LEARNER" if has_learner else "STRONG"
+        team_type = "MENTOR" if has_mentor else ("MIXED" if has_learner else "STRONG")
         print(f"   Team {i+1} ({team_type}, size {len(team)}): {[p.get('user_name') for p in team]}")
 
-    return all_teams, final_stranded
+    return teams, final_stranded
 
 def format_player_line_plain(guild: discord.Guild, p: dict) -> str:
     """Formats a player's info for the no-ping /sangmatchtest command."""
