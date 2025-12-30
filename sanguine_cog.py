@@ -145,6 +145,20 @@ def normalize_role(p: dict) -> str:
 
 PROF_ORDER = {"mentor": 0, "highly proficient": 1, "proficient": 2, "learner": 3, "new": 4}
 
+# Helpers list - these players are prioritized for mentor/learner teams
+# They can fill freeze roles and help mentors with learners
+HELPERS = [
+    "lukap42",
+    "antidrop",
+    "robotson",
+    "box man",
+    "redeemed",
+    "mr fk",
+    "lube is best",
+    "hazy jane",
+    "lasix",
+]
+
 def prof_rank(p: dict) -> int:
     """Returns a sortable integer for a player's proficiency."""
     return PROF_ORDER.get(normalize_role(p), 99)
@@ -161,6 +175,13 @@ def is_proficient_plus(p: dict) -> bool:
     """Checks if a player is proficient, highly proficient, or mentor."""
     role = normalize_role(p)
     return role in ("mentor", "highly proficient", "proficient")
+
+def is_helper(p: dict) -> bool:
+    """Checks if a player is on the helpers list (case-insensitive)."""
+    name = p.get("user_name", "").lower().strip()
+    # Remove leading special chars that might have been added
+    name = re.sub(r'^[!#@*]+', '', name).strip()
+    return name in HELPERS
 
 def parse_roles(roles_str: str) -> (bool, bool):
     """Parses the 'Favorite Roles' string to check for range/melee knowledge."""
@@ -337,8 +358,15 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
 
     max_sizes = list(sizes) # [5, 4, 4]
 
+    # ---------- Cap mentor teams at 4 for learner-focused composition ----------
+    # Mentor teams will have learners/new, so keep them at 4 for optimal teaching
+    mentor_idxs = [i for i, t in enumerate(teams) if t and normalize_role(t[0]) == "mentor"]
+    for i in mentor_idxs:
+        if max_sizes[i] > 4:
+            max_sizes[i] = 4
+            print(f"📚 Capped mentor team {i+1} at 4 players for learner-focused composition")
+
     # ---------- Place mentees onto Mentor teams first ----------
-    mentor_idxs = [i for i, t in enumerate(teams) if normalize_role(t[0]) == "mentor"]
     mentees.sort(key=lambda p: (prof_rank(p), not p.get("has_scythe"), -int(p.get("kc", 0))))
     if mentor_idxs and mentees:
         forward = True
@@ -362,6 +390,74 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
 
             if not placed:
                 break
+
+    # ---------- Fill remaining mentor team spots with prioritized 4th player ----------
+    # Priority: open mentor → helper → highest KC with scythe → highest KC
+    # This "giga stacks" learner teams with proficient players
+
+    def get_priority_candidates(pool: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Sort candidates by priority: mentors first, then helpers, then KC with scythe, then KC."""
+        def priority_key(p):
+            is_mentor = 1 if normalize_role(p) == "mentor" else 0
+            is_helper_player = 1 if is_helper(p) else 0
+            has_scythe_val = 1 if p.get("has_scythe") else 0
+            kc = int(p.get("kc", 0))
+            # Lower = higher priority: mentors first (0), then helpers (1), then scythe (2), then KC (3)
+            # Negate kc so higher KC comes first
+            return (-is_mentor, -is_helper_player, -has_scythe_val, -kc)
+        return sorted(pool, key=priority_key)
+
+    # Build pool of candidates for 4th spot: extra mentors + ALL helpers + rest of strong_pool
+    # Helpers are prioritized regardless of their proficiency level
+    fourth_spot_pool = []
+    all_remaining = strong_pool + learners + news  # All non-mentor, non-mentee players
+
+    # Add extra mentors first (highest priority)
+    fourth_spot_pool.extend(extra_mentors)
+
+    # Add ALL helpers regardless of proficiency (second priority)
+    # This ensures helpers like Lukap42, Antidrop, etc. go to mentor teams
+    helpers_in_pool = [p for p in all_remaining if is_helper(p)]
+    helpers_in_pool.sort(key=lambda p: (not p.get("has_scythe"), -int(p.get("kc", 0))))
+    fourth_spot_pool.extend(helpers_in_pool)
+
+    # Add non-helpers from strong_pool sorted by scythe then KC
+    non_helpers = [p for p in strong_pool if not is_helper(p)]
+    non_helpers.sort(key=lambda p: (not p.get("has_scythe"), -int(p.get("kc", 0))))
+    fourth_spot_pool.extend(non_helpers)
+
+    # Remove duplicates while preserving order
+    seen_ids = set()
+    unique_fourth_pool = []
+    for p in fourth_spot_pool:
+        if p["user_id"] not in seen_ids:
+            seen_ids.add(p["user_id"])
+            unique_fourth_pool.append(p)
+    fourth_spot_pool = unique_fourth_pool
+
+    # Fill remaining spots on mentor teams with prioritized candidates
+    for i in mentor_idxs:
+        while len(teams[i]) < max_sizes[i] and fourth_spot_pool:
+            placed = False
+            for candidate in list(fourth_spot_pool):
+                if can_add(candidate, teams[i], max_sizes[i]):
+                    teams[i].append(candidate)
+                    fourth_spot_pool.remove(candidate)
+                    # Also remove from original pools
+                    if candidate in extra_mentors:
+                        extra_mentors.remove(candidate)
+                    if candidate in strong_pool:
+                        strong_pool.remove(candidate)
+                    if candidate in learners:
+                        learners.remove(candidate)
+                    if candidate in news:
+                        news.remove(candidate)
+                    role_desc = "mentor" if normalize_role(candidate) == "mentor" else ("helper" if is_helper(candidate) else f"{candidate.get('kc', 0)} KC")
+                    print(f"🎯 Added {candidate.get('user_name')} ({role_desc}) to mentor team {i+1} as prioritized 4th")
+                    placed = True
+                    break
+            if not placed:
+                break  # No suitable candidate found for this team
 
     # ---------- Distribute leftovers ----------
     leftovers = strong_pool + learners + news + mentees + extra_mentors
