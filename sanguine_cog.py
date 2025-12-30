@@ -296,13 +296,29 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         return True
 
     # ==========================================================================
-    # PHASE 1: BUILD LEARNER TEAMS (always size 4)
-    # Composition: Mentor + Learner(s)/New + Helper/Strong players
+    # PHASE 1: BUILD MENTOR TEAMS (always size 4)
+    # Composition: Mentor + 1 NEW/Learner + 2 Helpers
+    # NEW players (0-10 KC) MUST be on mentor teams
+    # Learners (11-25 KC) CAN be on mentor teams but don't require it
     # ==========================================================================
 
-    # All players needing mentor teams: learners, news, and mentees
-    players_needing_mentor = learners + news + mentees
-    # Remove duplicates (mentees might also be in learners/news)
+    # NEW players MUST have mentors - they are the priority
+    new_players = [p for p in news]  # Copy the list
+    # Add mentees who are also new
+    for m in mentees:
+        if normalize_role(m) == "new" and m["user_id"] not in {p["user_id"] for p in new_players}:
+            new_players.append(m)
+
+    # Learners can OPTIONALLY go on mentor teams (they don't require it)
+    # But we'll add them to the pool so they can fill spots if we have extra mentors
+    learner_players = [p for p in learners]  # Copy
+    for m in mentees:
+        if normalize_role(m) == "learner" and m["user_id"] not in {p["user_id"] for p in learner_players}:
+            learner_players.append(m)
+
+    # Combined pool: NEW first, then learners
+    players_needing_mentor = new_players + learner_players
+    # Remove duplicates
     seen_ids = set()
     unique_needing_mentor = []
     for p in players_needing_mentor:
@@ -311,23 +327,18 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             unique_needing_mentor.append(p)
     players_needing_mentor = unique_needing_mentor
 
-    # Sort by proficiency (most experienced learners first)
-    players_needing_mentor.sort(key=lambda p: (prof_rank(p), not p.get("has_scythe"), -int(p.get("kc", 0))))
-
-    # Calculate how many learner teams we need
-    # Each learner team can have 1-2 learners/new (plus mentor + strong player(s))
-    # With 4-person teams: Mentor + up to 2 learners + 1-2 strong
-    num_learners_total = len(players_needing_mentor)
+    num_new = len(new_players)
     num_mentors = len(mentors)
 
-    # Each learner team needs 1 mentor and can take 1-2 learners
-    # Distribute learners across available mentors (max 2 per team)
-    num_learner_teams = min(num_mentors, (num_learners_total + 1) // 2) if num_learners_total > 0 else 0
-    # If we have more learners than 2*mentors, we need all mentors
-    if num_learners_total > 0 and num_mentors > 0:
-        num_learner_teams = min(num_mentors, max(1, (num_learners_total + 1) // 2))
+    # We need at least enough mentor teams for all NEW players (1 per team)
+    # But limited by available mentors
+    num_learner_teams = min(num_mentors, num_new) if num_new > 0 else 0
+    # If we have extra mentors and learners, we can make more teams
+    if num_mentors > num_new and learner_players:
+        extra_teams = min(num_mentors - num_new, len(learner_players))
+        num_learner_teams += extra_teams
 
-    print(f"📊 Building {num_learner_teams} learner teams for {num_learners_total} learners/new with {num_mentors} mentors")
+    print(f"📊 Building {num_learner_teams} mentor teams for {num_new} NEW players + {len(learner_players)} learners with {num_mentors} mentors")
 
     learner_teams: List[List[Dict[str, Any]]] = []
     used_mentors = []
@@ -365,30 +376,37 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         used_mentors.append(mentor)
         print(f"🎓 Learner Team {team_idx + 1}: Added mentor {mentor.get('user_name')}")
 
-        # 2. Add learners/new (up to 2 per team)
-        # Prioritize learners with whitelist matches to the mentor
-        learners_added = 0
-        for _ in range(2):
-            if not players_needing_mentor:
-                break
+        # 2. Add ONE learner or new player (not 2 - team is Mentor + 1 learner/new + 2 helpers)
+        # Priority: NEW players first (they MUST have mentor), then learners
+        if players_needing_mentor:
+            # Sort: NEW players first (must have mentor), then learners, then whitelist
+            def learner_priority(p):
+                role = normalize_role(p)
+                # NEW players come first (priority 0), learners second (priority 1), proficient+ last (priority 2)
+                if role == "new":
+                    priority = 0
+                elif role == "learner":
+                    priority = 1
+                else:
+                    priority = 2
+                # Within same priority, prefer whitelist matches
+                has_whitelist = 1 if is_whitelist_match(p, mentor) else 0
+                # Then sort by KC (lower KC = more help needed)
+                kc = int(p.get("kc", 0))
+                return (priority, -has_whitelist, kc)
 
-            # Sort learners by whitelist match (prioritize those matching mentor)
-            sorted_learners = sorted(
-                players_needing_mentor,
-                key=lambda p: (-1 if is_whitelist_match(p, mentor) else 0, prof_rank(p))
-            )
+            sorted_learners = sorted(players_needing_mentor, key=learner_priority)
 
-            # Find a learner that can be added (check blacklist)
+            # Find a learner/new that can be added (check blacklist)
             for learner in sorted_learners:
                 if not is_blacklist_violation(learner, team):
                     team.append(learner)
                     players_needing_mentor.remove(learner)
-                    learners_added += 1
                     wl_note = " (whitelist match)" if is_whitelist_match(learner, mentor) else ""
                     print(f"   Added {normalize_role(learner)} {learner.get('user_name')} ({learner.get('kc', 0)} KC){wl_note}")
                     break
 
-        # 3. Fill remaining spots (to reach size 4) with prioritized strong players
+        # 3. Fill remaining spots (to reach size 4) with 2 helpers/strong players
         # Prioritize whitelist matches with anyone on the team
         used_ids = {p["user_id"] for p in team + used_strong}
         priority_pool = build_priority_pool(used_ids)
@@ -423,17 +441,22 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         learner_teams.append(team)
         print(f"   ✅ Learner Team {team_idx + 1} complete: {len(team)} players")
 
-    # Handle any remaining learners/new that couldn't be placed
-    stranded_learners = players_needing_mentor
-    if stranded_learners:
-        print(f"⚠️ {len(stranded_learners)} learners/new could not be placed on learner teams (not enough mentors)")
+    # Handle any remaining NEW players that couldn't be placed - they MUST have mentors
+    stranded_new = [p for p in players_needing_mentor if normalize_role(p) == "new"]
+    if stranded_new:
+        print(f"⚠️ {len(stranded_new)} NEW players could not be placed (not enough mentors): {[p.get('user_name') for p in stranded_new]}")
+
+    # Remaining learners from the pool can go on non-mentor teams
+    remaining_learners = [p for p in players_needing_mentor if normalize_role(p) == "learner"]
 
     # ==========================================================================
-    # PHASE 2: BUILD NON-LEARNER TEAMS from remaining players
+    # PHASE 2: BUILD NON-MENTOR TEAMS from remaining players
     # These can be size 3, 4, or 5
+    # LEARNERS can go here (they don't require mentors)
+    # NEW players CANNOT go here (they must have mentors)
     # ==========================================================================
 
-    # Remaining players = all raiders minus those already on learner teams
+    # Remaining players = all raiders minus those already on mentor teams
     used_ids = set()
     for team in learner_teams:
         for p in team:
@@ -441,12 +464,10 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
 
     remaining_players = [p for p in available_raiders if p["user_id"] not in used_ids]
 
-    # Add stranded learners to remaining (they'll need special handling)
-    # Actually, stranded learners should NOT go on non-learner teams
-    # They need mentors. For now, they'll be in final_stranded
-    remaining_strong = [p for p in remaining_players if normalize_role(p) not in ("learner", "new") and not p.get("wants_mentor")]
+    # Include learners but NOT new players (new players must have mentors)
+    remaining_strong = [p for p in remaining_players if normalize_role(p) != "new"]
 
-    print(f"📊 Building non-learner teams from {len(remaining_strong)} remaining strong players")
+    print(f"📊 Building non-mentor teams from {len(remaining_strong)} remaining players (includes learners)")
 
     # Calculate optimal team sizes for remaining players
     M = len(remaining_strong)
@@ -555,7 +576,8 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     all_teams = learner_teams + non_learner_teams
 
     # Add any remaining strong players to existing teams
-    for player in remaining_strong:
+    unplaced_strong = []
+    for player in list(remaining_strong):
         placed = False
         for team in all_teams:
             # Determine if this is a learner team
@@ -569,12 +591,15 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                 placed = True
                 break
         if not placed:
+            unplaced_strong.append(player)
             print(f"⚠️ Could not place {player.get('user_name')} on any team")
 
-    # Stranded = learners/new without mentors
-    final_stranded = stranded_learners + remaining_strong
+    # Stranded = NEW players without mentors + any unplaced players
+    final_stranded = stranded_new + unplaced_strong
 
     print(f"\n📋 Final: {len(all_teams)} teams, {len(final_stranded)} stranded")
+    if stranded_new:
+        print(f"   ⚠️ Stranded NEW players (MUST have mentors): {[p.get('user_name') for p in stranded_new]}")
     for i, team in enumerate(all_teams):
         has_learner = any(normalize_role(p) in ("learner", "new") for p in team)
         team_type = "LEARNER" if has_learner else "STRONG"
