@@ -366,17 +366,24 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         print(f"🎓 Learner Team {team_idx + 1}: Added mentor {mentor.get('user_name')}")
 
         # 2. Add learners/new (up to 2 per team)
-        # Prioritize learners with whitelist matches to the mentor
+        # PRIORITIZE actual learners and news FIRST, not highly proficient mentees
         learners_added = 0
         for _ in range(2):
             if not players_needing_mentor:
                 break
 
-            # Sort learners by whitelist match (prioritize those matching mentor)
-            sorted_learners = sorted(
-                players_needing_mentor,
-                key=lambda p: (-1 if is_whitelist_match(p, mentor) else 0, prof_rank(p))
-            )
+            # Sort: actual learners/news first (by KC ascending), then proficient mentees last
+            def learner_priority(p):
+                role = normalize_role(p)
+                # Learners and news come first (priority 0), proficient+ come last (priority 1)
+                is_actual_learner = 1 if role in ("learner", "new") else 0
+                # Within learners/news, prefer those with whitelist match to mentor
+                has_whitelist = 1 if is_whitelist_match(p, mentor) else 0
+                # Then sort by KC (lower KC = more help needed)
+                kc = int(p.get("kc", 0))
+                return (-is_actual_learner, -has_whitelist, kc)
+
+            sorted_learners = sorted(players_needing_mentor, key=learner_priority)
 
             # Find a learner that can be added (check blacklist)
             for learner in sorted_learners:
@@ -555,7 +562,8 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     all_teams = learner_teams + non_learner_teams
 
     # Add any remaining strong players to existing teams
-    for player in remaining_strong:
+    unplaced_strong = []
+    for player in list(remaining_strong):
         placed = False
         for team in all_teams:
             # Determine if this is a learner team
@@ -569,12 +577,15 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                 placed = True
                 break
         if not placed:
+            unplaced_strong.append(player)
             print(f"⚠️ Could not place {player.get('user_name')} on any team")
 
-    # Stranded = learners/new without mentors
-    final_stranded = stranded_learners + remaining_strong
+    # Stranded = learners/new without mentors + any unplaced strong players
+    final_stranded = stranded_learners + unplaced_strong
 
     print(f"\n📋 Final: {len(all_teams)} teams, {len(final_stranded)} stranded")
+    if stranded_learners:
+        print(f"   ⚠️ Stranded learners/new (need mentors): {[p.get('user_name') for p in stranded_learners]}")
     for i, team in enumerate(all_teams):
         has_learner = any(normalize_role(p) in ("learner", "new") for p in team)
         team_type = "LEARNER" if has_learner else "STRONG"
