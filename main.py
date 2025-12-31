@@ -1120,59 +1120,6 @@ async def clog(interaction: discord.Interaction, username: str):
     except Exception as e:
         await interaction.followup.send(f"⚠️ An unexpected error occurred: {e}")
 
-@tree.command(name="santalist", description="Balances naughty vs. nice words. Neutral results are hidden (ephemeral).")
-@app_commands.describe(member="The user to check (defaults to you)")
-async def santalist(interaction: discord.Interaction, member: Optional[discord.Member] = None):
-    # Defer ephemerally so the 'Thinking' state is only visible to you
-    await interaction.response.defer(thinking=True, ephemeral=True)
-    
-    target = member or interaction.user
-    naughty_matches = []
-    nice_matches = []
-
-    user_msg_count = 0
-    async for message in interaction.channel.history(limit=500):
-        if message.author == target:
-            user_msg_count += 1
-            content_lower = message.content.lower()
-
-            # Whole-word matching for accuracy
-            for word in NAUGHTY_KEYWORDS:
-                if re.search(rf"\b{re.escape(word)}\b", content_lower):
-                    naughty_matches.append(message.content)
-                    break
-            
-            for word in NICE_KEYWORDS:
-                if re.search(rf"\b{re.escape(word)}\b", content_lower):
-                    nice_matches.append(message.content)
-                    break
-            
-            if user_msg_count >= 100:
-                break
-
-    n_count, n_nice = len(naughty_matches), len(nice_matches)
-
-    if n_count > n_nice:
-        # Public message for Naughty
-        await interaction.channel.send(
-            f"{target.mention} has been naughty! 😈 (Score: {n_count} vs {n_nice})\n"
-            f"> \"{random.choice(naughty_matches)}\"\n"
-            "Go shovel coal ⚫ bad little elf!"
-        )
-    elif n_nice > n_count:
-        # Public message for Nice
-        await interaction.channel.send(
-            f"{target.mention} has been nice! 🎅 (Score: {n_nice} vs {n_count})\n"
-            f"> \"{random.choice(nice_matches)}\"\n"
-            "Have a cookie! 🍪"
-        )
-    else:
-        await interaction.followup.send(
-            f"I found {n_count} Naughty and {n_nice} Nice words. "
-            f"{target.display_name} is perfectly balanced... for now. 👀", 
-            ephemeral=True
-        )
-
 # ---------------------------
 # 🔹 TimeZones
 # ---------------------------
