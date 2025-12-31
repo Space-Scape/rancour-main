@@ -461,6 +461,12 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     whitelist_teams: List[List[Dict[str, Any]]] = []
     whitelist_placed: set = set()
 
+    # Debug: show who has whitelists
+    for player in remaining_strong:
+        wl = player.get("whitelist", set())
+        if wl:
+            print(f"   📋 {player.get('user_name')} (ID:{player.get('user_id')}) whitelist: {wl}")
+
     for player in remaining_strong:
         if player["user_id"] in placed_ids or player["user_id"] in whitelist_placed:
             continue
@@ -481,7 +487,12 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                 whitelist_placed.add(player["user_id"])
                 whitelist_placed.add(partner["user_id"])
                 whitelist_teams.append(team)
-                print(f"   🔗 Whitelist pair: {player.get('user_name')} + {partner.get('user_name')}")
+                print(f"   ✅ Whitelist matched: {player.get('user_name')} + {partner.get('user_name')}")
+        else:
+            # Debug: show if whitelist exists but no match found
+            wl = player.get("whitelist", set())
+            if wl:
+                print(f"   ⚠️ {player.get('user_name')} whitelist {wl} - no mutual match found")
 
     # ==========================================================================
     # PHASE 5: PROFICIENT + HP TEAMS (Size 3-5)
@@ -493,24 +504,34 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                 if p["user_id"] not in placed_ids]
     remaining.sort(key=lambda p: (-int(p.get("kc", 0)), not p.get("has_scythe")))
 
+    # Fill whitelist teams to size 4 first
+    for team in whitelist_teams:
+        while len(team) < 4 and remaining:
+            added = False
+            for p in list(remaining):
+                if not is_blacklist_violation(p, team):
+                    team.append(p)
+                    placed_ids.add(p["user_id"])
+                    remaining.remove(p)
+                    added = True
+                    break
+            if not added:
+                break
+
     if remaining:
         n = len(remaining)
 
-        # Calculate number of teams (prefer size 4, allow 3-5)
+        # Calculate number of teams - ENFORCE MAX 5 PER TEAM
+        # Minimum teams = ceil(n / 5) to ensure no team exceeds 5
+        min_teams_for_max5 = (n + 4) // 5
+
         if n <= 2:
             num_strong_teams = 0
-        elif n == 3:
-            num_strong_teams = 1
         elif n <= 5:
             num_strong_teams = 1
         else:
-            num_strong_teams = n // 4
-            remainder = n - (num_strong_teams * 4)
-            # Adjust to avoid leaving 1-2 people
-            if remainder == 1 and num_strong_teams > 1:
-                num_strong_teams = max(1, n // 5)
-            elif remainder == 2 and num_strong_teams > 1:
-                num_strong_teams = max(1, (n + 2) // 5)
+            # Start with teams of 4, but ensure we have enough teams
+            num_strong_teams = max(min_teams_for_max5, n // 4)
 
         if num_strong_teams > 0:
             # Create empty teams (don't mix with whitelist teams)
@@ -553,12 +574,6 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                     target_team.append(player)
                     placed_ids.add(player["user_id"])
 
-            # Add whitelist teams first
-            for team in whitelist_teams:
-                if len(team) >= 2:
-                    teams.append(team)
-                    print(f"   ✅ Whitelist team: {[p.get('user_name') for p in team]}")
-
             # Add strong teams
             for idx, team in enumerate(strong_teams):
                 if len(team) >= 3:
@@ -569,6 +584,12 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                     for p in team:
                         stranded.append(p)
                         print(f"   ⚠️ {p.get('user_name')} stranded (team too small)")
+
+    # Add whitelist teams (always, regardless of strong teams)
+    for team in whitelist_teams:
+        if len(team) >= 2:
+            teams.append(team)
+            print(f"   ✅ Whitelist team: {[p.get('user_name') for p in team]}")
 
     # Strand any remaining
     for p in remaining:
