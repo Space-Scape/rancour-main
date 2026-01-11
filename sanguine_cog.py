@@ -15,7 +15,6 @@ from zoneinfo import ZoneInfo
 import math
 from pathlib import Path
 from zoneinfo import ZoneInfo
-import networkx as nx 
 
 # ---------------------------
 # 🔹 Constants
@@ -196,31 +195,46 @@ def check_merge_blacklist(clique_to_add: List[Dict], current_team: List[Dict]) -
     return False
 
 def get_cliques(available_raiders: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
-    """Groups players into cliques based on mutual whitelists."""
+    """Groups players into cliques based on mutual whitelists (Connected Components) using BFS."""
     if not available_raiders:
         return []
 
+    # Map user_id -> player dict
     player_map = {str(p["user_id"]): p for p in available_raiders}
-    G = nx.Graph()
+    adjacency = {uid: set() for uid in player_map}
 
-    for p in available_raiders:
-        G.add_node(str(p["user_id"]))
-
+    # Build graph edges
     for p1 in available_raiders:
         id1 = str(p1["user_id"])
         whitelist1 = p1.get("whitelist", set())
         for id2 in whitelist1:
             if id2 in player_map and id2 != id1:
-                p2 = player_map[id2]
-                whitelist2 = p2.get("whitelist", set())
-                if id1 in whitelist2:
-                    G.add_edge(id1, id2)
+                # Add edge if id2 exists in pool. 
+                # Treating as undirected: if A lists B, we link them.
+                adjacency[id1].add(id2)
+                adjacency[id2].add(id1)
 
+    visited = set()
     cliques = []
-    for component in nx.connected_components(G):
-        clique_players = [player_map[pid] for pid in component]
-        clique_players.sort(key=prof_rank)
-        cliques.append(clique_players)
+
+    for uid in player_map:
+        if uid not in visited:
+            # BFS traversal
+            component = []
+            queue = [uid]
+            visited.add(uid)
+            while queue:
+                curr = queue.pop(0)
+                component.append(player_map[curr])
+                for neighbor in adjacency[curr]:
+                    if neighbor not in visited:
+                        visited.add(neighbor)
+                        queue.append(neighbor)
+            
+            # Sort component members internally by rank
+            component.sort(key=prof_rank)
+            cliques.append(component)
+
     return cliques
 
 def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
@@ -229,7 +243,7 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     1. Group into atomic units (cliques).
     2. Build Mentor Teams base.
     3. Assign Learners/New to Mentor Teams (Max 4 size preferred, strict requirement).
-    4. Assign 1 Helper to each Mentor Team if possible.
+    4. Assign 1 Helper to each Mentor Team if possible. (Fallback to HP if no helper).
     5. Fill Mentor Teams to size 4/5.
     6. Balance Standard Teams (Size 4 preferred, distribute remainder evenly).
     """
@@ -267,9 +281,13 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     mentor_cliques.sort(key=len)
     # Learners: New players first
     learner_cliques.sort(key=lambda c: any(normalize_role(p) == "new" for p in c), reverse=True)
-    # Helpers/Regulars: Higher KC first
+    # Helpers: Higher KC first
     helper_cliques.sort(key=lambda c: max(int(p.get("kc", 0)) for p in c), reverse=True)
-    regular_cliques.sort(key=lambda c: max(int(p.get("kc", 0)) for p in c), reverse=True)
+    # Regulars: Sort by HP presence, then KC
+    regular_cliques.sort(key=lambda c: (
+        1 if any(normalize_role(p) == "highly proficient" for p in c) else 0,
+        max(int(p.get("kc", 0)) for p in c)
+    ), reverse=True)
 
     teams = []
     stranded = []
@@ -303,8 +321,6 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             
             # Constraint: Size. Prefer keeping size <= 4 initially. 
             if len(team) + len(l_clique) > 4: 
-                # Soft limit, maybe allow 5 if desperate, but prompt says "balanced".
-                # Let's strictly enforce 4 for now to save room for helpers.
                 continue
             
             # Constraint: Blacklist
@@ -328,61 +344,75 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             mark_used(l_clique)
 
     # ==========================================================
-    # PHASE 3: Assign Helpers (Priority: Mentor Teams with Learners)
+    # PHASE 3: Assign Support (Helper -> HP)
     # ==========================================================
-    print("\n🛡️ PHASE 3: Assigning Helpers...")
-    # Pool helpers: helper_cliques + regular_cliques (if they contain a helper - edge case)
-    # But strictly iterate helper_cliques first
+    print("\n🛡️ PHASE 3: Assigning Support (Helper -> HP)...")
     
-    for h_clique in helper_cliques:
-        # Priority: Mentor team with Learner AND No Helper yet
-        target_idx = -1
+    # Identify Mentor+Learner teams that need support
+    # Criteria: Mentor + Learner present, but no Helper/HP yet (besides Mentor)
+    
+    teams_needing_support_indices = []
+    for i, team in enumerate(teams):
+        has_mentor = any(normalize_role(p) == "mentor" for p in team)
+        has_learner = any(normalize_role(p) in ("new", "learner") for p in team)
         
-        # 1. Look for Mentor + Learner + No Helper
-        for i, team in enumerate(teams):
-            has_mentor = any(normalize_role(p) == "mentor" for p in team)
-            has_learner = any(normalize_role(p) in ("new", "learner") for p in team)
-            has_existing_helper = any(is_helper(p) for p in team) # Check current team comp
-            
-            # Don't double up helpers unless we have to
-            if has_mentor and has_learner and not has_existing_helper:
-                if len(team) + len(h_clique) <= 5: # Allow up to 5 here to ensure help
-                    if not check_merge_blacklist(h_clique, team):
-                        target_idx = i
-                        break
-        
-        # 2. If no perfect fit, look for any Mentor team
-        if target_idx == -1:
-            for i, team in enumerate(teams):
-                has_mentor = any(normalize_role(p) == "mentor" for p in team)
-                if has_mentor:
-                    if len(team) + len(h_clique) <= 4: # Keep tight
-                        if not check_merge_blacklist(h_clique, team):
-                            target_idx = i
-                            break
+        # Check if already has strong support (Helper OR HP)
+        has_strong_support = False
+        for p in team:
+            if is_helper(p) or normalize_role(p) == "highly proficient":
+                # Don't count the mentor as the "support" slot if they are the only one
+                # But normalize_role "mentor" returns "mentor", so this check is safe
+                has_strong_support = True
+                
+        if has_mentor and has_learner and not has_strong_support:
+             teams_needing_support_indices.append(i)
 
-        if target_idx != -1:
-            teams[target_idx].extend(h_clique)
-            mark_used(h_clique)
-        # If not used, they fall through to Standard/Fill pool
+    # Attempt to fill with Helpers first
+    for t_idx in teams_needing_support_indices:
+        team = teams[t_idx]
+        filled = False
+        
+        # Look in helper_cliques first
+        for h_clique in helper_cliques:
+            if is_used(h_clique): continue
+            
+            if len(team) + len(h_clique) <= 5: # Allow 5 to ensure support
+                if not check_merge_blacklist(h_clique, team):
+                    team.extend(h_clique)
+                    mark_used(h_clique)
+                    filled = True
+                    break
+        
+        # If no helper found, look for HP in regular_cliques
+        if not filled:
+            for r_clique in regular_cliques:
+                if is_used(r_clique): continue
+                
+                # Check if clique contains HP
+                has_hp = any(normalize_role(p) == "highly proficient" for p in r_clique)
+                if has_hp:
+                    if len(team) + len(r_clique) <= 5:
+                         if not check_merge_blacklist(r_clique, team):
+                            team.extend(r_clique)
+                            mark_used(r_clique)
+                            filled = True
+                            print(f"   Assigned HP fallback to Team {t_idx+1}")
+                            break
 
     # ==========================================================
     # PHASE 4: Fill Mentor Teams & Consolidate Remaining
     # ==========================================================
     print("\n⚖️ PHASE 4: Filling & Balancing...")
     remaining_cliques = []
-    # Add unused helpers
+    
     for c in helper_cliques:
         if not is_used(c): remaining_cliques.append(c)
-    # Add regulars
     for c in regular_cliques:
-        remaining_cliques.append(c)
+        if not is_used(c): remaining_cliques.append(c)
 
-    # Try to top off Mentor teams to size 4
-    # Sort remaining by size desc to fit big chunks first? No, fit small chunks to fill gaps.
-    remaining_cliques.sort(key=len) # Ascending size
+    # Sort remaining by size (smallest first to fill gaps)
+    remaining_cliques.sort(key=len) 
     
-    # Using a while loop to restart iteration when a merge happens
     changed = True
     while changed:
         changed = False
@@ -396,7 +426,7 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             for t_idx, team in enumerate(teams):
                 has_mentor = any(normalize_role(p) == "mentor" for p in team)
                 if has_mentor and len(team) < 4:
-                    if len(team) + len(clique) <= 5: # Allow 5 if it finishes the team
+                    if len(team) + len(clique) <= 5: 
                          if not check_merge_blacklist(clique, team):
                             team.extend(clique)
                             mark_used(clique)
@@ -408,54 +438,42 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     # ==========================================================
     # PHASE 5: Standard Teams (Balancing Remainder)
     # ==========================================================
-    # Gather actual remaining players
     pool_cliques = [c for c in remaining_cliques if not is_used(c)]
     
     if pool_cliques:
         total_players = sum(len(c) for c in pool_cliques)
-        # Determine optimal team count
-        # Pref size 4. 
-        # 10 players -> 2 teams (5, 5). Not 3 (3,3,4).
-        # 9 players -> 2 teams (4, 5).
-        # 7 players -> 2 teams (3, 4).
-        # 6 players -> 2 teams (3, 3). 
-        # 5 players -> 1 team (5).
         
         num_teams = round(total_players / 4)
         if num_teams == 0: num_teams = 1
         
-        # Ensure minimum size 3 if possible
         if num_teams > 1 and (total_players / num_teams) < 3:
             num_teams -= 1
             
         new_teams = [[] for _ in range(num_teams)]
         
-        # Sort pool by KC (Highest member) descending for snake draft
+        # Sort pool by KC descending
         pool_cliques.sort(key=lambda c: max(int(p.get("kc",0)) for p in c), reverse=True)
         
         for clique in pool_cliques:
             # Pick team with fewest players
-            # Check blacklist
             valid_indices = []
             for i, t in enumerate(new_teams):
                 if not check_merge_blacklist(clique, t):
                     valid_indices.append(i)
             
             if not valid_indices:
-                # Stranded due to blacklist
                 for p in clique: stranded.append(p)
                 continue
             
             # Sort valid teams by current size (ascending)
             valid_indices.sort(key=lambda i: len(new_teams[i]))
             
-            # Place in smallest
             target = valid_indices[0]
             new_teams[target].extend(clique)
             
         teams.extend([t for t in new_teams if t])
 
-    # Final cleanup of empty teams (if any)
+    # Final cleanup of empty teams
     teams = [t for t in teams if t]
     
     print(f"\n✅ Result: {len(teams)} Teams, {len(stranded)} Stranded.")
