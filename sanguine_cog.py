@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 import math
 from pathlib import Path
 from zoneinfo import ZoneInfo
-import networkx as nx # Added for graph-based whitelist handling
+import networkx as nx 
 
 # ---------------------------
 # 🔹 Constants
@@ -33,15 +33,11 @@ TOB_ROLE_ID = 1272694636921753701
 SENIOR_STAFF_CHANNEL_ID = 1336473990302142484
 ADMINISTRATOR_ROLE_ID = 1272961765034164318
 SENIOR_STAFF_ROLE_ID = 1336473488159936512
-# --- UPDATED VC CATEGORY ID ---
 SANG_VC_CATEGORY_ID = 1376645103803830322
 SANG_POST_CHANNEL_ID = 1338295765759688767
-# --- NEW: Matchmaking VC ID ---
 SANG_MATCHMAKING_VC_ID = 1431953026842624090
-# --- NEW: Added VC Link ---
 SANG_VC_LINK = "https://discord.com/channels/1272629330115297330/1431953026842624090"
-# --- NEW: File to store message ID for live updates ---
-# --- MODIFICATION: Make file path absolute to script location ---
+
 SCRIPT_DIR = Path(__file__).parent.resolve()
 SANG_MESSAGE_ID_FILE = SCRIPT_DIR / "sang_message_id.txt"
 
@@ -96,7 +92,6 @@ Event link: <https://discord.com/events/1272629330115297330/1386302870646816788>
 """
 
 LEARNER_REMINDER_IDENTIFIER = "Sanguine Sunday Learner Reminder"
-# --- UPDATED: Added VC Link ---
 LEARNER_REMINDER_MESSAGE = f"""\
 # {LEARNER_REMINDER_IDENTIFIER} ⏰ <:sanguine_sunday:1388100187985154130>
 
@@ -122,10 +117,8 @@ def sanitize_nickname(name: str) -> str:
     """Removes special characters and bot-added tags from display names."""
     if not name:
         return ""
-    # Remove (RSN#1234) or [RSN#1234] tags
     name = re.sub(r'\s*\([^)]*#\d{4}\)', '', name)
     name = re.sub(r'\s*\[[^\]]*#\d{4}\]', '', name)
-    # --- UPDATED: Remove leading special chars like !, #, @ ---
     name = re.sub(r'^[!#@]+', '', name)
     return name.strip()
 
@@ -137,7 +130,6 @@ def normalize_role(p: dict) -> str:
     try:
         kc = int(p.get("kc") or p.get("KC") or 0)
     except Exception:
-        # Fallback for "X" KC or other non-int
         return prof
     if kc <= 10: return "new"
     if 11 <= kc <= 49: return "learner"
@@ -146,48 +138,32 @@ def normalize_role(p: dict) -> str:
 
 PROF_ORDER = {"mentor": 0, "highly proficient": 1, "proficient": 2, "learner": 3, "new": 4}
 
-# Helpers list - these players are prioritized for mentor/learner teams
+# Helpers list - prioritized for mentor/learner teams
 HELPERS = [
-    "lukap42",
-    "antidrop",
-    "robotson",
-    "box man",
-    "redeemed",
-    "mr fk",
-    "ms fk",
-    "lube is best",
-    "hazy jane",
-    "lasix",
-    "kodai",
-    "lionelious",
+    "lukap42", "antidrop", "robotson", "box man", "redeemed",
+    "mr fk", "ms fk", "lube is best", "hazy jane", "lasix",
+    "kodai", "lionelious",
 ]
 
 def prof_rank(p: dict) -> int:
-    """Returns a sortable integer for a player's proficiency."""
     return PROF_ORDER.get(normalize_role(p), 99)
 
 def scythe_icon(p: dict) -> str:
-    """Returns a Scythe emoji icon based on player data."""
     return " • <:tob:1272864087105208364>" if p.get("has_scythe") else ""
 
 def freeze_icon(p: dict) -> str:
-    """Returns a freeze icon if the player wants to learn."""
     return " • ❄️" if p.get("learning_freeze") else ""
 
 def is_proficient_plus(p: dict) -> bool:
-    """Checks if a player is proficient, highly proficient, or mentor."""
     role = normalize_role(p)
     return role in ("mentor", "highly proficient", "proficient")
 
 def is_helper(p: dict) -> bool:
-    """Checks if a player is on the helpers list (case-insensitive)."""
     name = p.get("user_name", "").lower().strip()
-    # Remove leading special chars that might have been added
     name = re.sub(r'^[!#@*]+', '', name).strip()
     return name in HELPERS
 
 def parse_roles(roles_str: str) -> (bool, bool):
-    """Parses the 'Favorite Roles' string to check for range/melee knowledge."""
     if not roles_str or roles_str == "N/A":
         return False, False
     roles_str = roles_str.lower()
@@ -202,354 +178,290 @@ def is_blacklist_violation(player: Dict[str, Any], team: List[Dict[str, Any]]) -
 
     for p_in_team in team:
         p_in_team_id_str = str(p_in_team.get("user_id"))
-
-        # Check 1: Does the player on the team exist in the new player's blacklist?
         if p_in_team_id_str in player_blacklist:
             return True 
-
-        # Check 2: Does the new player exist in the team member's blacklist?
         p_in_team_blacklist = p_in_team.get("blacklist", set())
         if player_id_str in p_in_team_blacklist:
             return True 
+    return False
 
+def check_merge_blacklist(clique_to_add: List[Dict], current_team: List[Dict]) -> bool:
+    """Checks entire clique against entire team for blacklists."""
+    for new_p in clique_to_add:
+        if is_blacklist_violation(new_p, current_team):
+            return True # Conflict found
+    for exist_p in current_team:
+        if is_blacklist_violation(exist_p, clique_to_add):
+            return True
     return False
 
 def get_cliques(available_raiders: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
-    """
-    Groups players into cliques based on mutual whitelists using a graph.
-    Returns a list of lists, where each inner list is a group of players who MUST be together.
-    """
+    """Groups players into cliques based on mutual whitelists."""
     if not available_raiders:
         return []
 
-    # Map ID to player object for easy lookup
     player_map = {str(p["user_id"]): p for p in available_raiders}
     G = nx.Graph()
 
-    # Add all players as nodes
     for p in available_raiders:
         G.add_node(str(p["user_id"]))
 
-    # Add edges for MUTUAL whitelists
     for p1 in available_raiders:
         id1 = str(p1["user_id"])
         whitelist1 = p1.get("whitelist", set())
-        
         for id2 in whitelist1:
             if id2 in player_map and id2 != id1:
                 p2 = player_map[id2]
                 whitelist2 = p2.get("whitelist", set())
-                
-                # Check for mutual whitelist
                 if id1 in whitelist2:
                     G.add_edge(id1, id2)
 
-    # Get connected components (cliques)
     cliques = []
     for component in nx.connected_components(G):
         clique_players = [player_map[pid] for pid in component]
-        # Sort clique by proficiency rank (mentors first, etc.) to help with role identification
         clique_players.sort(key=prof_rank)
         cliques.append(clique_players)
-
     return cliques
 
 def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     """
-    Revised Matchmaking Algorithm:
-    1. Mentor Teams First (Strictly 4-man if containing Learner/New).
-       - 1 Mentor + 1 Learner/New + 1 Helper (or HP) + 1 Filler.
-    2. Helpers are prioritized for Mentor teams.
-    3. Whitelists are strictly enforced by treating them as atomic units (cliques).
-    4. Remaining players (Prof/HP) form balanced teams (size 4 preferred, 5 or 3 if necessary).
+    Robust Matchmaking Algorithm:
+    1. Group into atomic units (cliques).
+    2. Build Mentor Teams base.
+    3. Assign Learners/New to Mentor Teams (Max 4 size preferred, strict requirement).
+    4. Assign 1 Helper to each Mentor Team if possible.
+    5. Fill Mentor Teams to size 4/5.
+    6. Balance Standard Teams (Size 4 preferred, distribute remainder evenly).
     """
     if not available_raiders:
         return [], []
 
     print(f"\n🧩 Starting Matchmaking for {len(available_raiders)} players...")
 
-    # 1. Group into Cliques (Whitelist Enforcing)
+    # --- Step 1: Group into Cliques ---
     cliques = get_cliques(available_raiders)
     
-    # Classify Cliques
+    # Categorize Cliques
     mentor_cliques = []
-    learner_cliques = [] # Contains Learner or New, but NO Mentor
-    regular_cliques = [] # Proficient, HP, Helper (No Mentor, No Learner)
+    learner_cliques = []
+    helper_cliques = []
+    regular_cliques = []
 
     for clique in cliques:
         roles = [normalize_role(p) for p in clique]
         has_mentor = "mentor" in roles
         has_learner = "learner" in roles or "new" in roles
-        
+        has_helper = any(is_helper(p) for p in clique)
+
         if has_mentor:
             mentor_cliques.append(clique)
         elif has_learner:
             learner_cliques.append(clique)
+        elif has_helper:
+            helper_cliques.append(clique)
         else:
             regular_cliques.append(clique)
 
-    # Sort Mentor cliques to prioritize those with fewer people (easier to build around)
+    # Sort cliques for priority
+    # Mentors: Smaller first (easier to build around)
     mentor_cliques.sort(key=len)
-    # Sort Learner cliques: New players prioritized
+    # Learners: New players first
     learner_cliques.sort(key=lambda c: any(normalize_role(p) == "new" for p in c), reverse=True)
-    
-    # Identify Helpers and HPs within Regular Cliques for lookup (but we move whole cliques)
-    # We will just iterate through regular cliques to find fits.
-    # To prioritize Helpers, we can sort regular cliques.
-    def clique_helper_score(clique):
-        # Higher score = contains helper
-        return sum(1 for p in clique if is_helper(p))
-    
-    # Sort regular cliques so those with Helpers are checked first for support slots
-    regular_cliques.sort(key=clique_helper_score, reverse=True)
+    # Helpers/Regulars: Higher KC first
+    helper_cliques.sort(key=lambda c: max(int(p.get("kc", 0)) for p in c), reverse=True)
+    regular_cliques.sort(key=lambda c: max(int(p.get("kc", 0)) for p in c), reverse=True)
 
     teams = []
     stranded = []
-
-    # ==========================================================================
-    # PHASE 1: BUILD MENTOR TEAMS
-    # Target: 1 Mentor, 1 Learner/New, 1 Helper/HP, 1 Filler. Size = 4.
-    # ==========================================================================
-    print("\n🎓 PHASE 1: Building Mentor Teams...")
     
-    # We will modify the lists in place or track usage.
-    # Since cliques are distinct, we can just remove them from lists when used.
-    
-    used_cliques = set() # Store python ID of the list object to track usage
-    
-    def mark_used(clique):
-        used_cliques.add(id(clique))
-        
-    def is_used(clique):
-        return id(clique) in used_cliques
+    # Track used cliques by memory ID
+    used_cliques = set()
+    def mark_used(c): used_cliques.add(id(c))
+    def is_used(c): return id(c) in used_cliques
 
-    def can_merge(team_players, candidate_clique):
-        # Check size constraint (Strictly 4 for Mentor teams)
-        if len(team_players) + len(candidate_clique) > 4:
-            return False
-        # Check Blacklist
-        for p1 in team_players:
-            if is_blacklist_violation(p1, candidate_clique):
-                return True # Conflict exists
-        for p2 in candidate_clique:
-            if is_blacklist_violation(p2, team_players):
-                return True # Conflict exists
-        return True # No conflict, size ok
-
-    # Iterate through mentor cliques
+    # ==========================================================
+    # PHASE 1: Initialize Mentor Teams
+    # ==========================================================
+    print("\n🎓 PHASE 1: Initializing Mentor Teams...")
     for m_clique in mentor_cliques:
-        if is_used(m_clique): continue
-        
-        team = list(m_clique)
+        teams.append(list(m_clique))
         mark_used(m_clique)
-        
-        # 1. Look for Learner/New (if team doesn't have one yet)
-        has_learner = any(normalize_role(p) in ("new", "learner") for p in team)
-        
-        if not has_learner:
-            for l_clique in learner_cliques:
-                if not is_used(l_clique):
-                    # Check compatibility (Size <= 4, Blacklist)
-                    # Constraint: Mentor teams MUST be size 4 if they have a learner.
-                    # So if adding this clique exceeds 4, we can't do it.
-                    if len(team) + len(l_clique) <= 4:
-                         # Blacklist check
-                         if not is_blacklist_violation(l_clique[0], team): # Check whole clique against team
-                             # Actually need deeper check
-                             violation = False
-                             for tp in team:
-                                 if is_blacklist_violation(tp, l_clique): violation = True
-                             for lp in l_clique:
-                                 if is_blacklist_violation(lp, team): violation = True
-                             
-                             if not violation:
-                                 team.extend(l_clique)
-                                 mark_used(l_clique)
-                                 has_learner = True
-                                 break
 
-        # 2. Look for Support (Helper > HP) if needed
-        # We need at least one "strong" player besides the mentor if possible, especially if there's a learner.
-        # Check if we already have a helper or HP in the team (aside from the mentor)
-        has_support = False
-        mentors_in_team = sum(1 for p in team if normalize_role(p) == "mentor")
-        strong_in_team = sum(1 for p in team if is_proficient_plus(p))
-        
-        if strong_in_team > mentors_in_team: 
-            has_support = True # We have a non-mentor strong player
-        
-        if not has_support and len(team) < 4:
-            # Try to find a clique with a Helper first
-            for r_clique in regular_cliques:
-                if not is_used(r_clique):
-                    if len(team) + len(r_clique) <= 4:
-                         # Check if this clique has a helper or HP
-                         is_strong = any(is_proficient_plus(p) for p in r_clique)
-                         if is_strong:
-                             # Blacklist check
-                             violation = False
-                             for tp in team:
-                                 if is_blacklist_violation(tp, r_clique): violation = True
-                             for rp in r_clique:
-                                 if is_blacklist_violation(rp, team): violation = True
-                             
-                             if not violation:
-                                 team.extend(r_clique)
-                                 mark_used(r_clique)
-                                 break # Found support
-
-        # 3. Fill to 4 with any fit
-        if len(team) < 4:
-             for r_clique in regular_cliques:
-                if not is_used(r_clique):
-                    if len(team) + len(r_clique) <= 4:
-                         # Blacklist check
-                         violation = False
-                         for tp in team:
-                                 if is_blacklist_violation(tp, r_clique): violation = True
-                         for rp in r_clique:
-                                 if is_blacklist_violation(rp, team): violation = True
-                         
-                         if not violation:
-                             team.extend(r_clique)
-                             mark_used(r_clique)
-                             if len(team) == 4: break
-
-        # Check if team is valid
-        # If it has a learner, it MUST be size 4? Or is partial OK if we run out of people?
-        # Prompt: "4-man teams should be used exclusively for Learners and New players"
-        # Implication: If we can't fill to 4, we might not be able to run this team with a learner.
-        # But usually we prioritize running the learner. Let's accept size 3 if desperate, but warn.
-        # However, to strict compliance: "exclusively" suggests size 4 is mandatory.
-        # Let's assume we proceed with the best we built.
-        
-        teams.append(team)
-        print(f"   ✅ Mentor Team: {[p['user_name'] for p in team]}")
-
-    # Gather remaining items
-    remaining_cliques = []
-    
-    # Check for stranded learners
+    # ==========================================================
+    # PHASE 2: Assign Learners (Priority: Mentor Teams)
+    # ==========================================================
+    print("\n👶 PHASE 2: Assigning Learners...")
     for l_clique in learner_cliques:
-        if not is_used(l_clique):
-            # Try to form a team if we have leftover mentors? 
-            # (Unlikely as we iterated all mentors).
-            # If not placed, they are stranded.
+        best_team_idx = -1
+        min_size = 999
+
+        # Find best fitting mentor team
+        for i, team in enumerate(teams):
+            # Constraint: Must be a mentor team
+            if not any(normalize_role(p) == "mentor" for p in team):
+                continue
+            
+            # Constraint: Size. Prefer keeping size <= 4 initially. 
+            if len(team) + len(l_clique) > 4: 
+                # Soft limit, maybe allow 5 if desperate, but prompt says "balanced".
+                # Let's strictly enforce 4 for now to save room for helpers.
+                continue
+            
+            # Constraint: Blacklist
+            if check_merge_blacklist(l_clique, team):
+                continue
+            
+            # Metric: Pick team with fewest people to spread load
+            if len(team) < min_size:
+                min_size = len(team)
+                best_team_idx = i
+        
+        if best_team_idx != -1:
+            teams[best_team_idx].extend(l_clique)
+            mark_used(l_clique)
+            print(f"   Mapped Learner Group to Team {best_team_idx+1}")
+        else:
+            # Cannot fit learner into any mentor team (Full or Blacklisted)
+            # STRANDED. Do not put them in standard teams.
             for p in l_clique:
                 stranded.append(p)
-                print(f"   ❌ Stranded Learner: {p['user_name']}")
-    
-    # Remaining Regulars + Unused Mentor Cliques (if any weird edge case)
-    for r_clique in regular_cliques:
-        if not is_used(r_clique):
-            remaining_cliques.append(r_clique)
-            
-    for m_clique in mentor_cliques:
-        if not is_used(m_clique):
-             remaining_cliques.append(m_clique)
+            mark_used(l_clique)
 
-    # ==========================================================================
-    # PHASE 2: BUILD STANDARD TEAMS (Proficient / HP)
-    # Goal: Size 4 preferred. 5 or 3 allowed if needed. No Learners.
-    # ==========================================================================
-    print("\n💪 PHASE 2: Building Standard Teams...")
+    # ==========================================================
+    # PHASE 3: Assign Helpers (Priority: Mentor Teams with Learners)
+    # ==========================================================
+    print("\n🛡️ PHASE 3: Assigning Helpers...")
+    # Pool helpers: helper_cliques + regular_cliques (if they contain a helper - edge case)
+    # But strictly iterate helper_cliques first
     
-    if remaining_cliques:
-        # Flatten for counting (but keep clique structure for assignment)
-        total_remaining_players = sum(len(c) for c in remaining_cliques)
+    for h_clique in helper_cliques:
+        # Priority: Mentor team with Learner AND No Helper yet
+        target_idx = -1
         
-        if total_remaining_players > 0:
-            # Determine team distribution
-            # Priority: 4s.
-            # Example N=10: 4, 3, 3 is valid. 5, 5 is valid. 
-            # Prompt: "5-man or 3-man ... only if equal 4-man teams can't be formed"
-            # N=10 -> 4, 4 leaves 2 (invalid). 5, 5 is equal. 
-            # N=9 -> 4, 5. 
-            # N=7 -> 4, 3.
-            # N=6 -> 3, 3.
+        # 1. Look for Mentor + Learner + No Helper
+        for i, team in enumerate(teams):
+            has_mentor = any(normalize_role(p) == "mentor" for p in team)
+            has_learner = any(normalize_role(p) in ("new", "learner") for p in team)
+            has_existing_helper = any(is_helper(p) for p in team) # Check current team comp
             
-            # Simple Logic: 
-            # Try to make as many 4s as possible. 
-            # If remainder is non-zero, adjust.
-            
-            num_teams = round(total_remaining_players / 4)
-            if num_teams == 0: num_teams = 1 # Minimum 1 team if players exist
-            
-            # If we have 6 players, round(1.5) -> 2 teams. 6/2 = 3 per team. Correct.
-            # If we have 10 players, round(2.5) -> 2 teams. 10/2 = 5 per team. Correct.
-            # If we have 9 players, round(2.25) -> 2 teams. 4 and 5. Correct.
-            # If we have 11 players, round(2.75) -> 3 teams. 4, 4, 3. Correct.
-            
-            # Initialize empty teams
-            std_teams = [[] for _ in range(num_teams)]
-            
-            # Sort remaining cliques by KC (highest member) to snake draft
-            def get_max_kc(clique):
-                return max(int(p.get("kc", 0)) for p in clique)
-            
-            remaining_cliques.sort(key=get_max_kc, reverse=True)
-            
-            # Distribute Cliques
-            # We need to fill buckets carefully because cliques have size >= 1.
-            # Snake draft approach: Find the team with the fewest players, add clique.
-            # If tie, use snake order.
-            
-            # Actually, standard snake draft logic just iterates indices.
-            # But since cliques vary in size, "fewest players" is better to balance sizes.
-            
-            for clique in remaining_cliques:
-                # Find team with fewest players
-                # Sort indices by (current_size, snake_priority) to balance
-                
-                # To implement snake priority roughly with variable sizes:
-                # Just pick the smallest team that doesn't violate max size (5).
-                # If all valid teams are full, overfill?
-                
-                best_team_idx = -1
-                min_size = 999
-                
-                # Check blacklist for each team
-                valid_indices = []
-                for i, t in enumerate(std_teams):
-                    # Blacklist check
-                    violation = False
-                    for p_exist in t:
-                        if is_blacklist_violation(p_exist, clique): violation = True
-                    for p_new in clique:
-                        if is_blacklist_violation(p_new, t): violation = True
-                    
-                    if not violation:
-                        valid_indices.append(i)
+            # Don't double up helpers unless we have to
+            if has_mentor and has_learner and not has_existing_helper:
+                if len(team) + len(h_clique) <= 5: # Allow up to 5 here to ensure help
+                    if not check_merge_blacklist(h_clique, team):
+                        target_idx = i
+                        break
+        
+        # 2. If no perfect fit, look for any Mentor team
+        if target_idx == -1:
+            for i, team in enumerate(teams):
+                has_mentor = any(normalize_role(p) == "mentor" for p in team)
+                if has_mentor:
+                    if len(team) + len(h_clique) <= 4: # Keep tight
+                        if not check_merge_blacklist(h_clique, team):
+                            target_idx = i
+                            break
 
-                if not valid_indices:
-                    # Cannot place this clique anywhere due to blacklists
-                    for p in clique:
-                        stranded.append(p)
-                        print(f"   ❌ Stranded (Blacklist): {[p['user_name'] for p in clique]}")
-                    continue
+        if target_idx != -1:
+            teams[target_idx].extend(h_clique)
+            mark_used(h_clique)
+        # If not used, they fall through to Standard/Fill pool
 
-                # Find best fit among valid teams
-                # Metric: Smallest size. Tie breaker: first index.
-                valid_indices.sort(key=lambda i: len(std_teams[i]))
-                best_team_idx = valid_indices[0]
-                
-                # Add clique
-                std_teams[best_team_idx].extend(clique)
+    # ==========================================================
+    # PHASE 4: Fill Mentor Teams & Consolidate Remaining
+    # ==========================================================
+    print("\n⚖️ PHASE 4: Filling & Balancing...")
+    remaining_cliques = []
+    # Add unused helpers
+    for c in helper_cliques:
+        if not is_used(c): remaining_cliques.append(c)
+    # Add regulars
+    for c in regular_cliques:
+        remaining_cliques.append(c)
 
-            # Add valid teams to main list
-            for t in std_teams:
-                if t:
-                    teams.append(t)
-                    print(f"   ✅ Standard Team (Size {len(t)}): {[p['user_name'] for p in t]}")
-                    
-    # Report Stranded
-    if stranded:
-        print(f"\n⚠️ Total Stranded: {len(stranded)}")
+    # Try to top off Mentor teams to size 4
+    # Sort remaining by size desc to fit big chunks first? No, fit small chunks to fill gaps.
+    remaining_cliques.sort(key=len) # Ascending size
+    
+    # Using a while loop to restart iteration when a merge happens
+    changed = True
+    while changed:
+        changed = False
+        for i in range(len(remaining_cliques)):
+            if is_used(remaining_cliques[i]): continue
+            
+            clique = remaining_cliques[i]
+            assigned = False
+            
+            # Look for mentor team < 4
+            for t_idx, team in enumerate(teams):
+                has_mentor = any(normalize_role(p) == "mentor" for p in team)
+                if has_mentor and len(team) < 4:
+                    if len(team) + len(clique) <= 5: # Allow 5 if it finishes the team
+                         if not check_merge_blacklist(clique, team):
+                            team.extend(clique)
+                            mark_used(clique)
+                            assigned = True
+                            changed = True
+                            break
+            if assigned: break
 
+    # ==========================================================
+    # PHASE 5: Standard Teams (Balancing Remainder)
+    # ==========================================================
+    # Gather actual remaining players
+    pool_cliques = [c for c in remaining_cliques if not is_used(c)]
+    
+    if pool_cliques:
+        total_players = sum(len(c) for c in pool_cliques)
+        # Determine optimal team count
+        # Pref size 4. 
+        # 10 players -> 2 teams (5, 5). Not 3 (3,3,4).
+        # 9 players -> 2 teams (4, 5).
+        # 7 players -> 2 teams (3, 4).
+        # 6 players -> 2 teams (3, 3). 
+        # 5 players -> 1 team (5).
+        
+        num_teams = round(total_players / 4)
+        if num_teams == 0: num_teams = 1
+        
+        # Ensure minimum size 3 if possible
+        if num_teams > 1 and (total_players / num_teams) < 3:
+            num_teams -= 1
+            
+        new_teams = [[] for _ in range(num_teams)]
+        
+        # Sort pool by KC (Highest member) descending for snake draft
+        pool_cliques.sort(key=lambda c: max(int(p.get("kc",0)) for p in c), reverse=True)
+        
+        for clique in pool_cliques:
+            # Pick team with fewest players
+            # Check blacklist
+            valid_indices = []
+            for i, t in enumerate(new_teams):
+                if not check_merge_blacklist(clique, t):
+                    valid_indices.append(i)
+            
+            if not valid_indices:
+                # Stranded due to blacklist
+                for p in clique: stranded.append(p)
+                continue
+            
+            # Sort valid teams by current size (ascending)
+            valid_indices.sort(key=lambda i: len(new_teams[i]))
+            
+            # Place in smallest
+            target = valid_indices[0]
+            new_teams[target].extend(clique)
+            
+        teams.extend([t for t in new_teams if t])
+
+    # Final cleanup of empty teams (if any)
+    teams = [t for t in teams if t]
+    
+    print(f"\n✅ Result: {len(teams)} Teams, {len(stranded)} Stranded.")
     return teams, stranded
 
 def format_player_line_plain(guild: discord.Guild, p: dict) -> str:
-    """Formats a player's info for the no-ping /sangmatchtest command."""
     nickname = p.get("user_name") or "Unknown"
     role_text = p.get("proficiency", "Unknown").replace(" ", "-").capitalize().replace("-", " ")
     kc_raw = p.get("kc", 0)
@@ -559,7 +471,6 @@ def format_player_line_plain(guild: discord.Guild, p: dict) -> str:
     return f"{nickname} • **{role_text}** {kc_text}{scythe}{freeze}"
 
 def format_player_line_mention(guild: discord.Guild, p: dict) -> str:
-    """Formats a player's info for the /sangmatch command with pings."""
     try:
         uid = int(p["user_id"])
         member = guild.get_member(uid)
@@ -579,7 +490,6 @@ def format_player_line_mention(guild: discord.Guild, p: dict) -> str:
 # ---------------------------
 
 class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
-    """Modal form for regular raiders to sign up."""
     roles_known = TextInput(label="Favorite Roles (Leave blank if None)", placeholder="Inputs: All, Nfrz, Sfrz, Mdps, Rdps", style=discord.TextStyle.short, max_length=4, required=False)
     kc = TextInput(label="What is your Normal Mode ToB KC?", placeholder="0-10 = New, 11-25 = Learner, 26-100 = Proficient, 100+ = Highly Proficient", style=discord.TextStyle.short, max_length=5, required=True)
     has_scythe = TextInput(label="Do you have a Scythe? (Yes/No)", placeholder="Yes or No ONLY", style=discord.TextStyle.short, max_length=3, required=True)
@@ -620,8 +530,8 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
 
         proficiency_value = ""
         if kc_value <= 10: proficiency_value = "New"
-        elif 11 <= kc_value <= 25: proficiency_value = "Learner"
-        elif 26 <= kc_value <= 100: proficiency_value = "Proficient"
+        elif 11 <= kc_value <= 49: proficiency_value = "Learner"
+        elif 50 <= kc_value <= 100: proficiency_value = "Proficient"
         else: proficiency_value = "Highly Proficient"
 
         roles_known_value = str(self.roles_known).strip() or "None"
@@ -660,7 +570,6 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
 
 
 class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
-    """Modal form for Mentors to sign up."""
     roles_known = TextInput(label="Favorite Roles (Leave blank if None)", placeholder="Inputs: All, Nfrz, Sfrz, Mdps, Rdps", style=discord.TextStyle.short, max_length=4, required=True)
     kc = TextInput(label="What is your Normal Mode ToB KC?", placeholder="150+", style=discord.TextStyle.short, max_length=5, required=True)
     has_scythe = TextInput(label="Do you have a Scythe? (Yes/No)", placeholder="Yes or No", style=discord.TextStyle.short, max_length=3, required=True)
@@ -729,7 +638,6 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
 
 
 class WithdrawalButton(ui.Button):
-    """A simple button to withdraw from the event."""
     def __init__(self, cog: 'SanguineCog'):
         super().__init__(label="Withdraw", style=ButtonStyle.secondary, custom_id="sang_withdraw", emoji="❌")
         self.cog = cog
@@ -757,7 +665,6 @@ class WithdrawalButton(ui.Button):
             await interaction.followup.send("⚠️ An error occurred while processing your withdrawal.", ephemeral=True)
 
 class SignupView(View):
-    """The persistent view with the 3 main buttons: Raider, Mentor, Withdraw."""
     def __init__(self, cog: 'SanguineCog'):
         super().__init__(timeout=None)
         self.cog = cog
@@ -775,15 +682,9 @@ class SignupView(View):
         if not member:
                  await interaction.response.send_message("⚠️ Could not verify your roles. Please try again.", ephemeral=True)
                  return
-
-        # Get previous data regardless of role
         previous_data = self.cog.get_previous_signup(str(user.id))
-        
-        # If they previously auto-signed up (KC == "X")
-        # clear the "X" so the placeholder text shows instead.
         if previous_data and previous_data.get("KC") == "X":
                  previous_data["KC"] = "" 
-                 
         await interaction.response.send_modal(MentorSignupForm(self.cog, previous_data=previous_data))
 
 
@@ -792,15 +693,10 @@ class SignupView(View):
 # ---------------------------
 
 class SanguineCog(commands.Cog):
-    """
-    This class holds all the commands, listeners, and tasks
-    for the Sanguine Sunday event.
-    """
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.sang_sheet = None
         self.history_sheet = None
-        # --- NEW: For live-updating message ---
         self.live_signup_message_id = None
         self.live_signup_message_lock = asyncio.Lock()
         
@@ -828,7 +724,6 @@ class SanguineCog(commands.Cog):
             try:
                 self.sang_sheet = sang_google_sheet.worksheet(SANG_SHEET_TAB_NAME)
                 header = self.sang_sheet.row_values(1)
-                # --- CHANGED: Check for new header ---
                 if header != SANG_SHEET_HEADER:
                     print("⚠️ Sanguine sheet header mismatch. Re-writing...")
                     self.sang_sheet.clear()
@@ -841,7 +736,6 @@ class SanguineCog(commands.Cog):
             try:
                 self.history_sheet = sang_google_sheet.worksheet(SANG_HISTORY_TAB_NAME)
                 header = self.history_sheet.row_values(1)
-                # --- CHANGED: Check for new header ---
                 if header != SANG_SHEET_HEADER:
                     print("⚠️ Sanguine history sheet header mismatch. Re-writing...")
                     self.history_sheet.clear()
@@ -859,10 +753,7 @@ class SanguineCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        """Called when the cog is loaded and the bot is ready."""
-        # --- NEW: Load the message ID on startup ---
         await self.load_live_message_id()
-
         if not self.scheduled_post_signup.is_running():
             self.scheduled_post_signup.start()
             print("✅ Sanguine Cog: Started scheduled signup task.")
@@ -872,96 +763,64 @@ class SanguineCog(commands.Cog):
         if not self.scheduled_clear_sang_sheet.is_running():
             self.scheduled_clear_sang_sheet.start()
             print("✅ Sanguine Cog: Started scheduled sheet clear task.")
-        
         print("Sanguine Cog is ready.")
 
-    # --- Cog Methods (from helper functions) ---
-
     async def _write_to_sheets_in_thread(self, user_id: str, row_data: List[Any]) -> (bool, bool):
-        """
-        Runs blocking gspread operations in a separate thread 
-        to avoid blocking the bot's event loop.
-        """
-        
         def _blocking_sheet_write():
             sang_success = False
             hist_success = False
-            
-            # Operation 1: Write to SangSignups Sheet
             try:
                 cell = self.sang_sheet.find(user_id, in_column=1)
                 if cell is None:
-                    # User not found, append them
                     self.sang_sheet.append_row(row_data)
                 else:
-                    # User found, update them
                     self.sang_sheet.update(values=[row_data], range_name=f'A{cell.row}:K{cell.row}')
                 sang_success = True
             except Exception as e:
                 print(f"🔥 GSpread error on SangSignups: {e}")
 
-            # Operation 2: Write to History Sheet
             if self.history_sheet:
                 try:
                     history_cell = self.history_sheet.find(user_id, in_column=1)
                     if history_cell is None:
-                        # User not found, append them
                         self.history_sheet.append_row(row_data)
                     else:
-                        # User found, update them
                         self.history_sheet.update(values=[row_data], range_name=f'A{history_cell.row}:K{history_cell.row}')
                     hist_success = True
                 except Exception as e:
                     print(f"🔥 GSpread error on History: {e}")
             else:
-                print("🔥 History sheet not available, skipping history write.")
-                hist_success = True # Don't block success if history is down
+                hist_success = True 
             
             return sang_success, hist_success
         
-        # Run the blocking function in an executor
         loop = asyncio.get_running_loop()
         sang_sheet_success, history_sheet_success = await loop.run_in_executor(
             None, _blocking_sheet_write
         )
-        
-        # --- NEW: Trigger live update after write ---
         if sang_sheet_success:
             await self.update_live_signup_message()
-
         return sang_sheet_success, history_sheet_success
 
     async def _withdraw_user_in_thread(self, user_id: str) -> bool:
-        """
-        Runs blocking gspread delete operations in a separate thread.
-        Returns True if a user was deleted, False otherwise.
-        """
-        
         def _blocking_sheet_delete():
             try:
                 cell = self.sang_sheet.find(user_id, in_column=1)
                 if cell is None:
-                    return False # User not found, nothing to delete
-                
+                    return False
                 self.sang_sheet.delete_rows(cell.row)
-                return True # Deletion successful
+                return True
             except Exception as e:
                 print(f"🔥 GSpread error on withdrawal (in thread): {e}")
-                raise e # Re-raise to be caught by the outer try/except
+                raise e 
         
-        # Run the blocking function in an executor
         loop = asyncio.get_running_loop()
         deleted = await loop.run_in_executor(None, _blocking_sheet_delete)
-        
-        # --- NEW: Trigger live update after delete ---
         if deleted:
             await self.update_live_signup_message()
-            
         return deleted
 
-
     async def _create_team_embeds(self, teams, title, description, color, guild, format_func):
-        """Helper function to build and paginate team embeds."""
         embeds = []
         if not teams:
             return embeds
@@ -991,7 +850,6 @@ class SanguineCog(commands.Cog):
         return embeds
 
     async def _generate_signups_embed(self) -> discord.Embed:
-        """Fetches all signups and formats them into a sorted embed."""
         embed = discord.Embed(
             title="<:sanguine_sunday:1388100187985154130> Sanguine Sunday Signups",
             color=discord.Color.red(),
@@ -999,7 +857,6 @@ class SanguineCog(commands.Cog):
         )
 
         if not self.sang_sheet:
-            print("⚠️ Cannot generate signups embed, Sang Sheet not connected.")
             embed.description = "⚠️ Bot could not connect to the signup sheet."
             return embed
         
@@ -1015,8 +872,10 @@ class SanguineCog(commands.Cog):
             return embed
         
         players = []
+        # Temporary lists for mentor deficit calculation
+        temp_clique_data = [] 
+
         for signup in all_signups_records:
-            # We only need a partial dict for sorting and display
             kc_raw = signup.get("KC", 0)
             try: kc_val = int(kc_raw)
             except (ValueError, TypeError): kc_val = 9999 if signup.get("Proficiency", "").lower() == 'mentor' else 0
@@ -1024,36 +883,58 @@ class SanguineCog(commands.Cog):
             proficiency_val = signup.get("Proficiency", "").lower()
             if proficiency_val != 'mentor':
                 if kc_val <= 10: proficiency_val = "new"
-                elif 11 <= kc_val <= 25: proficiency_val = "learner"
-                elif 26 <= kc_val <= 100: proficiency_val = "proficient"
+                elif 11 <= kc_val <= 49: proficiency_val = "learner"
+                elif 50 <= kc_val <= 100: proficiency_val = "proficient"
                 else: proficiency_val = "highly proficient"
 
-            players.append({
+            # Reconstruct simplified player obj for cliques and display
+            user_id = str(signup.get("Discord_ID"))
+            whitelist_str = str(signup.get("Whitelist", "")).strip()
+            whitelist_ids = set(id.strip() for id in whitelist_str.split(',') if id.strip()) if whitelist_str and whitelist_str != "None" else set()
+
+            p_data = {
+                "user_id": user_id,
                 "user_name": sanitize_nickname(signup.get("Discord_Name")),
                 "proficiency": proficiency_val,
                 "kc": kc_val, 
                 "has_scythe": str(signup.get("Has_Scythe", "FALSE")).upper() == "TRUE",
                 "learning_freeze": str(signup.get("Learning Freeze", "FALSE")).upper() == "TRUE",
-            })
+                "whitelist": whitelist_ids
+            }
+            players.append(p_data)
+            temp_clique_data.append(p_data)
         
-        if not players:
-            embed.description = "No signups yet. Be the first!"
-            embed.set_footer(text="Total Signups: 0")
-            return embed
+        # Calculate Mentor Deficit based on actual Cliques
+        try:
+            cliques = get_cliques(temp_clique_data)
+            learner_cliques_count = 0
+            mentor_cliques_count = 0
             
-        # Sort players by proficiency rank
+            for clique in cliques:
+                roles = [normalize_role(p) for p in clique]
+                if "mentor" in roles:
+                    mentor_cliques_count += 1
+                elif "learner" in roles or "new" in roles:
+                    learner_cliques_count += 1
+            
+            # Logic: We need 1 Mentor Group per Learner Group
+            deficit = learner_cliques_count - mentor_cliques_count
+            if deficit > 0:
+                 embed.description = f"**⚠️ Mentors Needed:** We need **{deficit}** more Mentor(s) to cover all learners!"
+            else:
+                 embed.description = "✅ Current signups have sufficient Mentor coverage."
+        except Exception as e:
+            print(f"Error calculating mentor deficit: {e}")
+
+        # Sort and Group for Display
         players.sort(key=prof_rank)
-        
-        # Group players by proficiency
         grouped_players = {}
         for p in players:
-            # Use the display name from the sheet, which is already sanitized
             prof = p['proficiency'].capitalize()
             if prof not in grouped_players:
                 grouped_players[prof] = []
             grouped_players[prof].append(p)
             
-        # Add fields in the correct order
         for prof_key in PROF_ORDER.keys():
             prof_name = prof_key.capitalize()
             if prof_name in grouped_players:
@@ -1074,7 +955,6 @@ class SanguineCog(commands.Cog):
         return embed
 
     async def load_live_message_id(self):
-        """Reads the persistent message ID from a file on startup."""
         try:
             if SANG_MESSAGE_ID_FILE.exists():
                 content = SANG_MESSAGE_ID_FILE.read_text().strip()
@@ -1082,33 +962,26 @@ class SanguineCog(commands.Cog):
                     self.live_signup_message_id = int(content)
                     print(f"✅ Loaded live signup message ID: {self.live_signup_message_id}")
                 else:
-                    print("ℹ️ Found empty sang_message_id.txt.")
                     self.live_signup_message_id = None
             else:
-                print(f"ℹ️ {SANG_MESSAGE_ID_FILE} not found. Will create one when needed.")
                 self.live_signup_message_id = None
         except Exception as e:
             print(f"🔥 Failed to load live signup message ID: {e}")
             self.live_signup_message_id = None
 
     async def save_live_message_id(self, message_id: Optional[int]):
-        """Saves the message ID to a file for persistence."""
         self.live_signup_message_id = message_id
         try:
             if message_id is None:
                 SANG_MESSAGE_ID_FILE.unlink(missing_ok=True)
-                print(f"ℹ️ Cleared live signup message ID file.")
             else:
                 SANG_MESSAGE_ID_FILE.write_text(str(message_id))
-                print(f"✅ Saved live signup message ID: {message_id}")
         except Exception as e:
             print(f"🔥 Failed to save live signup message ID: {e}")
 
     async def update_live_signup_message(self):
-        """Fetches all signups and edits the live message."""
         async with self.live_signup_message_lock:
             if not self.live_signup_message_id:
-                print("ℹ️ No live signup message ID found. Skipping update.")
                 return
 
             new_embed = await self._generate_signups_embed()
@@ -1116,7 +989,6 @@ class SanguineCog(commands.Cog):
             try:
                 channel = self.bot.get_channel(SANG_CHANNEL_ID)
                 if not channel:
-                    print(f"🔥 Cannot find channel {SANG_CHANNEL_ID} to update live message.")
                     return
                     
                 message = await channel.fetch_message(self.live_signup_message_id)
@@ -1126,20 +998,15 @@ class SanguineCog(commands.Cog):
             except discord.NotFound:
                 print(f"🔥 Live signup message {self.live_signup_message_id} not found. Clearing ID.")
                 await self.save_live_message_id(None)
-            except discord.Forbidden:
-                print(f"🔥 Bot lacks permissions to edit message {self.live_signup_message_id}.")
             except Exception as e:
                 print(f"🔥 Failed to update live signup message: {e}")
 
     def get_previous_signup(self, user_id: str) -> Optional[Dict[str, Any]]:
-        """Fetches the latest signup data for a user from the HISTORY sheet."""
         if not self.history_sheet:
-            print("History sheet not available in get_previous_signup.")
             return None
         try:
             all_records = self.history_sheet.get_all_records()
             if not all_records:
-                print("No records found in history_sheet.")
                 return None
             
             for record in reversed(all_records):
@@ -1149,58 +1016,37 @@ class SanguineCog(commands.Cog):
                 if sheet_discord_id_str == user_id:
                     record["Has_Scythe"] = str(record.get("Has_Scythe", "FALSE")).upper() == "TRUE"
                     record["Learning Freeze"] = str(record.get("Learning Freeze", "FALSE")).upper() == "TRUE"
-                    # --- NEW: "Blacklist" is now read, no conversion needed
                     return record
-            
-            print(f"No history match found for user_id: {user_id}")
             return None
         except Exception as e:
             print(f"🔥 GSpread error fetching previous signup for {user_id}: {e}")
             return None
 
     async def post_signup(self, channel: discord.TextChannel):
-        """Posts the main signup message and the live signup embed."""
-        # 1. Post the main message with buttons
         signup_message = await channel.send(SANG_MESSAGE, view=SignupView(self))
         print(f"✅ Posted Sanguine Sunday signup in #{channel.name}")
 
-        # --- NEW: Pin the signup message ---
         try:
             await signup_message.pin()
-            print(f"📌 Pinned signup message in #{channel.name}")
-        except discord.Forbidden:
-            print(f"⚠️ Could not pin message in #{channel.name}. Missing permissions.")
-        except Exception as e:
-            print(f"🔥 Failed to pin message: {e}")
+        except Exception:
+            pass
 
-        # 2. Post the live-updating message
         try:
-            # Start with a basic embed
             initial_embed = await self._generate_signups_embed()
             live_message = await channel.send(embed=initial_embed)
-            
-            # 3. Save the ID for persistence and updates
             await self.save_live_message_id(live_message.id)
             print(f"✅ Posted live signup message: {live_message.id}")
-            
         except Exception as e:
             print(f"🔥 Failed to post live signup message: {e}")
 
-
     async def post_reminder(self, channel: discord.TextChannel):
-        """Finds learners, posts a reminder, and posts all signups."""
-        if not self.sang_sheet:
-            print("⚠️ Cannot post reminder, Sang Sheet not connected.")
-            return False
+        if not self.sang_sheet: return False
         
         try:
             async for message in channel.history(limit=50):
                 if message.author == self.bot.user and LEARNER_REMINDER_IDENTIFIER in message.content:
                     await message.delete()
-        except discord.Forbidden:
-            print(f"⚠️ Could not delete old reminders in #{channel.name}")
-        except Exception as e:
-            print(f"🔥 Error cleaning up reminders: {e}")
+        except Exception: pass
 
         learners = []
         try:
@@ -1219,13 +1065,7 @@ class SanguineCog(commands.Cog):
                 reminder_content = f"{LEARNER_REMINDER_MESSAGE}\n\n**Learners:** {learner_pings}"
 
             await channel.send(reminder_content, allowed_mentions=discord.AllowedMentions(users=True))
-            print(f"✅ Posted Sanguine Sunday learner reminder in #{channel.name}")
-            
-            # --- MODIFIED: Update the existing live embed ---
             await self.update_live_signup_message()
-            print("✅ Updated live signups embed for reminder.")
-            # --- End modification ---
-            
             return True
         except Exception as e:
             print(f"🔥 GSpread error fetching/posting reminder: {e}")
@@ -1236,7 +1076,7 @@ class SanguineCog(commands.Cog):
     
     @app_commands.command(name="sangsignup", description="Manage Sanguine Sunday signups.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
-    @app_commands.describe(variant="Choose the action to perform.", channel="Optional channel to post in (defaults to the configured event channel).")
+    @app_commands.describe(variant="Choose the action to perform.", channel="Optional channel.")
     @app_commands.choices(variant=[
         app_commands.Choice(name="Post Signup Message", value=1),
         app_commands.Choice(name="Post Learner Reminder", value=2),
@@ -1300,31 +1140,21 @@ class SanguineCog(commands.Cog):
             roles_str = signup.get("Favorite Roles", "")
             knows_range, knows_melee = parse_roles(roles_str)
             kc_raw = signup.get("KC", 0)
-            
-            try:
-                kc_val = int(kc_raw)
-            except (ValueError, TypeError):
-                kc_val = 9999 if signup.get("Proficiency", "").lower() == 'mentor' else 0
+            try: kc_val = int(kc_raw)
+            except (ValueError, TypeError): kc_val = 9999 if signup.get("Proficiency", "").lower() == 'mentor' else 0
             
             proficiency_val = signup.get("Proficiency", "").lower()
-            
             if proficiency_val != 'mentor':
                 if kc_val <= 10: proficiency_val = "new"
-                elif 11 <= kc_val <= 25: proficiency_val = "learner"
-                elif 26 <= kc_val <= 100: proficiency_val = "proficient"
+                elif 11 <= kc_val <= 49: proficiency_val = "learner"
+                elif 50 <= kc_val <= 100: proficiency_val = "proficient"
                 else: proficiency_val = "highly proficient"
 
-            # --- Read blacklist data ---
             blacklist_str = str(signup.get("Blacklist", "")).strip()
             blacklist_ids = set(id.strip() for id in blacklist_str.split(',') if id.strip()) if blacklist_str and blacklist_str != "None" else set()
 
-            # --- Read whitelist data ---
             whitelist_str = str(signup.get("Whitelist", "")).strip()
             whitelist_ids = set(id.strip() for id in whitelist_str.split(',') if id.strip()) if whitelist_str and whitelist_str != "None" else set()
-
-            # Debug logging for whitelist data
-            if whitelist_ids:
-                print(f"📋 Player {sanitize_nickname(signup.get('Discord_Name'))} (ID: {user_id}) has whitelist: {whitelist_ids}")
 
             available_raiders.append({
                 "user_id": user_id,
@@ -1352,21 +1182,15 @@ class SanguineCog(commands.Cog):
         created_vcs = []
         
         if category and isinstance(category, discord.CategoryChannel):
-            # Set up permissions for Member role
             member_role = guild.get_role(MEMBER_ROLE_ID)
             overwrites = {}
             if member_role:
-                overwrites[member_role] = discord.PermissionOverwrite(
-                    view_channel=True,
-                    connect=True,
-                    speak=True
-                )
+                overwrites[member_role] = discord.PermissionOverwrite(view_channel=True, connect=True, speak=True)
 
             for i, team in enumerate(teams):
                 try:
                     mentor_name = f"Team{i+1}"
-                    if team: # Make sure team is not empty
-                        # First player in sorted team is the anchor/mentor
+                    if team: 
                         mentor_name = sanitize_nickname(team[0].get("user_name", mentor_name))
 
                     vc_name = f"SanSun{mentor_name}"
@@ -1379,6 +1203,8 @@ class SanguineCog(commands.Cog):
         
         embed_title = f"Sanguine Sunday Teams - {channel_name}"
         embed_desc = f"Created {len(teams)} valid team(s) from {len(available_raiders)} available signed-up users."
+        if stranded_players:
+            embed_desc += f"\n⚠️ **Stranded Players:** {', '.join([p['user_name'] for p in stranded_players])}"
         
         team_embeds = await self._create_team_embeds(
             teams,
@@ -1439,21 +1265,15 @@ class SanguineCog(commands.Cog):
             proficiency_val = signup.get("Proficiency", "").lower()
             if proficiency_val != 'mentor':
                 if kc_val <= 10: proficiency_val = "new"
-                elif 11 <= kc_val <= 25: proficiency_val = "learner"
-                elif 26 <= kc_val <= 100: proficiency_val = "proficient"
+                elif 11 <= kc_val <= 49: proficiency_val = "learner"
+                elif 50 <= kc_val <= 100: proficiency_val = "proficient"
                 else: proficiency_val = "highly proficient"
 
-            # --- Read blacklist data ---
             blacklist_str = str(signup.get("Blacklist", "")).strip()
             blacklist_ids = set(id.strip() for id in blacklist_str.split(',') if id.strip()) if blacklist_str and blacklist_str != "None" else set()
 
-            # --- Read whitelist data ---
             whitelist_str = str(signup.get("Whitelist", "")).strip()
             whitelist_ids = set(id.strip() for id in whitelist_str.split(',') if id.strip()) if whitelist_str and whitelist_str != "None" else set()
-
-            # Debug logging for whitelist data
-            if whitelist_ids:
-                print(f"📋 Player {sanitize_nickname(signup.get('Discord_Name'))} (ID: {user_id}) has whitelist: {whitelist_ids}")
 
             available_raiders.append({
                 "user_id": user_id, "user_name": sanitize_nickname(signup.get("Discord_Name")),
@@ -1477,6 +1297,8 @@ class SanguineCog(commands.Cog):
 
         embed_title = f"Sanguine Sunday Teams (Test, no pings/VC) - {channel_name}"
         embed_desc = f"Created {len(teams)} valid team(s) from {len(available_raiders)} available signed-up users."
+        if stranded_players:
+            embed_desc += f"\n⚠️ **Stranded Players:** {', '.join([p['user_name'] for p in stranded_players])}"
 
         team_embeds = await self._create_team_embeds(
             teams,
@@ -1563,14 +1385,11 @@ class SanguineCog(commands.Cog):
             await interaction.followup.send("⚠️ Could not find the Matchmaking VC.", ephemeral=True)
             return
             
-        # --- NEW: Get a list of members currently in the matchmaking VC ---
         members_in_matchmaking_vc = matchmaking_vc.members
             
-        # Create a lookup map of team VCs in the category
         team_vcs = {}
         for vc in category.voice_channels:
             if vc.name.startswith("SanSun"):
-                # Key = "SanSunAnchorName", Value = vc
                 team_vcs[vc.name] = vc
                 
         if not team_vcs:
@@ -1581,13 +1400,10 @@ class SanguineCog(commands.Cog):
         failed_count = 0
         summary = []
 
-        # Iterate over the *generated teams*, not the VCs
         for i, team in enumerate(teams):
             if not team:
                 continue
                 
-            # Find the corresponding VC for this team
-            # The VC name is "SanSun" + sanitized anchor name
             anchor_name = sanitize_nickname(team[0].get("user_name", f"Team{i+1}"))
             vc_name = f"SanSun{anchor_name}"
             target_vc = team_vcs.get(vc_name)
@@ -1599,12 +1415,10 @@ class SanguineCog(commands.Cog):
                 
             summary.append(f"✅ Moving Team {i+1} ({anchor_name}) to {target_vc.mention}...")
             
-            # Move each player *in this team* to that VC
             for player in team:
                 try:
                     player_id = int(player["user_id"])
                     
-                    # --- FIX: Find the member in the matchmaking VC ---
                     member_to_move = None
                     for member in members_in_matchmaking_vc:
                         if member.id == player_id:
@@ -1614,9 +1428,7 @@ class SanguineCog(commands.Cog):
                     if member_to_move:
                         await member_to_move.move_to(target_vc, reason="SangMove command")
                         moved_count += 1
-                        print(f"Moved {member_to_move.display_name} to {target_vc.name}")
                     else:
-                        # Player wasn't in the matchmaking VC
                         print(f"Player {player['user_name']} ({player_id}) not in matchmaking VC.")
                         failed_count += 1
                 except discord.Forbidden:
@@ -1629,7 +1441,6 @@ class SanguineCog(commands.Cog):
         summary_message = f"**Move Complete**\n- Moved {moved_count} members.\n- Failed to move {failed_count} members.\n\n"
         summary_message += "\n".join(summary)
         
-        # Trim message if too long for an ephemeral response
         if len(summary_message) > 1900:
             summary_message = summary_message[:1900] + "\n... (message trimmed)"
             
@@ -1648,7 +1459,6 @@ class SanguineCog(commands.Cog):
         failed = 0
         summary = []
         
-        # Get a list of channels to delete first, avoid iterating while deleting
         channels_to_delete = []
         for ch in category.voice_channels:
             if ch.name.startswith("SanSun"):
@@ -1685,9 +1495,6 @@ class SanguineCog(commands.Cog):
     @app_commands.checks.has_role(STAFF_ROLE_ID)
     @app_commands.describe(message_id="The Message ID of the embed to update.")
     async def sangsetmessage(self, interaction: discord.Interaction, message_id: str):
-        """
-        Manually sets the live signup message ID.
-        """
         await interaction.response.defer(ephemeral=True, thinking=True)
         
         try:
@@ -1696,7 +1503,6 @@ class SanguineCog(commands.Cog):
             await interaction.followup.send("⚠️ That doesn't look like a valid message ID. It should be a long number.", ephemeral=True)
             return
 
-        # Fetch the message to ensure it exists and we can access it
         channel = self.bot.get_channel(SANG_CHANNEL_ID)
         if not channel:
             await interaction.followup.send(f"⚠️ Cannot find channel ID {SANG_CHANNEL_ID}.", ephemeral=True)
@@ -1714,10 +1520,7 @@ class SanguineCog(commands.Cog):
             await interaction.followup.send(f"⚠️ An unknown error occurred while verifying the message: {e}", ephemeral=True)
             return
 
-        # Save the ID
         await self.save_live_message_id(mid)
-        
-        # Trigger an immediate update
         await self.update_live_signup_message()
 
         await interaction.followup.send(
@@ -1725,15 +1528,10 @@ class SanguineCog(commands.Cog):
             f"I've updated it with the current signups.",
             ephemeral=True
         )
-        print(f"✅ Manually set live signup message ID to: {mid}")
 
     @app_commands.command(name="sangpostembed", description="Post a new live signup embed and set it as the active one.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
     async def sangpostembed(self, interaction: discord.Interaction):
-        """
-        Posts a new live signup embed and saves its ID.
-        This is a manual fallback if the old message is lost or deleted.
-        """
         await interaction.response.defer(ephemeral=True, thinking=True)
         
         channel = self.bot.get_channel(SANG_CHANNEL_ID)
@@ -1742,11 +1540,8 @@ class SanguineCog(commands.Cog):
             return
             
         try:
-            # 1. Post the new embed
             new_embed = await self._generate_signups_embed()
             live_message = await channel.send(embed=new_embed)
-            
-            # 2. Save its ID, overwriting the old one
             await self.save_live_message_id(live_message.id)
             
             await interaction.followup.send(
@@ -1754,7 +1549,6 @@ class SanguineCog(commands.Cog):
                 f"This message (`{live_message.id}`) will now be updated automatically.",
                 ephemeral=True
             )
-            print(f"✅ Manually posted new live embed: {live_message.id}")
             
         except discord.Forbidden:
             await interaction.followup.send(f"⚠️ I don't have permission to post messages in {channel.mention}.", ephemeral=True)
@@ -1792,17 +1586,10 @@ class SanguineCog(commands.Cog):
             else:
                 print(f"🔥 Failed to post signup: Channel {SANG_CHANNEL_ID} not found.")
 
-    # --- MODIFIED: Changed loop to run every 30 minutes ---
     @tasks.loop(minutes=30)
     async def scheduled_post_reminder(self):
         now = datetime.now(CST)
-        
-        # Condition 1: Saturday at 2:00 PM (14:00)
-        # Will trigger if task runs at 14:00
         is_saturday_reminder = (now.weekday() == 5 and now.hour == 14 and now.minute < 30)
-        
-        # --- FIXED TIME: Sunday at 1:30 PM (13:30) ---
-        # Will trigger if task runs at 13:30
         is_sunday_reminder = (now.weekday() == 6 and now.hour == 13 and now.minute >= 30)
 
         if is_saturday_reminder or is_sunday_reminder:
@@ -1826,10 +1613,7 @@ class SanguineCog(commands.Cog):
                     self.sang_sheet.clear()
                     self.sang_sheet.append_row(SANG_SHEET_HEADER)
                     print("✅ SangSignups sheet cleared and headers added.")
-                    
-                    # --- NEW: Update the live message to show "No signups" ---
                     await self.update_live_signup_message()
-                    
                 except Exception as e:
                     print(f"🔥 Failed to clear SangSignups sheet: {e}")
             else:
@@ -1841,6 +1625,5 @@ class SanguineCog(commands.Cog):
     async def before_scheduled_tasks(self):
         await self.bot.wait_until_ready()
 
-# This setup function is required for the bot to load the Cog
 async def setup(bot: commands.Bot):
     await bot.add_cog(SanguineCog(bot))
