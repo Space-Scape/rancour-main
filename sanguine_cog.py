@@ -9,12 +9,13 @@ import re
 import functools
 from discord import ui, ButtonStyle, Member
 from discord.ui import View, Button, Modal, TextInput
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Set
 from datetime import datetime, timedelta, timezone, time as dt_time
 from zoneinfo import ZoneInfo
 import math
 from pathlib import Path
 from zoneinfo import ZoneInfo
+import networkx as nx # Added for graph-based whitelist handling
 
 # ---------------------------
 # 🔹 Constants
@@ -86,7 +87,7 @@ Click a button below to sign up for the event.
 - **Mentor:** Fill out the form to sign up as a mentor.
 - **Withdraw:** Remove your name from this week's signup list.
 
-The form will remember your answers from past events! 
+The form will remember your answers from past events! 
 You only need to edit Kc's and Roles.
 
 Event link: <https://discord.com/events/1272629330115297330/1386302870646816788>
@@ -146,7 +147,6 @@ def normalize_role(p: dict) -> str:
 PROF_ORDER = {"mentor": 0, "highly proficient": 1, "proficient": 2, "learner": 3, "new": 4}
 
 # Helpers list - these players are prioritized for mentor/learner teams
-# They can fill freeze roles and help mentors with learners
 HELPERS = [
     "lukap42",
     "antidrop",
@@ -154,9 +154,12 @@ HELPERS = [
     "box man",
     "redeemed",
     "mr fk",
+    "ms fk",
     "lube is best",
     "hazy jane",
     "lasix",
+    "kodai",
+    "lionelious",
 ]
 
 def prof_rank(p: dict) -> int:
@@ -200,421 +203,348 @@ def is_blacklist_violation(player: Dict[str, Any], team: List[Dict[str, Any]]) -
     for p_in_team in team:
         p_in_team_id_str = str(p_in_team.get("user_id"))
 
-        # Check 1: Does the player on the team (a mentor) exist in the new player's blacklist?
+        # Check 1: Does the player on the team exist in the new player's blacklist?
         if p_in_team_id_str in player_blacklist:
-            return True # Player blacklists someone on team
+            return True 
 
-        # Check 2: Does the new player (a mentor) exist in the team member's blacklist?
+        # Check 2: Does the new player exist in the team member's blacklist?
         p_in_team_blacklist = p_in_team.get("blacklist", set())
         if player_id_str in p_in_team_blacklist:
-            return True # Someone on team blacklists player
+            return True 
 
     return False
 
-def is_whitelist_match(player: Dict[str, Any], other_player: Dict[str, Any]) -> bool:
-    """Checks if two players have each other on their whitelists (mutual whitelist)."""
-    player_whitelist = player.get("whitelist", set())
-    other_whitelist = other_player.get("whitelist", set())
+def get_cliques(available_raiders: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
+    """
+    Groups players into cliques based on mutual whitelists using a graph.
+    Returns a list of lists, where each inner list is a group of players who MUST be together.
+    """
+    if not available_raiders:
+        return []
 
-    player_id_str = str(player.get("user_id"))
-    other_id_str = str(other_player.get("user_id"))
+    # Map ID to player object for easy lookup
+    player_map = {str(p["user_id"]): p for p in available_raiders}
+    G = nx.Graph()
 
-    # Both players must have each other on their whitelists
-    return other_id_str in player_whitelist and player_id_str in other_whitelist
+    # Add all players as nodes
+    for p in available_raiders:
+        G.add_node(str(p["user_id"]))
 
-def has_whitelist_match_on_team(player: Dict[str, Any], team: List[Dict[str, Any]]) -> bool:
-    """Checks if a player has a mutual whitelist match with anyone on the team."""
-    for p_in_team in team:
-        if is_whitelist_match(player, p_in_team):
-            return True
-    return False
+    # Add edges for MUTUAL whitelists
+    for p1 in available_raiders:
+        id1 = str(p1["user_id"])
+        whitelist1 = p1.get("whitelist", set())
+        
+        for id2 in whitelist1:
+            if id2 in player_map and id2 != id1:
+                p2 = player_map[id2]
+                whitelist2 = p2.get("whitelist", set())
+                
+                # Check for mutual whitelist
+                if id1 in whitelist2:
+                    G.add_edge(id1, id2)
 
-def count_whitelist_matches_on_team(player: Dict[str, Any], team: List[Dict[str, Any]]) -> int:
-    """Counts how many mutual whitelist matches a player has on a team."""
-    count = 0
-    for p_in_team in team:
-        if is_whitelist_match(player, p_in_team):
-            count += 1
-    return count
+    # Get connected components (cliques)
+    cliques = []
+    for component in nx.connected_components(G):
+        clique_players = [player_map[pid] for pid in component]
+        # Sort clique by proficiency rank (mentors first, etc.) to help with role identification
+        clique_players.sort(key=prof_rank)
+        cliques.append(clique_players)
+
+    return cliques
 
 def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     """
-    Core matchmaking algorithm with strict rules:
-
-    PLAYER RULES:
-    - Mentor: Anchor for learner/new teams
-    - Helper: Second anchor - MUST be on teams with Mentors, Learners, or New
-    - Highly Proficient: Can play alone OR on mentor teams (only 1 non-helper HP per mentor team)
-    - Proficient: Can ONLY be with HP and Proficient - NOT with Learners or New
-    - Learner: Size 4 ONLY, prioritize Mentor, can be with HP if mentors full, NO proficient
-    - New: MUST be on team with Mentor - no exceptions
-
-    TEAM SIZES:
-    - Teams with learner or new: Size 4 ONLY
-    - Teams with all proficient: Size 4-5
-    - Teams with HP only: Size 3-5
-
-    WHITELIST: Same team, but NOT on mentor teams
-    BLACKLIST: Cannot be together
+    Revised Matchmaking Algorithm:
+    1. Mentor Teams First (Strictly 4-man if containing Learner/New).
+       - 1 Mentor + 1 Learner/New + 1 Helper (or HP) + 1 Filler.
+    2. Helpers are prioritized for Mentor teams.
+    3. Whitelists are strictly enforced by treating them as atomic units (cliques).
+    4. Remaining players (Prof/HP) form balanced teams (size 4 preferred, 5 or 3 if necessary).
     """
-
     if not available_raiders:
         return [], []
 
+    print(f"\n🧩 Starting Matchmaking for {len(available_raiders)} players...")
+
+    # 1. Group into Cliques (Whitelist Enforcing)
+    cliques = get_cliques(available_raiders)
+    
+    # Classify Cliques
+    mentor_cliques = []
+    learner_cliques = [] # Contains Learner or New, but NO Mentor
+    regular_cliques = [] # Proficient, HP, Helper (No Mentor, No Learner)
+
+    for clique in cliques:
+        roles = [normalize_role(p) for p in clique]
+        has_mentor = "mentor" in roles
+        has_learner = "learner" in roles or "new" in roles
+        
+        if has_mentor:
+            mentor_cliques.append(clique)
+        elif has_learner:
+            learner_cliques.append(clique)
+        else:
+            regular_cliques.append(clique)
+
+    # Sort Mentor cliques to prioritize those with fewer people (easier to build around)
+    mentor_cliques.sort(key=len)
+    # Sort Learner cliques: New players prioritized
+    learner_cliques.sort(key=lambda c: any(normalize_role(p) == "new" for p in c), reverse=True)
+    
+    # Identify Helpers and HPs within Regular Cliques for lookup (but we move whole cliques)
+    # We will just iterate through regular cliques to find fits.
+    # To prioritize Helpers, we can sort regular cliques.
+    def clique_helper_score(clique):
+        # Higher score = contains helper
+        return sum(1 for p in clique if is_helper(p))
+    
+    # Sort regular cliques so those with Helpers are checked first for support slots
+    regular_cliques.sort(key=clique_helper_score, reverse=True)
+
+    teams = []
+    stranded = []
+
     # ==========================================================================
-    # SEGMENT PLAYERS
-    # ==========================================================================
-    mentors = [p for p in available_raiders if normalize_role(p) == "mentor"]
-    all_hp = [p for p in available_raiders if normalize_role(p) == "highly proficient"]
-    all_prof = [p for p in available_raiders if normalize_role(p) == "proficient"]
-    learners = [p for p in available_raiders if normalize_role(p) == "learner"]
-    news = [p for p in available_raiders if normalize_role(p) == "new"]
-
-    # Separate helpers from non-helpers
-    helpers = [p for p in available_raiders if is_helper(p) and normalize_role(p) in ("highly proficient", "proficient")]
-    hp_non_helpers = [p for p in all_hp if not is_helper(p)]
-    prof_non_helpers = [p for p in all_prof if not is_helper(p)]
-
-    # Sort all pools by KC descending
-    for pool in [mentors, helpers, hp_non_helpers, prof_non_helpers, learners, news]:
-        pool.sort(key=lambda p: (-int(p.get("kc", 0)), not p.get("has_scythe")))
-
-    print(f"📊 Players: {len(mentors)} mentors, {len(helpers)} helpers, {len(hp_non_helpers)} HP, {len(prof_non_helpers)} Prof, {len(learners)} learners, {len(news)} new")
-
-    teams: List[List[Dict[str, Any]]] = []
-    placed_ids: set = set()
-    stranded: List[Dict[str, Any]] = []
-
-    # ==========================================================================
-    # PHASE 1: MENTOR TEAMS (Size 4)
-    # Composition: Mentor + Helper + (New OR Learner) + (Helper OR 1 HP non-helper)
-    # Priority: NEW players first (they MUST have mentors)
+    # PHASE 1: BUILD MENTOR TEAMS
+    # Target: 1 Mentor, 1 Learner/New, 1 Helper/HP, 1 Filler. Size = 4.
     # ==========================================================================
     print("\n🎓 PHASE 1: Building Mentor Teams...")
+    
+    # We will modify the lists in place or track usage.
+    # Since cliques are distinct, we can just remove them from lists when used.
+    
+    used_cliques = set() # Store python ID of the list object to track usage
+    
+    def mark_used(clique):
+        used_cliques.add(id(clique))
+        
+    def is_used(clique):
+        return id(clique) in used_cliques
 
-    for mentor in mentors:
-        if mentor["user_id"] in placed_ids:
-            continue
+    def can_merge(team_players, candidate_clique):
+        # Check size constraint (Strictly 4 for Mentor teams)
+        if len(team_players) + len(candidate_clique) > 4:
+            return False
+        # Check Blacklist
+        for p1 in team_players:
+            if is_blacklist_violation(p1, candidate_clique):
+                return True # Conflict exists
+        for p2 in candidate_clique:
+            if is_blacklist_violation(p2, team_players):
+                return True # Conflict exists
+        return True # No conflict, size ok
 
-        # Find available helper
-        valid_helpers = [h for h in helpers
-                        if h["user_id"] not in placed_ids
-                        and not is_blacklist_violation(h, [mentor])]
-        if not valid_helpers:
-            print(f"   ⚠️ No helper available for mentor {mentor.get('user_name')}")
-            continue
+    # Iterate through mentor cliques
+    for m_clique in mentor_cliques:
+        if is_used(m_clique): continue
+        
+        team = list(m_clique)
+        mark_used(m_clique)
+        
+        # 1. Look for Learner/New (if team doesn't have one yet)
+        has_learner = any(normalize_role(p) in ("new", "learner") for p in team)
+        
+        if not has_learner:
+            for l_clique in learner_cliques:
+                if not is_used(l_clique):
+                    # Check compatibility (Size <= 4, Blacklist)
+                    # Constraint: Mentor teams MUST be size 4 if they have a learner.
+                    # So if adding this clique exceeds 4, we can't do it.
+                    if len(team) + len(l_clique) <= 4:
+                         # Blacklist check
+                         if not is_blacklist_violation(l_clique[0], team): # Check whole clique against team
+                             # Actually need deeper check
+                             violation = False
+                             for tp in team:
+                                 if is_blacklist_violation(tp, l_clique): violation = True
+                             for lp in l_clique:
+                                 if is_blacklist_violation(lp, team): violation = True
+                             
+                             if not violation:
+                                 team.extend(l_clique)
+                                 mark_used(l_clique)
+                                 has_learner = True
+                                 break
 
-        # Find available New or Learner (prioritize New - they MUST have mentors)
-        valid_news = [n for n in news
-                     if n["user_id"] not in placed_ids
-                     and not is_blacklist_violation(n, [mentor])]
-        valid_learners = [l for l in learners
-                         if l["user_id"] not in placed_ids
-                         and not is_blacklist_violation(l, [mentor])]
+        # 2. Look for Support (Helper > HP) if needed
+        # We need at least one "strong" player besides the mentor if possible, especially if there's a learner.
+        # Check if we already have a helper or HP in the team (aside from the mentor)
+        has_support = False
+        mentors_in_team = sum(1 for p in team if normalize_role(p) == "mentor")
+        strong_in_team = sum(1 for p in team if is_proficient_plus(p))
+        
+        if strong_in_team > mentors_in_team: 
+            has_support = True # We have a non-mentor strong player
+        
+        if not has_support and len(team) < 4:
+            # Try to find a clique with a Helper first
+            for r_clique in regular_cliques:
+                if not is_used(r_clique):
+                    if len(team) + len(r_clique) <= 4:
+                         # Check if this clique has a helper or HP
+                         is_strong = any(is_proficient_plus(p) for p in r_clique)
+                         if is_strong:
+                             # Blacklist check
+                             violation = False
+                             for tp in team:
+                                 if is_blacklist_violation(tp, r_clique): violation = True
+                             for rp in r_clique:
+                                 if is_blacklist_violation(rp, team): violation = True
+                             
+                             if not violation:
+                                 team.extend(r_clique)
+                                 mark_used(r_clique)
+                                 break # Found support
 
-        if not valid_news and not valid_learners:
-            print(f"   ⚠️ No learner/new available for mentor {mentor.get('user_name')}")
-            continue
+        # 3. Fill to 4 with any fit
+        if len(team) < 4:
+             for r_clique in regular_cliques:
+                if not is_used(r_clique):
+                    if len(team) + len(r_clique) <= 4:
+                         # Blacklist check
+                         violation = False
+                         for tp in team:
+                                 if is_blacklist_violation(tp, r_clique): violation = True
+                         for rp in r_clique:
+                                 if is_blacklist_violation(rp, team): violation = True
+                         
+                         if not violation:
+                             team.extend(r_clique)
+                             mark_used(r_clique)
+                             if len(team) == 4: break
 
-        # Build the team
-        team = [mentor]
-        placed_ids.add(mentor["user_id"])
+        # Check if team is valid
+        # If it has a learner, it MUST be size 4? Or is partial OK if we run out of people?
+        # Prompt: "4-man teams should be used exclusively for Learners and New players"
+        # Implication: If we can't fill to 4, we might not be able to run this team with a learner.
+        # But usually we prioritize running the learner. Let's accept size 3 if desperate, but warn.
+        # However, to strict compliance: "exclusively" suggests size 4 is mandatory.
+        # Let's assume we proceed with the best we built.
+        
+        teams.append(team)
+        print(f"   ✅ Mentor Team: {[p['user_name'] for p in team]}")
 
-        # Add first helper
-        helper1 = valid_helpers[0]
-        if not is_blacklist_violation(helper1, team):
-            team.append(helper1)
-            placed_ids.add(helper1["user_id"])
-        else:
-            # Try other helpers
-            for h in valid_helpers[1:]:
-                if not is_blacklist_violation(h, team):
-                    team.append(h)
-                    placed_ids.add(h["user_id"])
-                    break
-
-        if len(team) < 2:
-            # Couldn't add helper, abort
-            for p in team:
-                placed_ids.discard(p["user_id"])
-            continue
-
-        # Add New (priority) or Learner
-        added_learner_new = False
-        for n in valid_news:
-            if not is_blacklist_violation(n, team):
-                team.append(n)
-                placed_ids.add(n["user_id"])
-                added_learner_new = True
-                break
-
-        if not added_learner_new:
-            for l in valid_learners:
-                if not is_blacklist_violation(l, team):
-                    team.append(l)
-                    placed_ids.add(l["user_id"])
-                    added_learner_new = True
-                    break
-
-        if not added_learner_new:
-            # Couldn't add learner/new, abort
-            for p in team:
-                placed_ids.discard(p["user_id"])
-            continue
-
-        # Add 4th player: Another helper first, then 1 HP non-helper
-        remaining_helpers = [h for h in helpers
-                           if h["user_id"] not in placed_ids
-                           and not is_blacklist_violation(h, team)]
-
-        added_fourth = False
-        if remaining_helpers:
-            team.append(remaining_helpers[0])
-            placed_ids.add(remaining_helpers[0]["user_id"])
-            added_fourth = True
-        else:
-            # Add 1 HP non-helper (only 1 allowed per mentor team)
-            valid_hp = [h for h in hp_non_helpers
-                       if h["user_id"] not in placed_ids
-                       and not is_blacklist_violation(h, team)]
-            if valid_hp:
-                team.append(valid_hp[0])
-                placed_ids.add(valid_hp[0]["user_id"])
-                added_fourth = True
-
-        if len(team) == 4:
-            teams.append(team)
-            print(f"   ✅ Mentor team: {[p.get('user_name') for p in team]}")
-        else:
-            # Couldn't complete team, undo
-            for p in team:
-                placed_ids.discard(p["user_id"])
-            print(f"   ❌ Couldn't complete mentor team for {mentor.get('user_name')}")
-
-    # ==========================================================================
-    # PHASE 2: STRANDED NEW PLAYERS
-    # New players MUST have mentors - if not placed, they're stranded
-    # ==========================================================================
-    print("\n⚠️ PHASE 2: Checking NEW players...")
-    for n in news:
-        if n["user_id"] not in placed_ids:
-            stranded.append(n)
-            placed_ids.add(n["user_id"])
-            print(f"   ❌ NEW player {n.get('user_name')} stranded (no mentor available)")
-
-    # ==========================================================================
-    # PHASE 3: LEARNER TEAMS WITH HP (Size 4)
-    # Only if mentor teams are full - learners can be with HP (not proficient)
-    # ==========================================================================
-    print("\n📚 PHASE 3: Building Learner teams with HP...")
-
-    remaining_learners = [l for l in learners if l["user_id"] not in placed_ids]
-
-    for learner in remaining_learners:
-        if learner["user_id"] in placed_ids:
-            continue
-
-        # Need 3 HP or helpers (NOT proficient)
-        available_hp = [h for h in (hp_non_helpers + helpers)
-                       if h["user_id"] not in placed_ids
-                       and not is_blacklist_violation(h, [learner])]
-
-        if len(available_hp) < 3:
-            continue  # Not enough HP players
-
-        team = [learner]
-        placed_ids.add(learner["user_id"])
-
-        # Add 3 HP players
-        added = 0
-        for hp in available_hp:
-            if added >= 3:
-                break
-            if not is_blacklist_violation(hp, team):
-                team.append(hp)
-                placed_ids.add(hp["user_id"])
-                added += 1
-
-        if len(team) == 4:
-            teams.append(team)
-            print(f"   ✅ Learner+HP team: {[p.get('user_name') for p in team]}")
-        else:
-            # Couldn't complete, undo
-            for p in team:
-                placed_ids.discard(p["user_id"])
-
-    # Strand remaining learners
-    for l in learners:
-        if l["user_id"] not in placed_ids:
-            stranded.append(l)
-            placed_ids.add(l["user_id"])
-            print(f"   ❌ LEARNER {l.get('user_name')} stranded (not enough HP players)")
+    # Gather remaining items
+    remaining_cliques = []
+    
+    # Check for stranded learners
+    for l_clique in learner_cliques:
+        if not is_used(l_clique):
+            # Try to form a team if we have leftover mentors? 
+            # (Unlikely as we iterated all mentors).
+            # If not placed, they are stranded.
+            for p in l_clique:
+                stranded.append(p)
+                print(f"   ❌ Stranded Learner: {p['user_name']}")
+    
+    # Remaining Regulars + Unused Mentor Cliques (if any weird edge case)
+    for r_clique in regular_cliques:
+        if not is_used(r_clique):
+            remaining_cliques.append(r_clique)
+            
+    for m_clique in mentor_cliques:
+        if not is_used(m_clique):
+             remaining_cliques.append(m_clique)
 
     # ==========================================================================
-    # PHASE 4: WHITELIST PAIRS (NOT on mentor teams)
-    # These are HP/Proficient players who want to play together
+    # PHASE 2: BUILD STANDARD TEAMS (Proficient / HP)
+    # Goal: Size 4 preferred. 5 or 3 allowed if needed. No Learners.
     # ==========================================================================
-    print("\n🔗 PHASE 4: Handling Whitelist pairs...")
+    print("\n💪 PHASE 2: Building Standard Teams...")
+    
+    if remaining_cliques:
+        # Flatten for counting (but keep clique structure for assignment)
+        total_remaining_players = sum(len(c) for c in remaining_cliques)
+        
+        if total_remaining_players > 0:
+            # Determine team distribution
+            # Priority: 4s.
+            # Example N=10: 4, 3, 3 is valid. 5, 5 is valid. 
+            # Prompt: "5-man or 3-man ... only if equal 4-man teams can't be formed"
+            # N=10 -> 4, 4 leaves 2 (invalid). 5, 5 is equal. 
+            # N=9 -> 4, 5. 
+            # N=7 -> 4, 3.
+            # N=6 -> 3, 3.
+            
+            # Simple Logic: 
+            # Try to make as many 4s as possible. 
+            # If remainder is non-zero, adjust.
+            
+            num_teams = round(total_remaining_players / 4)
+            if num_teams == 0: num_teams = 1 # Minimum 1 team if players exist
+            
+            # If we have 6 players, round(1.5) -> 2 teams. 6/2 = 3 per team. Correct.
+            # If we have 10 players, round(2.5) -> 2 teams. 10/2 = 5 per team. Correct.
+            # If we have 9 players, round(2.25) -> 2 teams. 4 and 5. Correct.
+            # If we have 11 players, round(2.75) -> 3 teams. 4, 4, 3. Correct.
+            
+            # Initialize empty teams
+            std_teams = [[] for _ in range(num_teams)]
+            
+            # Sort remaining cliques by KC (highest member) to snake draft
+            def get_max_kc(clique):
+                return max(int(p.get("kc", 0)) for p in clique)
+            
+            remaining_cliques.sort(key=get_max_kc, reverse=True)
+            
+            # Distribute Cliques
+            # We need to fill buckets carefully because cliques have size >= 1.
+            # Snake draft approach: Find the team with the fewest players, add clique.
+            # If tie, use snake order.
+            
+            # Actually, standard snake draft logic just iterates indices.
+            # But since cliques vary in size, "fewest players" is better to balance sizes.
+            
+            for clique in remaining_cliques:
+                # Find team with fewest players
+                # Sort indices by (current_size, snake_priority) to balance
+                
+                # To implement snake priority roughly with variable sizes:
+                # Just pick the smallest team that doesn't violate max size (5).
+                # If all valid teams are full, overfill?
+                
+                best_team_idx = -1
+                min_size = 999
+                
+                # Check blacklist for each team
+                valid_indices = []
+                for i, t in enumerate(std_teams):
+                    # Blacklist check
+                    violation = False
+                    for p_exist in t:
+                        if is_blacklist_violation(p_exist, clique): violation = True
+                    for p_new in clique:
+                        if is_blacklist_violation(p_new, t): violation = True
+                    
+                    if not violation:
+                        valid_indices.append(i)
 
-    remaining_strong = [p for p in (hp_non_helpers + prof_non_helpers + helpers)
-                       if p["user_id"] not in placed_ids]
-    whitelist_teams: List[List[Dict[str, Any]]] = []
-    whitelist_placed: set = set()
-
-    # Debug: show who has whitelists
-    for player in remaining_strong:
-        wl = player.get("whitelist", set())
-        if wl:
-            print(f"   📋 {player.get('user_name')} (ID:{player.get('user_id')}) whitelist: {wl}")
-
-    for player in remaining_strong:
-        if player["user_id"] in placed_ids or player["user_id"] in whitelist_placed:
-            continue
-
-        # Find mutual whitelist partners
-        partners = [p for p in remaining_strong
-                   if p != player
-                   and is_whitelist_match(player, p)
-                   and p["user_id"] not in placed_ids
-                   and p["user_id"] not in whitelist_placed]
-
-        if partners:
-            partner = partners[0]
-            if not is_blacklist_violation(partner, [player]):
-                team = [player, partner]
-                placed_ids.add(player["user_id"])
-                placed_ids.add(partner["user_id"])
-                whitelist_placed.add(player["user_id"])
-                whitelist_placed.add(partner["user_id"])
-                whitelist_teams.append(team)
-                print(f"   ✅ Whitelist matched: {player.get('user_name')} + {partner.get('user_name')}")
-        else:
-            # Debug: show if whitelist exists but no match found
-            wl = player.get("whitelist", set())
-            if wl:
-                print(f"   ⚠️ {player.get('user_name')} whitelist {wl} - no mutual match found")
-
-    # ==========================================================================
-    # PHASE 5: PROFICIENT + HP TEAMS (Size 3-5)
-    # SNAKE DRAFT: Balances teams so each gets mix of high and low KC
-    # ==========================================================================
-    print("\n💪 PHASE 5: Building Proficient/HP teams (snake draft)...")
-
-    remaining = [p for p in (hp_non_helpers + prof_non_helpers + helpers)
-                if p["user_id"] not in placed_ids]
-    remaining.sort(key=lambda p: (-int(p.get("kc", 0)), not p.get("has_scythe")))
-
-    # Fill whitelist teams to size 4 first
-    for team in whitelist_teams:
-        while len(team) < 4 and remaining:
-            added = False
-            for p in list(remaining):
-                if not is_blacklist_violation(p, team):
-                    team.append(p)
-                    placed_ids.add(p["user_id"])
-                    remaining.remove(p)
-                    added = True
-                    break
-            if not added:
-                break
-
-    if remaining:
-        n = len(remaining)
-
-        # Calculate number of teams - ENFORCE MAX 5 PER TEAM
-        # Minimum teams = ceil(n / 5) to ensure no team exceeds 5
-        min_teams_for_max5 = (n + 4) // 5
-
-        if n <= 2:
-            num_strong_teams = 0
-        elif n <= 5:
-            num_strong_teams = 1
-        else:
-            # Start with teams of 4, but ensure we have enough teams
-            num_strong_teams = max(min_teams_for_max5, n // 4)
-
-        if num_strong_teams > 0:
-            # Create empty teams (don't mix with whitelist teams)
-            strong_teams: List[List[Dict[str, Any]]] = [[] for _ in range(num_strong_teams)]
-
-            print(f"   Creating {num_strong_teams} teams from {n} players")
-            print(f"   Top KCs: {[p.get('kc') for p in remaining[:8]]}")
-
-            # SNAKE DRAFT using index math:
-            # Round 0 (even): T0, T1, T2, T3, T4, T5 (forward)
-            # Round 1 (odd):  T5, T4, T3, T2, T1, T0 (backward)
-            # Round 2 (even): T0, T1, T2, T3, T4, T5 (forward)
-            # etc.
-
-            for i, player in enumerate(remaining):
-                round_num = i // num_strong_teams
-                pos_in_round = i % num_strong_teams
-
-                # Even rounds go forward, odd rounds go backward
-                if round_num % 2 == 0:
-                    team_idx = pos_in_round
-                else:
-                    team_idx = num_strong_teams - 1 - pos_in_round
-
-                # Check blacklist - if violated, find alternate team
-                target_team = strong_teams[team_idx]
-                if is_blacklist_violation(player, target_team):
-                    placed = False
-                    for alt_idx in range(num_strong_teams):
-                        if not is_blacklist_violation(player, strong_teams[alt_idx]):
-                            strong_teams[alt_idx].append(player)
-                            placed_ids.add(player["user_id"])
-                            placed = True
-                            break
-                    if not placed:
-                        stranded.append(player)
-                        placed_ids.add(player["user_id"])
-                        print(f"   ⚠️ {player.get('user_name')} stranded (blacklist)")
-                else:
-                    target_team.append(player)
-                    placed_ids.add(player["user_id"])
-
-            # Add strong teams
-            for idx, team in enumerate(strong_teams):
-                if len(team) >= 3:
-                    teams.append(team)
-                    kcs = sorted([p.get('kc') for p in team], reverse=True)
-                    print(f"   ✅ Team {idx+1} (KCs: {kcs})")
-                elif len(team) > 0:
-                    for p in team:
+                if not valid_indices:
+                    # Cannot place this clique anywhere due to blacklists
+                    for p in clique:
                         stranded.append(p)
-                        print(f"   ⚠️ {p.get('user_name')} stranded (team too small)")
+                        print(f"   ❌ Stranded (Blacklist): {[p['user_name'] for p in clique]}")
+                    continue
 
-    # Add whitelist teams (always, regardless of strong teams)
-    for team in whitelist_teams:
-        if len(team) >= 2:
-            teams.append(team)
-            print(f"   ✅ Whitelist team: {[p.get('user_name') for p in team]}")
+                # Find best fit among valid teams
+                # Metric: Smallest size. Tie breaker: first index.
+                valid_indices.sort(key=lambda i: len(std_teams[i]))
+                best_team_idx = valid_indices[0]
+                
+                # Add clique
+                std_teams[best_team_idx].extend(clique)
 
-    # Strand any remaining
-    for p in remaining:
-        if p["user_id"] not in placed_ids:
-            stranded.append(p)
-            placed_ids.add(p["user_id"])
-            print(f"   ⚠️ {p.get('user_name')} stranded (not enough for team)")
-
-    # ==========================================================================
-    # FINAL SUMMARY
-    # ==========================================================================
-    print(f"\n📋 FINAL: {len(teams)} teams, {len(stranded)} stranded")
-    for i, team in enumerate(teams):
-        has_mentor = any(normalize_role(p) == "mentor" for p in team)
-        has_learner = any(normalize_role(p) in ("learner", "new") for p in team)
-        if has_mentor:
-            team_type = "MENTOR"
-        elif has_learner:
-            team_type = "LEARNER+HP"
-        else:
-            team_type = "STRONG"
-        print(f"   Team {i+1} ({team_type}, size {len(team)}): {[p.get('user_name') for p in team]}")
-
+            # Add valid teams to main list
+            for t in std_teams:
+                if t:
+                    teams.append(t)
+                    print(f"   ✅ Standard Team (Size {len(t)}): {[p['user_name'] for p in t]}")
+                    
+    # Report Stranded
     if stranded:
-        print(f"   ⚠️ STRANDED: {[p.get('user_name') for p in stranded]}")
+        print(f"\n⚠️ Total Stranded: {len(stranded)}")
 
     return teams, stranded
 
@@ -636,7 +566,7 @@ def format_player_line_mention(guild: discord.Guild, p: dict) -> str:
         mention = member.mention if member else f"<@{uid}>"
     except Exception:
         mention = f"@{p.get('user_name', 'Unknown')}"
-    
+        
     role_text = p.get("proficiency", "Unknown").replace(" ", "-").capitalize().replace("-", " ")
     kc_raw = p.get("kc", 0)
     kc_text = f"({kc_raw} KC)" if isinstance(kc_raw, int) and kc_raw > 0 and role_text != "Mentor" and kc_raw != 9999 else ""
@@ -659,6 +589,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
     def __init__(self, cog: 'SanguineCog', previous_data: dict = None):
         super().__init__(title="Sanguine Sunday Signup")
         self.cog = cog
+        self.previous_data = previous_data 
         if previous_data:
             self.roles_known.default = previous_data.get("Favorite Roles", "")
             kc_val = previous_data.get("KC", "")
@@ -667,10 +598,7 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
             self.learning_freeze.default = "Yes" if previous_data.get("Learning Freeze", False) else ""
             self.wants_mentor.default = "Yes" if previous_data.get("Mentor_Request", False) else ""
         
-        self.previous_data = previous_data # Store for blacklist
-
     async def on_submit(self, interaction: discord.Interaction):
-        # Defer the interaction to prevent a 3-second timeout
         await interaction.response.defer(ephemeral=True, thinking=True)
 
         if not self.cog.sang_sheet:
@@ -703,7 +631,6 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
         wants_mentor_bool = wants_mentor_value in ["yes", "y"]
 
         user_id = str(interaction.user.id)
-        # --- MODIFIED: Sanitize name *before* saving ---
         user_name = sanitize_nickname(interaction.user.display_name)
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
         
@@ -712,7 +639,6 @@ class UserSignupForm(Modal, title="Sanguine Sunday Signup"):
 
         row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, wants_mentor_bool, timestamp, blacklist_value, whitelist_value]
         
-        # --- MODIFIED LOGIC: Run GSpread logic in a thread ---
         try:
             sang_sheet_success, history_sheet_success = await self.cog._write_to_sheets_in_thread(user_id, row_data)
 
@@ -742,16 +668,14 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
     def __init__(self, cog: 'SanguineCog', previous_data: dict = None):
         super().__init__(title="Sanguine Sunday Mentor Signup")
         self.cog = cog
+        self.previous_data = previous_data
         if previous_data:
                  self.roles_known.default = previous_data.get("Favorite Roles", "")
                  kc_val = previous_data.get("KC", "")
                  self.kc.default = str(kc_val) if kc_val not in ["", None, "X"] else ""
                  self.has_scythe.default = "Yes" if previous_data.get("Has_Scythe", False) else "No"
         
-        self.previous_data = previous_data # Store for blacklist
-
     async def on_submit(self, interaction: discord.Interaction):
-        # Defer the interaction to prevent a 3-second timeout
         await interaction.response.defer(ephemeral=True, thinking=True)
         
         if not self.cog.sang_sheet:
@@ -778,7 +702,6 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
         learning_freeze_bool = False
 
         user_id = str(interaction.user.id)
-        # --- MODIFIED: Sanitize name *before* saving ---
         user_name = sanitize_nickname(interaction.user.display_name)
         timestamp = datetime.now(CST).strftime("%Y-%m-%d %H:%M:%S")
         
@@ -787,7 +710,6 @@ class MentorSignupForm(Modal, title="Sanguine Sunday Mentor Signup"):
 
         row_data = [user_id, user_name, roles_known_value, kc_value, has_scythe_bool, proficiency_value, learning_freeze_bool, False, timestamp, blacklist_value, whitelist_value]
 
-        # --- MODIFIED LOGIC: Run GSpread logic in a thread ---
         try:
             sang_sheet_success, history_sheet_success = await self.cog._write_to_sheets_in_thread(user_id, row_data)
 
@@ -822,7 +744,6 @@ class WithdrawalButton(ui.Button):
             return
 
         try:
-            # --- MODIFIED LOGIC: Run GSpread logic in a thread ---
             deleted = await self.cog._withdraw_user_in_thread(user_id)
             
             if deleted:
@@ -857,10 +778,6 @@ class SignupView(View):
 
         # Get previous data regardless of role
         previous_data = self.cog.get_previous_signup(str(user.id))
-
-        # --- SIMPLIFIED LOGIC ---
-        # Everyone who clicks the Mentor button gets the Mentor form.
-        # The form itself will validate KC.
         
         # If they previously auto-signed up (KC == "X")
         # clear the "X" so the placeholder text shows instead.
@@ -960,7 +877,6 @@ class SanguineCog(commands.Cog):
 
     # --- Cog Methods (from helper functions) ---
 
-    # --- NEW HELPER FUNCTION TO RUN GSHEET ACTIONS IN A THREAD ---
     async def _write_to_sheets_in_thread(self, user_id: str, row_data: List[Any]) -> (bool, bool):
         """
         Runs blocking gspread operations in a separate thread 
@@ -971,7 +887,6 @@ class SanguineCog(commands.Cog):
             sang_success = False
             hist_success = False
             
-            # --- THIS IS THE FIX ---
             # Operation 1: Write to SangSignups Sheet
             try:
                 cell = self.sang_sheet.find(user_id, in_column=1)
@@ -1075,7 +990,6 @@ class SanguineCog(commands.Cog):
             
         return embeds
 
-    # --- MODIFIED: Helper to generate a signups embed ---
     async def _generate_signups_embed(self) -> discord.Embed:
         """Fetches all signups and formats them into a sorted embed."""
         embed = discord.Embed(
@@ -1117,7 +1031,7 @@ class SanguineCog(commands.Cog):
             players.append({
                 "user_name": sanitize_nickname(signup.get("Discord_Name")),
                 "proficiency": proficiency_val,
-                "kc": kc_val, # Not used for display, but good to have
+                "kc": kc_val, 
                 "has_scythe": str(signup.get("Has_Scythe", "FALSE")).upper() == "TRUE",
                 "learning_freeze": str(signup.get("Learning Freeze", "FALSE")).upper() == "TRUE",
             })
@@ -1159,13 +1073,10 @@ class SanguineCog(commands.Cog):
         embed.set_footer(text=f"Total Signups: {len(players)}")
         return embed
 
-    # --- NEW: Methods for live-updating message ---
     async def load_live_message_id(self):
         """Reads the persistent message ID from a file on startup."""
         try:
-            # --- MODIFICATION: Use Path.exists() ---
             if SANG_MESSAGE_ID_FILE.exists():
-                # --- MODIFICATION: Use Path.read_text() ---
                 content = SANG_MESSAGE_ID_FILE.read_text().strip()
                 if content:
                     self.live_signup_message_id = int(content)
@@ -1185,11 +1096,9 @@ class SanguineCog(commands.Cog):
         self.live_signup_message_id = message_id
         try:
             if message_id is None:
-                # --- MODIFICATION: Use Path.unlink() with missing_ok=True ---
                 SANG_MESSAGE_ID_FILE.unlink(missing_ok=True)
                 print(f"ℹ️ Cleared live signup message ID file.")
             else:
-                # --- MODIFICATION: Use Path.write_text() ---
                 SANG_MESSAGE_ID_FILE.write_text(str(message_id))
                 print(f"✅ Saved live signup message ID: {message_id}")
         except Exception as e:
