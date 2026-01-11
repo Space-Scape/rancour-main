@@ -130,8 +130,8 @@ def normalize_role(p: dict) -> str:
         kc = int(p.get("kc") or p.get("KC") or 0)
     except Exception:
         return prof
-    if kc <= 10: return "new"
-    if 11 <= kc <= 49: return "learner"
+    if kc <= 25: return "new"
+    if 26 <= kc <= 49: return "learner"
     if 50 <= kc <= 100: return "proficient"
     return "highly proficient"
 
