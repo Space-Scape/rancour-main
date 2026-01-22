@@ -371,7 +371,7 @@ For large-scale events, such as bingo or team competitions, winners will be able
 ✦ Barrows Gloves, Dragon Defender
 ✦ Fire Cape, Ava’s Assembler, MA2 Cape
 ✦ Full Void
-✦ Any: Torso / Bandos / Torva
+✦ Any: Torso/Blood Moon Chest / Bandos/Torva/Oathplate
 ✦ Piety, Thralls
 ✦ 1/3: BGS/DWH/Elder Maul""",
         color=discord.Color.from_rgb(255, 215, 0)  # Gold
