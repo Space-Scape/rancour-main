@@ -48,7 +48,7 @@ SANG_SHEET_HEADER = ["Discord_ID", "Discord_Name", "Favorite Roles", "KC", "Has_
 # Message Content
 SANG_MESSAGE_IDENTIFIER = "Sanguine Saturday Sign Up"
 SANG_MESSAGE = f"""\
-# {SANG_MESSAGE_IDENTIFIER} – Hosted by Macflag <:sanguine_saturday:1469004948594364528>
+# {SANG_MESSAGE_IDENTIFIER} – Hosted by SpaceScape and Owl <:sanguine_saturday:1469004948594364528>
 
 Looking for a fun Saturday activity? Look no farther than **Sanguine Saturday!**
 Spend an afternoon or evening sending **Theatre of Blood** runs with clan members.
@@ -58,7 +58,7 @@ We plan to have mentors on hand to help out with the learners.
 A learner is someone who needs the mechanics explained for each room.
 
 ───────────────────────────────
-**ToB Learner Resource Hub**
+**ToB Learner Resource Hub - made by Macflag**
 
 All Theatre of Blood guides, setups, and related resources are organized here:
 ➤ [**ToB Resource Hub**](https://discord.com/channels/1272629330115297330/1426262876699496598)
@@ -68,7 +68,7 @@ All Theatre of Blood guides, setups, and related resources are organized here:
 LEARNERS – please review this thread, watch the xzact guides, and get your plugins set up before Saturday:
 ➤ [**Guides & Plugins**](https://discord.com/channels/1272629330115297330/1388887895837773895)
 
-No matter if you're a learner or an experienced raider, we strongly encourage you to use one of the setups in this thread:
+No matter if you're a learner or an experienced raider, we strongly encourage you to use one of the setups in the threads provided by Macflag:
 
 ⚪ [**Learner Setups**](https://discord.com/channels/1272629330115297330/1426263868950450257)
 🔵 [**Rancour Meta Setups**](https://discord.com/channels/1272629330115297330/1426272592452391012)
@@ -84,7 +84,7 @@ Click a button below to sign up for the event.
 The form will remember your answers from past events! 
 You only need to edit Kc's and Roles.
 
-Event link: <https://discord.com/events/1272629330115297330/1386302870646816788>
+Event link: <https://discord.com/events/1272629330115297330/1469002724979904616>
 
 ||<@&{MENTOR_ROLE_ID}> <@&{SANG_ROLE_ID}> <@&{TOB_ROLE_ID}>||
 """
