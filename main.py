@@ -190,8 +190,6 @@ async def info(interaction: discord.Interaction):
         <#1272648555772776529> - Looking for a group? Find one here.
 
         <#1272646577432825977> - Check out all upcoming clan events.
-        
-        <#1426183325093203979> - The clan event schedule. Events of the day are posted here as well!
 
         <#1272629331524587624> - Share your drops and level-ups.
 
@@ -571,13 +569,13 @@ async def help(interaction: discord.Interaction):
 
     # This section will now also include commands from your cog
     embed.add_field(
-        name="🩸 Sanguine Sunday (ToB)",
+        name="🩸 Sanguine Saturday (ToB)",
         value="""
         `/sangmatch` - 🔒 (Staff) Create ToB teams from signups in a voice channel.
         `/sangmatchtest` - 🔒 (Staff) Create ToB teams without pings or creating VCs.
-        `/sangsignup` - 🔒 (Staff) Manually post the Sanguine Sunday signup or reminder message.
+        `/sangsignup` - 🔒 (Staff) Manually post the Sanguine Saturday signup or reminder message.
         `/sangexport` - 🔒 (Staff) Export the most recently generated teams to a text file.
-        `/sangcleanup` - 🔒 (Staff) Delete auto-created SanguineSunday voice channels.
+        `/sangcleanup` - 🔒 (Staff) Delete auto-created SanguineSaturday voice channels.
         """,
         inline=False
     )
@@ -661,7 +659,7 @@ async def welcome(interaction: discord.Interaction):
             "**💡 Self-Role Assign**\n"
             "[Click here](https://discord.com/channels/1272629330115297330/1272648586198519818) — "
             "Select roles to be pinged for bosses, raids, and other activities, "
-            "including **@Sanguine Sunday** for Theatre of Blood **learner** runs on Sundays. 🩸\n\n"
+            "including **@Sanguine Saturday** for Theatre of Blood **learner** runs on Saturdays. 🩸\n\n"
         ),
         color=discord.Color.blurple()
     )
@@ -775,7 +773,7 @@ class EventsView(View):
         self.add_item(RoleButton("Events", get_emoji("event")))
         self.add_item(RoleButton("Boss of the Week", get_emoji("botw")))
         self.add_item(RoleButton("Skill of the Week", get_emoji("sotw")))
-        self.add_item(RoleButton("Sanguine Sunday - Learn ToB!", get_emoji("sanguine_sunday")))
+        self.add_item(RoleButton("Sanguine Saturday - Learn ToB!", get_emoji("sanguine_Saturday")))
         self.add_item(RoleButton("PvP", "💀"))
 
 class CloseThreadView(View):
