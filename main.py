@@ -15,10 +15,6 @@ import aiohttp
 import random
 import urllib.parse
 import requests
-from google import genai
-
-# Configure the new Gemini client
-client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
 # ---------------------------
 # 🔹 Google Sheets Setup
 # ---------------------------
@@ -1604,76 +1600,6 @@ async def exportchat(interaction: discord.Interaction, user: Optional[discord.Me
     output.seek(0)
     file = discord.File(fp=io.BytesIO(output.getvalue().encode()), filename="export.csv")
     await interaction.followup.send(f"✅ Exported {found_count} messages.", file=file)
-
-# ---------------------------
-# 🔹 Ask Gemini (Fixed Syntax & Limits)
-# ---------------------------
-
-@tree.command(name="askgemini", description="Ask Gemini a question.")
-async def ask(interaction: discord.Interaction, question: str):
-    await interaction.response.defer(thinking=True)
-    try:
-        response = client.models.generate_content(model="gemini-3-flash-preview", contents=question)
-        answer = response.text
-        header = f"**Question:** {question}\n\n"
-        
-        if len(header) + len(answer) <= 2000:
-            await interaction.followup.send(f"{header}{answer}")
-        else:
-            limit = 2000 - len(header)
-            await interaction.followup.send(f"{header}{answer[:limit]}")
-            remaining = answer[limit:]
-            for i in range(0, len(remaining), 2000):
-                chunk = remaining[i:i+2000]
-                if chunk: await interaction.followup.send(chunk)
-    except Exception as e:
-        print(f"Gemini API Error: {e}")
-        await interaction.followup.send("⚠️ I encountered an error. The response might have been too large or blocked.")
-
-# ---------------------------
-# 🔹 Ask Gemini Pro (Clan Staff Only)
-# ---------------------------
-
-@tree.command(name="askgeminipro", description="🔒 Clan Staff Only: Ask the high-performance Gemini Pro model.")
-@app_commands.describe(question="What would you like to ask the AI Pro?")
-@app_commands.checks.has_any_role(STAFF_ROLE_ID)
-async def askpro(interaction: discord.Interaction, question: str):
-    """Exclusive Staff access to the Gemini Pro model."""
-    await interaction.response.defer(thinking=True)
-
-    try:
-        # Using the flagship 'Pro' model for advanced reasoning
-        response = client.models.generate_content(
-            model="gemini-3-pro-preview", 
-            contents=question
-        )
-        answer = response.text
-        header = f"💎 **Staff Pro Query:** {question}\n\n"
-        
-        if len(header) + len(answer) <= 2000:
-            await interaction.followup.send(f"{header}{answer}")
-        else:
-            limit = 2000 - len(header)
-            await interaction.followup.send(f"{header}{answer[:limit]}")
-            
-            remaining_text = answer[limit:]
-            for i in range(0, len(remaining_text), 2000):
-                chunk = remaining_text[i:i+2000]
-                if chunk:
-                    await interaction.followup.send(chunk)
-                    
-    except Exception as e:
-        print(f"Gemini Pro Error: {e}")
-        await interaction.followup.send("⚠️ Staff AI Error: The request failed or was blocked.")
-
-# Error handler for unauthorized users
-@askpro.error
-async def askpro_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-    if isinstance(error, app_commands.errors.MissingAnyRole):
-        await interaction.response.send_message(
-            "⛔ This command is reserved for **Clan Staff** only.", 
-            ephemeral=True
-        )
 
 # ---------------------------
 # 🔹 Panel Init()
