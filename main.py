@@ -114,8 +114,6 @@ TOB_ROLE_ID = 1272694636921753701
 EVENTS_ROLE_ID = 1298358942887317555
 GUILD_ID = 1272629330115297330 # <-- Added your Guild ID for command syncing
 
-# --- Justice Panel Config ---
-JUSTICE_PANEL_CHANNEL_ID = 1422373286368776314 # Channel where the main panel will be.
 SENIOR_STAFF_CHANNEL_ID = 1336473990302142484  # Channel for approval notifications.
 ADMINISTRATOR_ROLE_ID = 1272961765034164318    # Role that can approve actions.
 SENIOR_STAFF_ROLE_ID = 1336473488159936512    # Role that can approve actions.
@@ -586,7 +584,6 @@ async def help(interaction: discord.Interaction):
         `/welcome` - (Used in ticket threads) Welcomes a new member and assigns default roles.
         `/rsn_panel` - Posts the interactive RSN registration panel.
         `/time_panel` - Posts the interactive timezone selection panel.
-        `/justice_panel` - 🔒 (Staff) Posts the server protection panel.
         `/support_panel` - 🔒 (Staff) Posts the staff support specialty role selector.
         """,
         inline=False
@@ -1864,7 +1861,6 @@ async def on_ready():
 
     print("Main bot components are ready.")
 
-    bot.add_view(JusticePanelView())
     bot.add_view(SupportRoleView())
     bot.add_view(RSNPanelView())
     bot.add_view(CloseThreadView())
