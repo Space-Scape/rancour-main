@@ -2134,7 +2134,7 @@ async def on_ready():
         except Exception as e:
             print(f"❌ Error purging role channel: {e}")
 
-        await role_channel.send("https://i.postimg.cc/8G3CWSDP/info.png") # Banner
+        await role_channel.send("https://i.postimg.cc/38WQTkq4/rr.png") # Banner
 
         await role_channel.send(
             "Select your roles below to get pings for group content and events!",
