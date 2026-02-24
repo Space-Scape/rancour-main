@@ -479,15 +479,15 @@ For large-scale events, such as bingo or team competitions, winners will be able
     await interaction.channel.send(embed=clogger_embed)
     await asyncio.sleep(0.5)
 
-    scribe_embed = discord.Embed(
-        title="Scribe - <:scribe:1475653800780890152>",
+    Curator_embed = discord.Embed(
+        title="Curator - <:Curator:1475653800780890152>",
         description="""
 ✦ 5 weeks in Clan
 ✦ 70% completion of collection log
         """,
         color=discord.Color.from_rgb(160, 40, 40)
     )
-    await interaction.channel.send(embed=scribe_embed)
+    await interaction.channel.send(embed=Curator_embed)
     await asyncio.sleep(0.5)
 
     # --- Maxed Embed ---
