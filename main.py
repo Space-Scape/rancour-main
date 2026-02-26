@@ -342,7 +342,7 @@ For large-scale events, such as bingo or team competitions, winners will be able
     await asyncio.sleep(0.5)
 
     rank_up_embed = discord.Embed(
-        title="# Please upload screenshots to demonstrate that you meet the requirements for the selected rank.:hourglass: #",
+        title="Please upload screenshots to demonstrate that you meet the requirements for the selected rank.:hourglass:",
         description="""# **Important:** :loudspeaker: ##
 ### 1. No Bank Screenshots! :no_entry_sign: :bank: ###
 ### 2. Full client screenshots with chatbox open :camera: ###
