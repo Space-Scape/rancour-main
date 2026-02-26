@@ -362,8 +362,8 @@ For large-scale events, such as bingo or team competitions, winners will be able
 ✦ Medium Combat Achievements
 ✦ Barrows Gloves, Dragon Defender
 ✦ Fire Cape, Ava’s Assembler, MA2 Cape
-✦ Full Void
-✦ Any: Torso/Blood Moon Chest / Bandos/Torva/Oathplate
+✦ Elite Void (Ranged Minimum)
+✦ Any: Torso / Blood Moon / Bandos / Torva / Oathplate
 ✦ Piety, Thralls
 ✦ 1/3: BGS/DWH/Elder Maul""",
         color=discord.Color.from_rgb(255, 215, 0)  # Gold
@@ -390,7 +390,7 @@ For large-scale events, such as bingo or team competitions, winners will be able
 ✦ Hard Combat Achievements
 ✦ 150+ total raids KC
 ✦ 85 Farming, 78 Herblore
-✦ Elite Void
+✦ Full Elite Void (All Sets)
 ✦ Crystal Halberd""",
         color=discord.Color.from_rgb(255, 255, 0)  # Yellow
     )
