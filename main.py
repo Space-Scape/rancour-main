@@ -329,7 +329,7 @@ Guest of the Clan - <:guest:1406225439172722752>
 Templar – Contributor <:serverbooster:1406225321778348042>
 Colonel – Top Contributor <:colonel:1420745479750422710>
 Boss of the Week Winner <:botw:1298362722856997058>
-Skill of the Week Winner <:sotw:1298363808707907685>
+Skill of the Month Winner <:sotw:1298363808707907685>
 
 **Special Events**
 For large-scale events, such as bingo or team competitions, winners will be able to choose their own temporary icon!""",
@@ -602,6 +602,106 @@ async def help(interaction: discord.Interaction):
     await interaction.followup.send(embed=embed, ephemeral=True)
 
 # ---------------------------
+# 🔹 Automated Skipped Rank Notifier
+# ---------------------------
+
+RANK_HIERARCHY = ["Recruit", "Corporal", "Sergeant", "TzTok", "Officer", "Commander", "TzKal"]
+
+RANK_REQS = {
+    "Sergeant": "✦ 4 Weeks in the Clan\n✦ 120+ Combat\n✦ Hard Combat Achievements\n✦ 150+ total raids KC\n✦ 85 Farming, 78 Herblore\n✦ Full Elite Void (All Sets)\n✦ Crystal Halberd",
+    "TzTok": "✦ 6 Weeks in the Clan\n✦ 25 minimum KC each: COX / TOB / TOA\n✦ 300+ total raids KC\n✦ Rigour, Augury, Avernic Defender\n✦ 1/3: BOWFA / ZCB / any Mega\n✦ 1/3: Fang Kit / Infernal Cape / Quiver\n✦ 91 Slayer",
+    "Officer": "✦ 8 Weeks in the Clan\n✦ Elite Combat Achievements\n✦ 25 minimum KC each: CM / HMT / expTOA\n✦ 2/3: Fang Kit / Infernal Cape / Quiver\n✦ 1/3: Tbow / Shadow / Scythe\n✦ 95 Slayer",
+    "Commander": "✦ 12 Weeks in the Clan\n✦ 125 Combat\n✦ Master Combat Achievements\n✦ 50 KC each: CM / HMT / expTOA\n✦ 3/3: Fang Kit / Infernal Cape / Quiver\n✦ 2/3: Tbow / Shadow / Scythe",
+    "TzKal": "✦ Grandmaster Combat Achievements"
+}
+
+@bot.event
+async def on_thread_create(thread: discord.Thread):
+    # Only listen for new threads in the rank-up channel
+    if thread.parent_id != 1272648472184487937:
+        return
+
+    # Join the thread in case it's private so the bot can read the messages
+    try:
+        await thread.join()
+    except Exception:
+        pass
+
+    # Give the ticket bot 2 seconds to post its initial message and ping the user
+    await asyncio.sleep(2)
+
+    # Check if a rank name is in the thread name
+    target_rank = None
+    for rank in RANK_HIERARCHY:
+        if rank.lower() in thread.name.lower():
+            target_rank = rank
+            break
+            
+    if not target_rank:
+        return
+        
+    target_index = RANK_HIERARCHY.index(target_rank)
+
+    # Find the user who opened the ticket from the first few messages
+    ticket_creator = None
+    try:
+        async for message in thread.history(limit=5, oldest_first=True):
+            # Ticket bots usually mention the user in the first message
+            if message.author.bot:
+                for mention in message.mentions:
+                    if not mention.bot:
+                        ticket_creator = mention
+                        break
+            else:
+                # Fallback in case a user manually created the thread
+                ticket_creator = message.author
+                break
+                
+            if ticket_creator:
+                break
+    except discord.Forbidden:
+        return
+
+    if not ticket_creator:
+        return
+
+    # Make sure we have a full Member object to check their roles
+    if isinstance(ticket_creator, discord.User):
+        ticket_creator = thread.guild.get_member(ticket_creator.id)
+        if not ticket_creator:
+            return
+
+    # Find the user's highest current rank
+    current_index = -1
+    for i, rank_name in reversed(list(enumerate(RANK_HIERARCHY))):
+        if discord.utils.get(ticket_creator.roles, name=rank_name):
+            current_index = i
+            break
+
+    # Calculate strictly skipped ranks (the ones between their current rank and the target rank)
+    skipped_ranks = [RANK_HIERARCHY[i] for i in range(current_index + 1, target_index)]
+
+    # If they aren't skipping any ranks, do nothing
+    if not skipped_ranks:
+        return
+
+    # Build and send the embed with ONLY the skipped ranks
+    embed = discord.Embed(
+        title="⚠️ Skipped Rank Requirements",
+        description=(
+            f"Hey {ticket_creator.mention}! I see you're applying for **{target_rank}**.\n\n"
+            f"Since you currently have the **{RANK_HIERARCHY[current_index] if current_index >= 0 else 'Guest/None'}** rank, "
+            "you are skipping ranks. Please make sure to include the screenshots for these skipped ranks in this ticket as well:"
+        ),
+        color=discord.Color.orange()
+    )
+    
+    for rank_name in skipped_ranks:
+        embed.add_field(name=f"🛡️ {rank_name}", value=RANK_REQS[rank_name], inline=False)
+        
+    await thread.send(embed=embed)
+
+# ---------------------------
 # 🔹 Welcome
 # ---------------------------
 class WelcomeView(View):
@@ -633,7 +733,7 @@ async def welcome(interaction: discord.Interaction):
         return
 
     guild = interaction.guild
-    roles_to_assign = ["Recruit", "Member", "Boss of the Week", "Skill of the Week", "Events"]
+    roles_to_assign = ["Recruit", "Member", "Boss of the Week", "Skill of the Month", "Events"]
     missing_roles = []
 
     for role_name in roles_to_assign:
@@ -773,7 +873,7 @@ class EventsView(View):
         self.add_item(RoleButton("Barb Assault", get_emoji("ba")))
         self.add_item(RoleButton("Events", get_emoji("event")))
         self.add_item(RoleButton("Boss of the Week", get_emoji("botw")))
-        self.add_item(RoleButton("Skill of the Week", get_emoji("sotw")))
+        self.add_item(RoleButton("Skill of the Month", get_emoji("sotw")))
         self.add_item(RoleButton("Sanguine Saturday - Learn ToB!", get_emoji("sanguine_Saturday")))
         self.add_item(RoleButton("PvP", "💀"))
 
