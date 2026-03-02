@@ -629,8 +629,9 @@ async def on_thread_create(thread: discord.Thread):
     if thread.parent_id != 1272648472184487937:
         return
 
-    # Give the ticket bot 2 seconds to post its initial message and ping the user
-    await asyncio.sleep(2)
+    # ⏳ Give the ticket bot 5 seconds to post its initial message and ping the user.
+    # If your ticket bot is slower, you can change this 5 to a 7 or 10.
+    await asyncio.sleep(5)
 
     # Check if a rank name is in the thread name
     target_rank = None
@@ -707,7 +708,7 @@ async def on_thread_create(thread: discord.Thread):
         embed.add_field(name=f"{emoji} {rank_name}", value=RANK_REQS[rank_name], inline=False)
         
     await thread.send(embed=embed)
-
+    
 # ---------------------------
 # 🔹 Welcome
 # ---------------------------
