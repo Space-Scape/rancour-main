@@ -605,7 +605,15 @@ async def help(interaction: discord.Interaction):
 # 🔹 Automated Skipped Rank Notifier
 # ---------------------------
 
-RANK_HIERARCHY = ["Recruit", "Corporal", "Sergeant", "TzTok", "Officer", "Commander", "TzKal"]
+RANK_HIERARCHY = ["Sergeant", "TzTok", "Officer", "Commander", "TzKal"]
+
+RANK_EMOJIS = {
+    "Sergeant": "<:sergeant:1406217456783200417>",
+    "TzTok": "<:tztok:1406219778502168647>",
+    "Officer": "<:officer:1406225471003299942>",
+    "Commander": "<:commander:1406225531128647782>",
+    "TzKal": "<:tzkal:1406218822033080400>"
+}
 
 RANK_REQS = {
     "Sergeant": "✦ 4 Weeks in the Clan\n✦ 120+ Combat\n✦ Hard Combat Achievements\n✦ 150+ total raids KC\n✦ 85 Farming, 78 Herblore\n✦ Full Elite Void (All Sets)\n✦ Crystal Halberd",
@@ -620,12 +628,6 @@ async def on_thread_create(thread: discord.Thread):
     # Only listen for new threads in the rank-up channel
     if thread.parent_id != 1272648472184487937:
         return
-
-    # Join the thread in case it's private so the bot can read the messages
-    try:
-        await thread.join()
-    except Exception:
-        pass
 
     # Give the ticket bot 2 seconds to post its initial message and ping the user
     await asyncio.sleep(2)
@@ -671,33 +673,38 @@ async def on_thread_create(thread: discord.Thread):
         if not ticket_creator:
             return
 
-    # Find the user's highest current rank
+    # Find the user's highest current rank from the tracked hierarchy
     current_index = -1
     for i, rank_name in reversed(list(enumerate(RANK_HIERARCHY))):
         if discord.utils.get(ticket_creator.roles, name=rank_name):
             current_index = i
             break
 
-    # Calculate strictly skipped ranks (the ones between their current rank and the target rank)
+    # Calculate strictly skipped ranks (between their current tracked rank and the target rank)
     skipped_ranks = [RANK_HIERARCHY[i] for i in range(current_index + 1, target_index)]
 
-    # If they aren't skipping any ranks, do nothing
+    # If they aren't skipping any tracked ranks, do nothing
     if not skipped_ranks:
         return
+
+    # Format what to call their current rank status if they don't have one in the hierarchy
+    current_rank_display = RANK_HIERARCHY[current_index] if current_index >= 0 else 'Recruit/Corporal'
 
     # Build and send the embed with ONLY the skipped ranks
     embed = discord.Embed(
         title="⚠️ Skipped Rank Requirements",
         description=(
             f"Hey {ticket_creator.mention}! I see you're applying for **{target_rank}**.\n\n"
-            f"Since you currently have the **{RANK_HIERARCHY[current_index] if current_index >= 0 else 'Guest/None'}** rank, "
+            f"Since your current tracked combat rank is **{current_rank_display}**, "
             "you are skipping ranks. Please make sure to include the screenshots for these skipped ranks in this ticket as well:"
         ),
         color=discord.Color.orange()
     )
     
+    # Loop through skipped ranks and attach custom emojis to the headers
     for rank_name in skipped_ranks:
-        embed.add_field(name=f"🛡️ {rank_name}", value=RANK_REQS[rank_name], inline=False)
+        emoji = RANK_EMOJIS.get(rank_name, "")
+        embed.add_field(name=f"{emoji} {rank_name}", value=RANK_REQS[rank_name], inline=False)
         
     await thread.send(embed=embed)
 
