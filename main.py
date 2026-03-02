@@ -681,22 +681,27 @@ async def on_thread_create(thread: discord.Thread):
             current_index = i
             break
 
-    # Calculate strictly skipped ranks (between their current tracked rank and the target rank)
     skipped_ranks = [RANK_HIERARCHY[i] for i in range(current_index + 1, target_index)]
 
-    # If they aren't skipping any tracked ranks, do nothing
     if not skipped_ranks:
         return
 
-    # Format what to call their current rank status if they don't have one in the hierarchy
-    current_rank_display = RANK_HIERARCHY[current_index] if current_index >= 0 else 'Recruit/Corporal'
+    # Determine what to call their current rank status
+    if current_index >= 0:
+        current_rank_display = RANK_HIERARCHY[current_index]
+    elif discord.utils.get(ticket_creator.roles, name="Corporal"):
+        current_rank_display = "Corporal"
+    elif discord.utils.get(ticket_creator.roles, name="Recruit"):
+        current_rank_display = "Recruit"
+    else:
+        current_rank_display = "None"
 
     # Build and send the embed with ONLY the skipped ranks
     embed = discord.Embed(
         title="⚠️ Skipped Rank Requirements",
         description=(
             f"Hey {ticket_creator.mention}! I see you're applying for **{target_rank}**.\n\n"
-            f"Since your current tracked combat rank is **{current_rank_display}**, "
+            f"Since your current clan rank is **{current_rank_display}**, "
             "you are skipping ranks. Please make sure to include the screenshots for these skipped ranks in this ticket as well:"
         ),
         color=discord.Color.orange()
