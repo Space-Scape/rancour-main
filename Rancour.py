@@ -51,6 +51,7 @@ class Rancour(commands.Cog):
                 timestamp=datetime.utcnow()
             )
             embed.add_field(name="User", value=f"{after} | {after.id}", inline=False)
+            embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
             embed.add_field(name="Role", value=role.mention, inline=False)
             await send_log(after.guild, embed)
 
@@ -63,6 +64,7 @@ class Rancour(commands.Cog):
                 timestamp=datetime.utcnow()
             )
             embed.add_field(name="User", value=f"{after} | {after.id}", inline=False)
+            embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
             embed.add_field(name="Role", value=role.mention, inline=False)
             await send_log(after.guild, embed)
 
@@ -97,6 +99,7 @@ class Rancour(commands.Cog):
         embed.add_field(name="New Message", value=after.content or "*no content*", inline=False)
         embed.add_field(name="Channel", value=before.channel.mention, inline=True)
         embed.add_field(name="Author", value=f"{before.author} | {before.author.id}", inline=True)
+        embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
         
         await send_log(before.guild, embed, MESSAGE_LOG_CHANNEL_ID)
 
@@ -116,6 +119,7 @@ class Rancour(commands.Cog):
         embed.add_field(name="Deleted Message", value=message.content or "*no content*", inline=False)
         embed.add_field(name="Channel", value=message.channel.mention, inline=True)
         embed.add_field(name="Author", value=f"{message.author} | {message.author.id}", inline=True)
+        embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
         
         await send_log(message.guild, embed, MESSAGE_LOG_CHANNEL_ID)
 
@@ -127,6 +131,7 @@ class Rancour(commands.Cog):
             color=discord.Color.blurple(),
             timestamp=datetime.utcnow()
         )
+        embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
         embed.add_field(name="Channel", value=channel.mention, inline=False)
         embed.add_field(name="Channel Name", value=channel.name, inline=True)
         embed.add_field(name="Channel ID", value=channel.id, inline=True)
@@ -141,6 +146,7 @@ class Rancour(commands.Cog):
             color=discord.Color.darker_grey(),
             timestamp=datetime.utcnow()
         )
+        embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
         embed.add_field(name="Channel Name", value=channel.name, inline=True)
         embed.add_field(name="Channel ID", value=channel.id, inline=True)
         embed.add_field(name="Channel Type", value=channel.type, inline=True)
@@ -195,6 +201,7 @@ class Rancour(commands.Cog):
         if entry:
             embed.title = ":anger: Member Kicked"
             embed.color = discord.Color.dark_red()
+            embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
             embed.add_field(name="By", value=f"{entry.user} | {entry.user.id}", inline=False)
             embed.add_field(name="Reason", value=entry.reason or "*No reason provided*", inline=False)
         else:
@@ -224,6 +231,7 @@ class Rancour(commands.Cog):
         embed.add_field(name="User", value=f"{user} | {user.id}", inline=False)
 
         if entry:
+            embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
             embed.add_field(name="By", value=f"{entry.user} | {entry.user.id}", inline=False)
             embed.add_field(name="Reason", value=entry.reason or "*No reason provided*", inline=False)
 
@@ -253,6 +261,7 @@ class Rancour(commands.Cog):
                 timestamp=datetime.utcnow()
             )
             embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
+            embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
             embed.add_field(name="Channel", value=after.channel.mention, inline=False)
             await send_log(member.guild, embed)
 
@@ -263,6 +272,7 @@ class Rancour(commands.Cog):
                 timestamp=datetime.utcnow()
             )
             embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
+            embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
             embed.add_field(name="Channel", value=before.channel.mention, inline=False)
             await send_log(member.guild, embed)
 
@@ -273,6 +283,7 @@ class Rancour(commands.Cog):
                 timestamp=datetime.utcnow()
             )
             embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
+            embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
             embed.add_field(name="Old Channel", value=before.channel.mention, inline=True)
             embed.add_field(name="New Channel", value=after.channel.mention, inline=True)
             await send_log(member.guild, embed)
