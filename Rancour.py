@@ -6,6 +6,7 @@ from discord import app_commands
 
 # --- Constants ---
 LOG_CHANNEL_ID = 1275464228421107713
+MESSAGE_LOG_CHANNEL_ID = 1272629843552501805  # New channel for message edits/deletes
 
 # --- Helper Functions ---
 
@@ -13,14 +14,14 @@ def format_dt(dt):
     """Formats a datetime object into a standard string."""
     return dt.strftime("%m/%d/%Y %I:%M %p")
 
-async def send_log(guild: discord.Guild, embed: discord.Embed):
+async def send_log(guild: discord.Guild, embed: discord.Embed, channel_id: int = LOG_CHANNEL_ID):
     """Sends an embed to the designated log channel."""
-    log_channel = guild.get_channel(LOG_CHANNEL_ID)
+    log_channel = guild.get_channel(channel_id)
     if log_channel:
         try:
             await log_channel.send(embed=embed)
         except discord.Forbidden:
-            print(f"Missing permissions to send log in guild: {guild.id}")
+            print(f"Missing permissions to send log in guild: {guild.id} to channel {channel_id}")
         except discord.HTTPException as e:
             print(f"Failed to send log: {e}")
 
@@ -77,7 +78,7 @@ class Rancour(commands.Cog):
             embed.add_field(name="New Nickname", value=after.nick or "*None*", inline=True)
             await send_log(after.guild, embed)
 
-    # Message Edited
+    # Message Edited (Routes to MESSAGE_LOG_CHANNEL_ID)
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
         if before.author.bot:
@@ -96,9 +97,10 @@ class Rancour(commands.Cog):
         embed.add_field(name="New Message", value=after.content or "*no content*", inline=False)
         embed.add_field(name="Channel", value=before.channel.mention, inline=True)
         embed.add_field(name="Author", value=f"{before.author} | {before.author.id}", inline=True)
-        await send_log(before.guild, embed)
+        
+        await send_log(before.guild, embed, MESSAGE_LOG_CHANNEL_ID)
 
-    # Message Deleted
+    # Message Deleted (Routes to MESSAGE_LOG_CHANNEL_ID)
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
         if message.author.bot:
@@ -114,7 +116,8 @@ class Rancour(commands.Cog):
         embed.add_field(name="Deleted Message", value=message.content or "*no content*", inline=False)
         embed.add_field(name="Channel", value=message.channel.mention, inline=True)
         embed.add_field(name="Author", value=f"{message.author} | {message.author.id}", inline=True)
-        await send_log(message.guild, embed)
+        
+        await send_log(message.guild, embed, MESSAGE_LOG_CHANNEL_ID)
 
     # Channel Created
     @commands.Cog.listener()
@@ -157,9 +160,6 @@ class Rancour(commands.Cog):
             embed.add_field(name="Old Channel Name", value=before.name, inline=True)
             embed.add_field(name="Updated Channel Name", value=after.name, inline=True)
         
-        # Add more checks here if you want to log other updates (e.g., permissions, topic)
-        # For this conversion, we'll keep it as it was (only name)
-        
         if len(embed.fields) > 1: # Only send if something changed
             await send_log(after.guild, embed)
 
@@ -181,7 +181,6 @@ class Rancour(commands.Cog):
         guild = member.guild
         entry = None
 
-        # Try to find a kick log
         try:
             async for log in guild.audit_logs(limit=1, action=discord.AuditLogAction.kick):
                 if log.target.id == member.id and (datetime.utcnow() - log.created_at).total_seconds() < 5:
@@ -209,7 +208,6 @@ class Rancour(commands.Cog):
     async def on_member_ban(self, guild: discord.Guild, user: discord.User):
         entry = None
 
-        # Try to find a ban log
         try:
             async for log in guild.audit_logs(limit=1, action=discord.AuditLogAction.ban):
                 if log.target.id == user.id and (datetime.utcnow() - log.created_at).total_seconds() < 5:
@@ -243,45 +241,41 @@ class Rancour(commands.Cog):
         await send_log(guild, embed)
 
     # Voice Channel Connect / Disconnect / Move
-    @commands.Cog.listener()
-    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
-        # Ignore bot voice state updates to prevent spam, remove if you want to track bots
-        if member.bot:
-            return
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
+        if member.bot:
+            return
 
-        # Joined a voice channel
-        if before.channel is None and after.channel is not None:
-            embed = discord.Embed(
-                title=":microphone2: Voice Channel Joined",
-                color=discord.Color.green(),
-                timestamp=datetime.utcnow()
-            )
-            embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
-            embed.add_field(name="Channel", value=after.channel.mention, inline=False)
-            await send_log(member.guild, embed)
+        if before.channel is None and after.channel is not None:
+            embed = discord.Embed(
+                title=":microphone2: Voice Channel Joined",
+                color=discord.Color.green(),
+                timestamp=datetime.utcnow()
+            )
+            embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
+            embed.add_field(name="Channel", value=after.channel.mention, inline=False)
+            await send_log(member.guild, embed)
 
-        # Left a voice channel
-        elif before.channel is not None and after.channel is None:
-            embed = discord.Embed(
-                title=":mute: Voice Channel Left",
-                color=discord.Color.red(),
-                timestamp=datetime.utcnow()
-            )
-            embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
-            embed.add_field(name="Channel", value=before.channel.mention, inline=False)
-            await send_log(member.guild, embed)
+        elif before.channel is not None and after.channel is None:
+            embed = discord.Embed(
+                title=":mute: Voice Channel Left",
+                color=discord.Color.red(),
+                timestamp=datetime.utcnow()
+            )
+            embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
+            embed.add_field(name="Channel", value=before.channel.mention, inline=False)
+            await send_log(member.guild, embed)
 
-        # Switched voice channels
-        elif before.channel is not None and after.channel is not None and before.channel != after.channel:
-            embed = discord.Embed(
-                title=":arrow_right_hook: Voice Channel Switched",
-                color=discord.Color.blue(),
-                timestamp=datetime.utcnow()
-            )
-            embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
-            embed.add_field(name="Old Channel", value=before.channel.mention, inline=True)
-            embed.add_field(name="New Channel", value=after.channel.mention, inline=True)
-            await send_log(member.guild, embed)
+        elif before.channel is not None and after.channel is not None and before.channel != after.channel:
+            embed = discord.Embed(
+                title=":arrow_right_hook: Voice Channel Switched",
+                color=discord.Color.blue(),
+                timestamp=datetime.utcnow()
+            )
+            embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
+            embed.add_field(name="Old Channel", value=before.channel.mention, inline=True)
+            embed.add_field(name="New Channel", value=after.channel.mention, inline=True)
+            await send_log(member.guild, embed)
 
     # Emoji Added / Removed
     @commands.Cog.listener()
@@ -312,19 +306,13 @@ class Rancour(commands.Cog):
     @commands.command(name="export_ids")
     async def export_ids(self, ctx: commands.Context):
         """Export all member Discord IDs to a text file (Moderators only)."""
-
-        # Check role
         if not any(role.name == "Moderators" for role in ctx.author.roles):
             await ctx.send("❌ You do not have permission to use this command.", delete_after=5)
             return
 
-        # Defer message
         await ctx.typing()
-
-        # Collect IDs
         ids = [str(member.id) for member in ctx.guild.members if not member.bot]
 
-        # Save file
         filename = f"member_ids_{ctx.guild.id}.txt"
         try:
             with open(filename, "w") as f:
@@ -338,27 +326,20 @@ class Rancour(commands.Cog):
             await ctx.send(f"❌ An error occurred during export: {e}")
         finally:
             if os.path.exists(filename):
-                os.remove(filename)  # Clean up the file from disk
+                os.remove(filename)
 
     # --- Error Handlers ---
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        """
-        Handles errors for app commands *in this cog*.
-        Note: The original script had no app commands, so this will only
-        fire if you add slash commands to *this specific cog*.
-        """
         if isinstance(error, app_commands.CommandNotFound):
-            return  # Ignore unknown commands
+            return 
         
-        # Log other errors
         print(f"Error in cog 'Rancour' app command: {error}")
         if interaction.response.is_done():
             await interaction.followup.send("An unknown error occurred.", ephemeral=True)
         else:
             await interaction.response.send_message("An unknown error occurred.", ephemeral=True)
         
-        # Re-raise error for potential global handlers
         raise error
 
 # --- Setup Function ---
