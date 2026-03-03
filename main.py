@@ -92,6 +92,7 @@ intents.message_content = True # Needed for on_message
 intents.reactions = True # Needed for reaction tasks
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
+intents.voice_states = True  # This MUST be True for voice logs to work
 
 # ---------------------------
 # 🔹 Main Configuration
