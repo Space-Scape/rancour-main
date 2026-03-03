@@ -242,6 +242,47 @@ class Rancour(commands.Cog):
         embed.add_field(name="User", value=f"{user} | {user.id}", inline=False)
         await send_log(guild, embed)
 
+    # Voice Channel Connect / Disconnect / Move
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
+        # Ignore bot voice state updates to prevent spam, remove if you want to track bots
+        if member.bot:
+            return
+
+        # Joined a voice channel
+        if before.channel is None and after.channel is not None:
+            embed = discord.Embed(
+                title=":microphone2: Voice Channel Joined",
+                color=discord.Color.green(),
+                timestamp=datetime.utcnow()
+            )
+            embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
+            embed.add_field(name="Channel", value=after.channel.mention, inline=False)
+            await send_log(member.guild, embed)
+
+        # Left a voice channel
+        elif before.channel is not None and after.channel is None:
+            embed = discord.Embed(
+                title=":mute: Voice Channel Left",
+                color=discord.Color.red(),
+                timestamp=datetime.utcnow()
+            )
+            embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
+            embed.add_field(name="Channel", value=before.channel.mention, inline=False)
+            await send_log(member.guild, embed)
+
+        # Switched voice channels
+        elif before.channel is not None and after.channel is not None and before.channel != after.channel:
+            embed = discord.Embed(
+                title=":arrow_right_hook: Voice Channel Switched",
+                color=discord.Color.blue(),
+                timestamp=datetime.utcnow()
+            )
+            embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
+            embed.add_field(name="Old Channel", value=before.channel.mention, inline=True)
+            embed.add_field(name="New Channel", value=after.channel.mention, inline=True)
+            await send_log(member.guild, embed)
+
     # Emoji Added / Removed
     @commands.Cog.listener()
     async def on_guild_emojis_update(self, guild: discord.Guild, before: list[discord.Emoji], after: list[discord.Emoji]):
