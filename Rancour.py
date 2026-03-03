@@ -6,7 +6,7 @@ from discord import app_commands
 
 # --- Constants ---
 LOG_CHANNEL_ID = 1275464228421107713
-MESSAGE_LOG_CHANNEL_ID = 1272629843552501805  # New channel for message edits/deletes
+MESSAGE_LOG_CHANNEL_ID = 1272629843552501805 
 
 # --- Helper Functions ---
 
@@ -28,10 +28,6 @@ async def send_log(guild: discord.Guild, embed: discord.Embed, channel_id: int =
 # --- Cog Class ---
 
 class Rancour(commands.Cog):
-    """
-    Handles all logging for server events (joins, leaves, edits, etc.)
-    and provides moderation-related commands.
-    """
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
@@ -39,322 +35,129 @@ class Rancour(commands.Cog):
     async def on_ready(self):
         print(f"Rancour has been loaded and is ready.")
 
-    # Role Added/Removed + Nickname Changed
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):
-        # Check for added roles
+        # Role Added
         added_roles = [r for r in after.roles if r not in before.roles]
         for role in added_roles:
-            embed = discord.Embed(
-                title=":white_check_mark: Role Added to User",
-                color=discord.Color.green(),
-                timestamp=datetime.utcnow()
-            )
-            embed.add_field(name="User", value=f"{after} | {after.id}", inline=False)
-            embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
+            embed = discord.Embed(title=":white_check_mark: Role Added to User", color=discord.Color.green(), timestamp=datetime.utcnow())
+            # FIXED: Added display_name
+            embed.add_field(name="User", value=f"{after.display_name} ({after}) | {after.id}", inline=False)
             embed.add_field(name="Role", value=role.mention, inline=False)
             await send_log(after.guild, embed)
 
-        # Check for removed roles
+        # Role Removed
         removed_roles = [r for r in before.roles if r not in after.roles]
         for role in removed_roles:
-            embed = discord.Embed(
-                title=":x: Role Removed from User",
-                color=discord.Color.red(),
-                timestamp=datetime.utcnow()
-            )
-            embed.add_field(name="User", value=f"{after} | {after.id}", inline=False)
-            embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
+            embed = discord.Embed(title=":x: Role Removed from User", color=discord.Color.red(), timestamp=datetime.utcnow())
+            # FIXED: Added display_name
+            embed.add_field(name="User", value=f"{after.display_name} ({after}) | {after.id}", inline=False)
             embed.add_field(name="Role", value=role.mention, inline=False)
             await send_log(after.guild, embed)
 
-        # Check for nickname change
+        # Nickname Changed
         if before.nick != after.nick:
-            embed = discord.Embed(
-                title=":pencil: Nickname Changed",
-                color=discord.Color.orange(),
-                timestamp=datetime.utcnow()
-            )
-            embed.add_field(name="User", value=f"{after} | {after.id}", inline=False)
+            embed = discord.Embed(title=":pencil: Nickname Changed", color=discord.Color.orange(), timestamp=datetime.utcnow())
+            # FIXED: Shows the current display_name
+            embed.add_field(name="User", value=f"{after.display_name} ({after}) | {after.id}", inline=False)
             embed.add_field(name="Old Nickname", value=before.nick or "*None*", inline=True)
             embed.add_field(name="New Nickname", value=after.nick or "*None*", inline=True)
             await send_log(after.guild, embed)
 
-    # Message Edited (Routes to MESSAGE_LOG_CHANNEL_ID)
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
-        if before.author.bot:
-            return
-        if before.content == after.content:
-            return
-        if not before.guild: # Ignore DMs
+        if before.author.bot or before.content == after.content or not before.guild:
             return
 
-        embed = discord.Embed(
-            title=":pencil: Message Updated",
-            color=discord.Color.gold(),
-            timestamp=datetime.utcnow()
-        )
+        embed = discord.Embed(title=":pencil: Message Updated", color=discord.Color.gold(), timestamp=datetime.utcnow())
         embed.add_field(name="Old Message", value=before.content or "*no content*", inline=False)
         embed.add_field(name="New Message", value=after.content or "*no content*", inline=False)
         embed.add_field(name="Channel", value=before.channel.mention, inline=True)
-        embed.add_field(name="Author", value=f"{before.author} | {before.author.id}", inline=True)
-        embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
-        
+        # FIXED: Shows nickname in message logs
+        embed.add_field(name="Author", value=f"{before.author.display_name} ({before.author}) | {before.author.id}", inline=True)
         await send_log(before.guild, embed, MESSAGE_LOG_CHANNEL_ID)
 
-    # Message Deleted (Routes to MESSAGE_LOG_CHANNEL_ID)
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
-        if message.author.bot:
-            return
-        if not message.guild: # Ignore DMs
+        if message.author.bot or not message.guild:
             return
 
-        embed = discord.Embed(
-            title=":wastebasket: Message Deleted",
-            color=discord.Color.dark_red(),
-            timestamp=datetime.utcnow()
-        )
+        embed = discord.Embed(title=":wastebasket: Message Deleted", color=discord.Color.dark_red(), timestamp=datetime.utcnow())
         embed.add_field(name="Deleted Message", value=message.content or "*no content*", inline=False)
         embed.add_field(name="Channel", value=message.channel.mention, inline=True)
-        embed.add_field(name="Author", value=f"{message.author} | {message.author.id}", inline=True)
-        embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
-        
+        # FIXED: Shows nickname in delete logs
+        embed.add_field(name="Author", value=f"{message.author.display_name} ({message.author}) | {message.author.id}", inline=True)
         await send_log(message.guild, embed, MESSAGE_LOG_CHANNEL_ID)
 
-    # Channel Created
-    @commands.Cog.listener()
-    async def on_guild_channel_create(self, channel: discord.abc.GuildChannel):
-        embed = discord.Embed(
-            title=":new: Channel Created",
-            color=discord.Color.blurple(),
-            timestamp=datetime.utcnow()
-        )
-        embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
-        embed.add_field(name="Channel", value=channel.mention, inline=False)
-        embed.add_field(name="Channel Name", value=channel.name, inline=True)
-        embed.add_field(name="Channel ID", value=channel.id, inline=True)
-        embed.add_field(name="Channel Type", value=channel.type, inline=True)
-        await send_log(channel.guild, embed)
-
-    # Channel Deleted
-    @commands.Cog.listener()
-    async def on_guild_channel_delete(self, channel: discord.abc.GuildChannel):
-        embed = discord.Embed(
-            title=":regional_indicator_x: Channel Deleted",
-            color=discord.Color.darker_grey(),
-            timestamp=datetime.utcnow()
-        )
-        embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
-        embed.add_field(name="Channel Name", value=channel.name, inline=True)
-        embed.add_field(name="Channel ID", value=channel.id, inline=True)
-        embed.add_field(name="Channel Type", value=channel.type, inline=True)
-        await send_log(channel.guild, embed)
-
-    # Channel Updated
-    @commands.Cog.listener()
-    async def on_guild_channel_update(self, before: discord.abc.GuildChannel, after: discord.abc.GuildChannel):
-        embed = discord.Embed(
-            title=":gear: Channel Updated",
-            color=discord.Color.orange(),
-            timestamp=datetime.utcnow()
-        )
-        embed.add_field(name="Channel", value=after.mention, inline=False)
-        
-        if before.name != after.name:
-            embed.add_field(name="Old Channel Name", value=before.name, inline=True)
-            embed.add_field(name="Updated Channel Name", value=after.name, inline=True)
-        
-        if len(embed.fields) > 1: # Only send if something changed
-            await send_log(after.guild, embed)
-
-    # Member Joined
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        embed = discord.Embed(
-            title=":wave: Member Joined",
-            color=discord.Color.green(),
-            timestamp=datetime.utcnow()
-        )
-        embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
+        embed = discord.Embed(title=":wave: Member Joined", color=discord.Color.green(), timestamp=datetime.utcnow())
+        # FIXED: Added display_name
+        embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
         embed.add_field(name="Account Created", value=format_dt(member.created_at), inline=False)
         await send_log(member.guild, embed)
 
-    # Member Left / Kicked
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
         guild = member.guild
         entry = None
-
         try:
             async for log in guild.audit_logs(limit=1, action=discord.AuditLogAction.kick):
                 if log.target.id == member.id and (datetime.utcnow() - log.created_at).total_seconds() < 5:
                     entry = log
                     break
-        except discord.Forbidden:
-            print(f"Missing audit log permissions in guild: {guild.id}")
+        except discord.Forbidden: pass
 
         embed = discord.Embed(timestamp=datetime.utcnow())
-        embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
+        # FIXED: Added display_name
+        embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
 
         if entry:
             embed.title = ":anger: Member Kicked"
             embed.color = discord.Color.dark_red()
-            embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
-            embed.add_field(name="By", value=f"{entry.user} | {entry.user.id}", inline=False)
+            embed.add_field(name="By", value=f"{entry.user.display_name} ({entry.user})", inline=False)
             embed.add_field(name="Reason", value=entry.reason or "*No reason provided*", inline=False)
         else:
             embed.title = ":saluting_face: Member Left"
             embed.color = discord.Color.red()
-
         await send_log(guild, embed)
 
-    # Member Banned
-    @commands.Cog.listener()
-    async def on_member_ban(self, guild: discord.Guild, user: discord.User):
-        entry = None
-
-        try:
-            async for log in guild.audit_logs(limit=1, action=discord.AuditLogAction.ban):
-                if log.target.id == user.id and (datetime.utcnow() - log.created_at).total_seconds() < 5:
-                    entry = log
-                    break
-        except discord.Forbidden:
-            print(f"Missing audit log permissions in guild: {guild.id}")
-
-        embed = discord.Embed(
-            title=":boxing_glove: Member Banned",
-            color=discord.Color.dark_red(),
-            timestamp=datetime.utcnow()
-        )
-        embed.add_field(name="User", value=f"{user} | {user.id}", inline=False)
-
-        if entry:
-            embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
-            embed.add_field(name="By", value=f"{entry.user} | {entry.user.id}", inline=False)
-            embed.add_field(name="Reason", value=entry.reason or "*No reason provided*", inline=False)
-
-        await send_log(guild, embed)
-
-    # Member Unbanned
-    @commands.Cog.listener()
-    async def on_member_unban(self, guild: discord.Guild, user: discord.User):
-        embed = discord.Embed(
-            title=":unlock: Member Unbanned",
-            color=discord.Color.yellow(),
-            timestamp=datetime.utcnow()
-        )
-        embed.add_field(name="User", value=f"{user} | {user.id}", inline=False)
-        await send_log(guild, embed)
-
-    # Voice Channel Connect / Disconnect / Move
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
-        if member.bot:
-            return
+        if member.bot: return
+
+        embed = discord.Embed(timestamp=datetime.utcnow())
+        # FIXED: Added display_name to voice logs
+        user_val = f"{member.display_name} ({member}) | {member.id}"
 
         if before.channel is None and after.channel is not None:
-            embed = discord.Embed(
-                title=":microphone2: Voice Channel Joined",
-                color=discord.Color.green(),
-                timestamp=datetime.utcnow()
-            )
-            embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
-            embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
+            embed.title, embed.color = ":microphone2: Voice Channel Joined", discord.Color.green()
+            embed.add_field(name="User", value=user_val, inline=False)
             embed.add_field(name="Channel", value=after.channel.mention, inline=False)
             await send_log(member.guild, embed)
-
         elif before.channel is not None and after.channel is None:
-            embed = discord.Embed(
-                title=":mute: Voice Channel Left",
-                color=discord.Color.red(),
-                timestamp=datetime.utcnow()
-            )
-            embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
-            embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
+            embed.title, embed.color = ":mute: Voice Channel Left", discord.Color.red()
+            embed.add_field(name="User", value=user_val, inline=False)
             embed.add_field(name="Channel", value=before.channel.mention, inline=False)
             await send_log(member.guild, embed)
-
-        elif before.channel is not None and after.channel is not None and before.channel != after.channel:
-            embed = discord.Embed(
-                title=":arrow_right_hook: Voice Channel Switched",
-                color=discord.Color.blue(),
-                timestamp=datetime.utcnow()
-            )
-            embed.add_field(name="User", value=f"{member} | {member.id}", inline=False)
-            embed.add_field(name="User", value=f"{member.display_name} ({member}) | {member.id}", inline=False)
+        elif before.channel and after.channel and before.channel != after.channel:
+            embed.title, embed.color = ":arrow_right_hook: Voice Channel Switched", discord.Color.blue()
+            embed.add_field(name="User", value=user_val, inline=False)
             embed.add_field(name="Old Channel", value=before.channel.mention, inline=True)
             embed.add_field(name="New Channel", value=after.channel.mention, inline=True)
             await send_log(member.guild, embed)
 
-    # Emoji Added / Removed
-    @commands.Cog.listener()
-    async def on_guild_emojis_update(self, guild: discord.Guild, before: list[discord.Emoji], after: list[discord.Emoji]):
-        added = [e for e in after if e not in before]
-        removed = [e for e in before if e not in after]
-        
-        for emoji in added:
-            embed = discord.Embed(
-                title=":new: Emoji Added",
-                color=discord.Color.green(),
-                timestamp=datetime.utcnow()
-            )
-            embed.add_field(name="Emoji", value=str(emoji), inline=False)
-            await send_log(guild, embed)
-        
-        for emoji in removed:
-            embed = discord.Embed(
-                title=":regional_indicator_x: Emoji Removed",
-                color=discord.Color.red(),
-                timestamp=datetime.utcnow()
-            )
-            embed.add_field(name="Emoji Name", value=emoji.name, inline=False)
-            await send_log(guild, embed)
-
-    # --- Commands ---
-
     @commands.command(name="export_ids")
     async def export_ids(self, ctx: commands.Context):
-        """Export all member Discord IDs to a text file (Moderators only)."""
         if not any(role.name == "Moderators" for role in ctx.author.roles):
-            await ctx.send("❌ You do not have permission to use this command.", delete_after=5)
+            await ctx.send("❌ You do not have permission.", delete_after=5)
             return
-
         await ctx.typing()
-        ids = [str(member.id) for member in ctx.guild.members if not member.bot]
-
+        ids = [str(m.id) for m in ctx.guild.members if not m.bot]
         filename = f"member_ids_{ctx.guild.id}.txt"
-        try:
-            with open(filename, "w") as f:
-                f.write("\n".join(ids))
-
-            await ctx.send(
-                f"✅ Exported {len(ids)} member IDs.",
-                file=discord.File(filename)
-            )
-        except Exception as e:
-            await ctx.send(f"❌ An error occurred during export: {e}")
-        finally:
-            if os.path.exists(filename):
-                os.remove(filename)
-
-    # --- Error Handlers ---
-
-    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.CommandNotFound):
-            return 
-        
-        print(f"Error in cog 'Rancour' app command: {error}")
-        if interaction.response.is_done():
-            await interaction.followup.send("An unknown error occurred.", ephemeral=True)
-        else:
-            await interaction.response.send_message("An unknown error occurred.", ephemeral=True)
-        
-        raise error
-
-# --- Setup Function ---
+        with open(filename, "w") as f: f.write("\n".join(ids))
+        await ctx.send(f"✅ Exported {len(ids)} member IDs.", file=discord.File(filename))
+        os.remove(filename)
 
 async def setup(bot: commands.Bot):
-    """Adds the cog to the bot."""
     await bot.add_cog(Rancour(bot))
