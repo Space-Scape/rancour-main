@@ -1631,7 +1631,7 @@ class SanguineCog(commands.Cog):
             if channel:
                 await self.post_signup(channel)
             else:
-                print(f"🔥 Failed to post signup: Channel {SANG_CHANNEL_ID} not found.")} not found.")
+                print(f"🔥 Failed to post signup: Channel {SANG_CHANNEL_ID} not found.")}
 
     @tasks.loop(minutes=30)
     async def scheduled_post_reminder(self):
