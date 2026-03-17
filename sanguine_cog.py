@@ -122,14 +122,6 @@ def sanitize_nickname(name: str) -> str:
     name = re.sub(r'^[!#@]+', '', name)
     return name.strip()
 
-def get_event_day(self) -> str:
-        if SANG_DAY_FILE.exists():
-            return SANG_DAY_FILE.read_text().strip()
-        return "Saturday"
-
-def set_event_day(self, day: str):
-        SANG_DAY_FILE.write_text(day)
-
 def normalize_role(p: dict) -> str:
     """Standardizes a player's proficiency based on their sheet data."""
     prof = str(p.get("proficiency","")).strip().lower()
@@ -779,6 +771,14 @@ class SanguineCog(commands.Cog):
 
         self.bot.add_view(SignupView(self))
 
+    def get_event_day(self) -> str:
+        if SANG_DAY_FILE.exists():
+            return SANG_DAY_FILE.read_text().strip()
+        return "Saturday"
+
+    def set_event_day(self, day: str):
+        SANG_DAY_FILE.write_text(day)
+    
     @commands.Cog.listener()
     async def on_ready(self):
         await self.load_live_message_id()
@@ -837,8 +837,10 @@ class SanguineCog(commands.Cog):
         app_commands.Choice(name="Sunday", value="Sunday")
     ])
     async def sangsetday(self, interaction: discord.Interaction, day: str):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        
         self.set_event_day(day)
-        await interaction.response.send_message(f"✅ Sanguine event day set to **{day}**! Future signups and reminders will automatically adjust.", ephemeral=True)
+        await interaction.followup.send(f"✅ Sanguine event day set to **{day}**! Future signups and reminders will automatically adjust.", ephemeral=True)
         await self.update_live_signup_message()
     
     async def _withdraw_user_in_thread(self, user_id: str) -> bool:
