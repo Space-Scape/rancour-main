@@ -45,12 +45,20 @@ SANG_SHEET_TAB_NAME = "SangSignups"
 SANG_HISTORY_TAB_NAME = "History"
 SANG_SHEET_HEADER = ["Discord_ID", "Discord_Name", "Favorite Roles", "KC", "Has_Scythe", "Proficiency", "Learning Freeze", "Mentor_Request", "Timestamp", "Blacklist", "Whitelist"]
 
-# Message Content
-SANG_MESSAGE_IDENTIFIER = "Sanguine Saturday Sign Up"
-SANG_MESSAGE = f"""\
-# {SANG_MESSAGE_IDENTIFIER} – Hosted by SpaceScape and Owl <:sanguine_saturday:1469004948594364528>
+# Store last generated teams in memory
+last_generated_teams: List[List[Dict[str, Any]]] = []
 
-Looking for a fun Saturday activity? Look no farther than **Sanguine Saturday!**
+# ---------------------------
+# 🔹 Helper Functions
+# ---------------------------
+
+SANG_DAY_FILE = SCRIPT_DIR / "sang_day.txt"
+
+def get_sang_message(day: str) -> str:
+    return f"""\
+# Sanguine {day} Sign Up – Hosted by SpaceScape and Owl <:sanguine_saturday:1469004948594364528>
+
+Looking for a fun {day} activity? Look no farther than **Sanguine {day}!**
 Spend an afternoon or evening sending **Theatre of Blood** runs with clan members.
 The focus on this event is on **Learners** and general KC.
 
@@ -65,7 +73,7 @@ All Theatre of Blood guides, setups, and related resources are organized here:
 
 ───────────────────────────────
 
-LEARNERS – please review this thread, watch the xzact guides, and get your plugins set up before Saturday:
+LEARNERS – please review this thread, watch the xzact guides, and get your plugins set up before {day}:
 ➤ [**Guides & Plugins**](https://discord.com/channels/1272629330115297330/1388887895837773895)
 
 No matter if you're a learner or an experienced raider, we strongly encourage you to use one of the setups in the threads provided by Macflag:
@@ -89,11 +97,11 @@ Event link: <https://discord.com/events/1272629330115297330/1469002724979904616>
 ||<@&{MENTOR_ROLE_ID}> <@&{SANG_ROLE_ID}> <@&{TOB_ROLE_ID}>||
 """
 
-LEARNER_REMINDER_IDENTIFIER = "Sanguine Saturday Learner Reminder"
-LEARNER_REMINDER_MESSAGE = f"""\
-# {LEARNER_REMINDER_IDENTIFIER} ⏰ <:sanguine_saturday:1469004948594364528>
+def get_learner_reminder(day: str) -> str:
+    return f"""\
+# Sanguine {day} Learner Reminder ⏰ <:sanguine_saturday:1469004948594364528>
 
-This is a reminder for all learners who signed up for Sanguine Saturday!
+This is a reminder for all learners who signed up for Sanguine {day}!
 
 Please make sure you have reviewed the following guides and have your gear and plugins ready to go:
 • **[ToB Resource Hub](https://discord.com/channels/1272629330115297330/1426262876699496598)**
@@ -101,16 +109,10 @@ Please make sure you have reviewed the following guides and have your gear and p
 • **[Rancour Meta Setups](https://discord.com/channels/1272629330115297330/1426272592452391012)**
 • **[Guides & Plugins](https://discord.com/channels/1272629330115297330/1426263621440372768)**
 
-We will be gathering in the **[Sanguine Saturday VC]({SANG_VC_LINK})**!
+We will be gathering in the **[Sanguine {day} VC]({SANG_VC_LINK})**!
 We look forward to seeing you there!
 """
-
-# Store last generated teams in memory
-last_generated_teams: List[List[Dict[str, Any]]] = []
-
-# ---------------------------
-# 🔹 Helper Functions
-# ---------------------------
+    
 def sanitize_nickname(name: str) -> str:
     """Removes special characters and bot-added tags from display names."""
     if not name:
@@ -119,6 +121,14 @@ def sanitize_nickname(name: str) -> str:
     name = re.sub(r'\s*\[[^\]]*#\d{4}\]', '', name)
     name = re.sub(r'^[!#@]+', '', name)
     return name.strip()
+
+def get_event_day(self) -> str:
+        if SANG_DAY_FILE.exists():
+            return SANG_DAY_FILE.read_text().strip()
+        return "Saturday"
+
+def set_event_day(self, day: str):
+        SANG_DAY_FILE.write_text(day)
 
 def normalize_role(p: dict) -> str:
     """Standardizes a player's proficiency based on their sheet data."""
@@ -514,7 +524,8 @@ class UserSignupForm(Modal, title="Sanguine Saturday Signup"):
     wants_mentor = TextInput(label="Do you want assistance from a Mentor?", placeholder="Yes or No/Blank", style=discord.TextStyle.short, max_length=3, required=False)
 
     def __init__(self, cog: 'SanguineCog', previous_data: dict = None):
-        super().__init__(title="Sanguine Saturday Signup")
+        day = cog.get_event_day()
+        super().__init__(title=f"Sanguine {day} Signup")
         self.cog = cog
         self.previous_data = previous_data 
         if previous_data:
@@ -819,6 +830,17 @@ class SanguineCog(commands.Cog):
             await self.update_live_signup_message()
         return sang_sheet_success, history_sheet_success
 
+    @app_commands.command(name="sangsetday", description="Set the event day to Saturday or Sunday.")
+    @app_commands.checks.has_role(STAFF_ROLE_ID)
+    @app_commands.choices(day=[
+        app_commands.Choice(name="Saturday", value="Saturday"),
+        app_commands.Choice(name="Sunday", value="Sunday")
+    ])
+    async def sangsetday(self, interaction: discord.Interaction, day: str):
+        self.set_event_day(day)
+        await interaction.response.send_message(f"✅ Sanguine event day set to **{day}**! Future signups and reminders will automatically adjust.", ephemeral=True)
+        await self.update_live_signup_message()
+    
     async def _withdraw_user_in_thread(self, user_id: str) -> bool:
         def _blocking_sheet_delete():
             try:
@@ -867,8 +889,9 @@ class SanguineCog(commands.Cog):
         return embeds
 
     async def _generate_signups_embed(self) -> discord.Embed:
+        day = self.get_event_day()
         embed = discord.Embed(
-            title="<:sanguine_saturday:1469004948594364528> Sanguine Saturday Signups",
+            title=f"<:sanguine_saturday:1469004948594364528> Sanguine {day} Signups",
             color=discord.Color.red(),
             timestamp=datetime.now(CST)
         )
@@ -1040,7 +1063,8 @@ class SanguineCog(commands.Cog):
             return None
 
     async def post_signup(self, channel: discord.TextChannel):
-        signup_message = await channel.send(SANG_MESSAGE, view=SignupView(self))
+        day = self.get_event_day()
+        signup_message = await channel.send(get_sang_message(day), view=SignupView(self))
         print(f"✅ Posted Sanguine Saturday signup in #{channel.name}")
 
         try:
@@ -1058,10 +1082,11 @@ class SanguineCog(commands.Cog):
 
     async def post_reminder(self, channel: discord.TextChannel):
         if not self.sang_sheet: return False
+        day = self.get_event_day()
         
         try:
             async for message in channel.history(limit=50):
-                if message.author == self.bot.user and LEARNER_REMINDER_IDENTIFIER in message.content:
+                if message.author == self.bot.user and "Learner Reminder" in message.content and "Sanguine" in message.content:
                     await message.delete()
         except Exception: pass
 
@@ -1076,10 +1101,10 @@ class SanguineCog(commands.Cog):
                         learners.append(f"<@{user_id}>")
             
             if not learners:
-                reminder_content = f"{LEARNER_REMINDER_MESSAGE}\n\n_No learners have signed up yet._"
+                reminder_content = f"{get_learner_reminder(day)}\n\n_No learners have signed up yet._"
             else:
                 learner_pings = " ".join(learners)
-                reminder_content = f"{LEARNER_REMINDER_MESSAGE}\n\n**Learners:** {learner_pings}"
+                reminder_content = f"{get_learner_reminder(day)}\n\n**Learners:** {learner_pings}"
 
             await channel.send(reminder_content, allowed_mentions=discord.AllowedMentions(users=True))
             await self.update_live_signup_message()
@@ -1119,6 +1144,8 @@ class SanguineCog(commands.Cog):
     @app_commands.command(name="sangmatch", description="Create ToB teams from users in the designated voice channel.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
     async def sangmatch(self, interaction: discord.Interaction):
+        prefix = "SanSat" if self.get_event_day() == "Saturday" else "SanSun"
+       
         if not self.sang_sheet:
             await interaction.response.send_message("⚠️ Error: The Sanguine Saturday sheet is not connected.", ephemeral=True)
             return
@@ -1210,7 +1237,7 @@ class SanguineCog(commands.Cog):
                     if team: 
                         mentor_name = sanitize_nickname(team[0].get("user_name", mentor_name))
 
-                    vc_name = f"SanSat{mentor_name}"
+                    vc_name = f"{prefix}{mentor_name}"
                     new_vc = await category.create_voice_channel(name=vc_name, overwrites=overwrites)
                     created_vcs.append(new_vc)
                 except Exception as e:
@@ -1595,27 +1622,31 @@ class SanguineCog(commands.Cog):
 
     @tasks.loop(time=dt_time(hour=11, minute=0, tzinfo=CST))
     async def scheduled_post_signup(self):
-        if datetime.now(CST).weekday() == 3:  # 3 = Thursday
-            print("It's Thursday at 11:00 AM CST. Posting Sanguine signup...")
+        day = self.get_event_day()
+        target_weekday = 3 if day == "Saturday" else 4
+        
+        if datetime.now(CST).weekday() == target_weekday:
+            print(f"It's 11:00 AM CST. Posting Sanguine {day} signup...")
             channel = self.bot.get_channel(SANG_CHANNEL_ID)
             if channel:
                 await self.post_signup(channel)
             else:
-                print(f"🔥 Failed to post signup: Channel {SANG_CHANNEL_ID} not found.")
+                print(f"🔥 Failed to post signup: Channel {SANG_CHANNEL_ID} not found.")} not found.")
 
     @tasks.loop(minutes=30)
     async def scheduled_post_reminder(self):
         now = datetime.now(CST)
-    
-        is_friday_reminder = (now.weekday() == 4 and now.hour == 14 and now.minute < 30)
-        is_saturday_event_reminder = (now.weekday() == 5 and now.hour == 13 and now.minute >= 30)
-    
-        if is_friday_reminder or is_saturday_event_reminder:
-            if is_friday_reminder:
-                print("It's Friday at 2:00 PM CST. Posting Sanguine learner reminder...")
-            if is_saturday_event_reminder:
-                print("It's Saturday at 1:30 PM CST. Posting Sanguine learner reminder...")
-    
+        day = self.get_event_day()
+
+        if day == "Saturday":
+            is_early_reminder = (now.weekday() == 4 and now.hour == 14 and now.minute < 30) # Fri 2pm
+            is_day_of_reminder = (now.weekday() == 5 and now.hour == 13 and now.minute >= 30) # Sat 1:30pm
+        else: # Sunday
+            is_early_reminder = (now.weekday() == 5 and now.hour == 14 and now.minute < 30) # Sat 2pm
+            is_day_of_reminder = (now.weekday() == 6 and now.hour == 13 and now.minute >= 30) # Sun 1:30pm
+        
+        if is_early_reminder or is_day_of_reminder:
+            print(f"Posting Sanguine {day} learner reminder...")
             channel = self.bot.get_channel(SANG_CHANNEL_ID)
             if channel:
                 await self.post_reminder(channel)
