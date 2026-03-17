@@ -1630,8 +1630,6 @@ class SanguineCog(commands.Cog):
             channel = self.bot.get_channel(SANG_CHANNEL_ID)
             if channel:
                 await self.post_signup(channel)
-            else:
-                print(f"🔥 Failed to post signup: Channel {SANG_CHANNEL_ID} not found.")}
 
     @tasks.loop(minutes=30)
     async def scheduled_post_reminder(self):
@@ -1650,8 +1648,6 @@ class SanguineCog(commands.Cog):
             channel = self.bot.get_channel(SANG_CHANNEL_ID)
             if channel:
                 await self.post_reminder(channel)
-            else:
-                print(f"🔥 Failed to post reminder: Channel {SANG_CHANNEL_ID} not found.")
 
     @tasks.loop(time=dt_time(hour=4, minute=0, tzinfo=CST)) # 4 AM CST
     async def scheduled_clear_sang_sheet(self):
