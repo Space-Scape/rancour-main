@@ -53,7 +53,7 @@ last_generated_teams: List[List[Dict[str, Any]]] = []
 
 def get_sang_message(day: str) -> str:
     return f"""\
-# Sanguine {day} Sign Up – Hosted by SpaceScape and Owl <:sanguine_saturday:1469004948594364528>
+# Sanguine {day} Sign Up – Hosted by SpaceScape <:sanguine_saturday:1469004948594364528>
 
 Looking for a fun {day} activity? Look no farther than **Sanguine {day}!**
 Spend an afternoon or evening sending **Theatre of Blood** runs with clan members.
@@ -129,13 +129,6 @@ def normalize_role(p: dict) -> str:
 
 PROF_ORDER = {"mentor": 0, "highly proficient": 1, "proficient": 2, "learner": 3, "new": 4}
 
-# Helpers list - prioritized for mentor/learner teams
-HELPERS = [
-    "lukap42", "antidrop", "robotson", "box man", "redeemed",
-    "mr fk", "ms fk", "lube is best", "hazy jane", "lasix",
-    "kodai", "lionelious",
-]
-
 def prof_rank(p: dict) -> int:
     return PROF_ORDER.get(normalize_role(p), 99)
 
@@ -144,11 +137,6 @@ def scythe_icon(p: dict) -> str:
 
 def freeze_icon(p: dict) -> str:
     return " • ❄️" if p.get("learning_freeze") else ""
-
-def is_helper(p: dict) -> bool:
-    name = p.get("user_name", "").lower().strip()
-    name = re.sub(r'^[!#@*]+', '', name).strip()
-    return name in HELPERS
 
 def is_blacklist_violation(player: Dict[str, Any], team: List[Dict[str, Any]]) -> bool:
     player_blacklist = player.get("blacklist", set())
@@ -282,8 +270,7 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                 
                 score = 0
                 if any(p['region'] in [m['region'] for m in t['members']] for p in sb): score += 10
-                if any(is_helper(p) for p in sb): score += 20
-                elif any(p['proficiency'] == 'highly proficient' for p in sb): score += 5
+                if any(p['proficiency'] == 'highly proficient' for p in sb): score += 5
                 
                 if score > best_score:
                     best_score = score
