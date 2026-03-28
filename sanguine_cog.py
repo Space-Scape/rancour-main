@@ -245,11 +245,12 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             new_learners = sum(1 for p in lb if p['proficiency'] in ['learner', 'new'])
             if current_learners + new_learners > 2: continue
 
+            target_region = t['members'][0]['region']
             score = 0
-            team_regions = [p['region'] for p in t['members']]
-            lb_regions = [p['region'] for p in lb]
-            if any(r in team_regions for r in lb_regions): score += 1 # Match Region (Low Priority / Tie-breaker)
-            score -= len(t['members']) * 10 # Prefer smaller teams to spread load (High Priority)
+            
+            # Region match is worth +15 to overcome the size penalty (-10) of an imbalanced team
+            score += sum(15 for p in lb if p['region'] == target_region)
+            score -= len(t['members']) * 10 # Prefer smaller teams to spread load
 
             if score > best_score:
                 best_score = score
@@ -269,13 +270,15 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         while len(t['members']) < 4: # Aim for at least 4 in mentor teams
             best_sb = None
             best_score = -9999
+            target_region = t['members'][0]['region']
+            
             for sb in support_blocks:
                 if len(t['members']) + len(sb) > 5: continue
                 if check_merge_blacklist(sb, t['members']): continue
                 
                 score = 0
-                if any(p['proficiency'] == 'highly proficient' for p in sb): score += 10 # HP Support (High Priority)
-                if any(p['region'] in [m['region'] for m in t['members']] for p in sb): score += 1 # Match Region (Low priority / Tie-breaker)
+                if any(p['proficiency'] == 'highly proficient' for p in sb): score += 20 # HP Support heavily preferred
+                score += sum(5 for p in sb if p['region'] == target_region) # Region match tie-breaker
                 
                 if score > best_score:
                     best_score = score
@@ -294,16 +297,25 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     standard_blocks.sort(key=lambda b: (len(b), any(p['proficiency'] == 'highly proficient' for p in b)), reverse=True)
 
     for b in standard_blocks:
-        placed = False
+        best_st = None
+        best_score = -9999
+        
         # Try to place in an existing standard team
         for st in standard_teams:
-            if len(st['members']) + len(b) <= 5:
-                if not check_merge_blacklist(b, st['members']):
-                    # Check Region soft preference (but pack tightly anyway)
-                    st['members'].extend(b)
-                    placed = True
-                    break
-        if not placed:
+            if len(st['members']) + len(b) > 5: continue
+            if check_merge_blacklist(b, st['members']): continue
+            
+            target_region = st['members'][0]['region']
+            score = sum(15 for p in b if p['region'] == target_region)
+            score -= len(st['members']) * 10
+            
+            if score > best_score:
+                best_score = score
+                best_st = st
+                
+        if best_st:
+            best_st['members'].extend(b)
+        else:
             standard_teams.append({'members': b, 'is_mentor': False})
 
     teams.extend(standard_teams)
@@ -321,6 +333,7 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         if not small_teams: break
 
         target_team = small_teams[0]
+        target_region = target_team['members'][0]['region']
         stolen = False
         
         def can_spare(t):
@@ -331,9 +344,10 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
 
         for lt in large_teams:
             def steal_priority(p):
-                if p['proficiency'] == 'highly proficient': return 1
-                if p['proficiency'] == 'proficient': return 2
-                return 3
+                # Prefer to steal HP > Proficient > others. Break ties by picking players that match target team's region.
+                prof_rank = 1 if p['proficiency'] == 'highly proficient' else (2 if p['proficiency'] == 'proficient' else 3)
+                region_match = 0 if p['region'] == target_region else 1
+                return (prof_rank, region_match)
                 
             sorted_candidates = sorted(list(lt['members']), key=steal_priority)
 
