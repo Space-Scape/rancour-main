@@ -245,11 +245,14 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             new_learners = sum(1 for p in lb if p['proficiency'] in ['learner', 'new'])
             if current_learners + new_learners > 2: continue
 
-            target_region = t['members'][0]['region']
             score = 0
             
-            # Region match is worth +15 to overcome the size penalty (-10) of an imbalanced team
-            score += sum(15 for p in lb if p['region'] == target_region)
+            # Region match: +15 per match combination
+            for lp in lb:
+                for tm in t['members']:
+                    if lp['region'] == tm['region']:
+                        score += 15
+
             score -= len(t['members']) * 10 # Prefer smaller teams to spread load
 
             if score > best_score:
@@ -270,7 +273,6 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         while len(t['members']) < 4: # Aim for at least 4 in mentor teams
             best_sb = None
             best_score = -9999
-            target_region = t['members'][0]['region']
             
             for sb in support_blocks:
                 if len(t['members']) + len(sb) > 5: continue
@@ -278,7 +280,11 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
                 
                 score = 0
                 if any(p['proficiency'] == 'highly proficient' for p in sb): score += 20 # HP Support heavily preferred
-                score += sum(5 for p in sb if p['region'] == target_region) # Region match tie-breaker
+                
+                for sbp in sb:
+                    for tm in t['members']:
+                        if sbp['region'] == tm['region']:
+                            score += 10 # Region match tie-breaker
                 
                 if score > best_score:
                     best_score = score
@@ -293,32 +299,53 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     standard_blocks = support_blocks + other_blocks
 
     # 4. Create Standard Teams
+    total_standard_players = sum(len(b) for b in standard_blocks)
     standard_teams = []
-    standard_blocks.sort(key=lambda b: (len(b), any(p['proficiency'] == 'highly proficient' for p in b)), reverse=True)
-
-    for b in standard_blocks:
-        best_st = None
-        best_score = -9999
+    
+    if total_standard_players > 0:
+        # Pre-allocate bins so we don't greedily fill one team to 5 before starting the next
+        num_st_teams = max(1, round(total_standard_players / 4.0))
+        standard_teams = [{'members': [], 'is_mentor': False} for _ in range(num_st_teams)]
         
-        # Try to place in an existing standard team
-        for st in standard_teams:
-            if len(st['members']) + len(b) > 5: continue
-            if check_merge_blacklist(b, st['members']): continue
+        standard_blocks.sort(key=lambda b: (
+            sum(1 for p in b if p['proficiency'] == 'highly proficient'),
+            len(b)
+        ), reverse=True)
+        
+        for b in standard_blocks:
+            best_st = None
+            best_score = -9999
             
-            target_region = st['members'][0]['region']
-            score = sum(15 for p in b if p['region'] == target_region)
-            score -= len(st['members']) * 10
-            
-            if score > best_score:
-                best_score = score
-                best_st = st
+            for st in standard_teams:
+                if len(st['members']) + len(b) > 5: continue
+                if check_merge_blacklist(b, st['members']): continue
                 
-        if best_st:
-            best_st['members'].extend(b)
-        else:
-            standard_teams.append({'members': b, 'is_mentor': False})
+                score = 0
+                score -= len(st['members']) * 15 # Penalize filling teams too early
+                
+                # Check region against ALL existing team members
+                for bp in b:
+                    for tm in st['members']:
+                        if bp['region'] == tm['region']:
+                            score += 20
+                
+                # HP Balance: Don't stack HPs in the same team if possible
+                team_hps = sum(1 for p in st['members'] if p['proficiency'] == 'highly proficient')
+                block_hps = sum(1 for p in b if p['proficiency'] == 'highly proficient')
+                if team_hps > 0 and block_hps > 0:
+                    score -= (team_hps * block_hps) * 40
+                
+                if score > best_score:
+                    best_score = score
+                    best_st = st
+                    
+            if best_st is not None:
+                best_st['members'].extend(b)
+            else:
+                # Fallback if no pre-allocated team can take them (e.g. blacklists)
+                standard_teams.append({'members': b, 'is_mentor': False})
 
-    teams.extend(standard_teams)
+    teams.extend([st for st in standard_teams if st['members']])
 
     # 5. Fix Team Sizes (Min 3, Max 5, Learner Teams Min 4)
     changed = True
@@ -333,7 +360,11 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
         if not small_teams: break
 
         target_team = small_teams[0]
-        target_region = target_team['members'][0]['region']
+        
+        # Determine the majority region of the team needing help
+        target_regions = [p['region'] for p in target_team['members']]
+        target_region = max(set(target_regions), key=target_regions.count) if target_regions else "OTHER"
+        
         stolen = False
         
         def can_spare(t):
@@ -344,10 +375,11 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
 
         for lt in large_teams:
             def steal_priority(p):
-                # Prefer to steal HP > Proficient > others. Break ties by picking players that match target team's region.
-                prof_rank = 1 if p['proficiency'] == 'highly proficient' else (2 if p['proficiency'] == 'proficient' else 3)
+                # Region match: 0 (yes) vs 1 (no). Steal players whose regions match the target team first.
                 region_match = 0 if p['region'] == target_region else 1
-                return (prof_rank, region_match)
+                # Prof rank: Steal HP last (3), Proficient first (2). 
+                prof_rank = 3 if p['proficiency'] == 'highly proficient' else (2 if p['proficiency'] == 'proficient' else 1)
+                return (region_match, prof_rank)
                 
             sorted_candidates = sorted(list(lt['members']), key=steal_priority)
 
