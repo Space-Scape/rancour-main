@@ -457,6 +457,7 @@ For large-scale events, such as bingo or team competitions, winners will be able
     pet_hunter_embed = discord.Embed(
         title="Pet hunter - <:pethunter:1406225392989114378>",
         description="""
+✦ Sergeant Rank 
 ✦ 5 Weeks in the Clan
 ✦ 20+ Pets
         """,
@@ -469,6 +470,7 @@ For large-scale events, such as bingo or team competitions, winners will be able
     clogger_embed = discord.Embed(
         title="Clogger - <:clogger:1406233084311113808>",
         description="""
+✦ Sergeant Rank        
 ✦ 5 Weeks in the Clan
 ✦ 1000+ Collection Log Slots
         """,
@@ -480,6 +482,7 @@ For large-scale events, such as bingo or team competitions, winners will be able
     Curator_embed = discord.Embed(
         title="Curator - <:Curator:1475653800780890152>",
         description="""
+✦ Sergeant Rank
 ✦ 5 weeks in Clan
 ✦ 70% completion of collection log
         """,
@@ -504,6 +507,7 @@ For large-scale events, such as bingo or team competitions, winners will be able
     achiever_embed = discord.Embed(
         title="Achiever - <:achiever:1426589654966210571>",
         description="""
+✦ Sergeant Rank
 ✦ 5 Weeks in the Clan
 ✦ 500+ Collection Log slots
 ✦ 5+ Ornament Kits (shown in log)
@@ -603,10 +607,10 @@ async def help(interaction: discord.Interaction):
     await interaction.followup.send(embed=embed, ephemeral=True)
 
 # ---------------------------
-# 🔹 Automated Skipped Rank Notifier
+# 🔹 Rank System Configuration
 # ---------------------------
-
 RANK_HIERARCHY = ["Sergeant", "TzTok", "Officer", "Commander", "TzKal"]
+SPECIAL_RANKS = ["Curator", "Achiever", "Clogger", "Pet Hunter"]
 
 RANK_EMOJIS = {
     "Sergeant": "<:sergeant:1406217456783200417>",
@@ -624,40 +628,42 @@ RANK_REQS = {
     "TzKal": "✦ Grandmaster Combat Achievements"
 }
 
+# ---------------------------
+# 🔹 Automated Skipped Rank Notifier Event
+# ---------------------------
 @bot.event
 async def on_thread_create(thread: discord.Thread):
-    # Only listen for new threads in the rank-up channel
     if thread.parent_id != 1272648472184487937:
         return
-
-    # ⏳ Give the ticket bot 5 seconds to post its initial message and ping the user.
-    # If your ticket bot is slower, you can change this 5 to a 7 or 10.
     await asyncio.sleep(5)
 
-    # Check if a rank name is in the thread name
     target_rank = None
+    is_special_rank = False
+    
     for rank in RANK_HIERARCHY:
         if rank.lower() in thread.name.lower():
             target_rank = rank
             break
             
     if not target_rank:
-        return
-        
-    target_index = RANK_HIERARCHY.index(target_rank)
+        for rank in SPECIAL_RANKS:
+            if rank.lower() in thread.name.lower():
+                target_rank = rank
+                is_special_rank = True
+                break
 
-    # Find the user who opened the ticket from the first few messages
+    if not target_rank:
+        return
+
     ticket_creator = None
     try:
         async for message in thread.history(limit=5, oldest_first=True):
-            # Ticket bots usually mention the user in the first message
             if message.author.bot:
                 for mention in message.mentions:
                     if not mention.bot:
                         ticket_creator = mention
                         break
             else:
-                # Fallback in case a user manually created the thread
                 ticket_creator = message.author
                 break
                 
@@ -669,25 +675,28 @@ async def on_thread_create(thread: discord.Thread):
     if not ticket_creator:
         return
 
-    # Make sure we have a full Member object to check their roles
     if isinstance(ticket_creator, discord.User):
         ticket_creator = thread.guild.get_member(ticket_creator.id)
         if not ticket_creator:
             return
 
-    # Find the user's highest current rank from the tracked hierarchy
     current_index = -1
     for i, rank_name in reversed(list(enumerate(RANK_HIERARCHY))):
         if discord.utils.get(ticket_creator.roles, name=rank_name):
             current_index = i
             break
 
-    skipped_ranks = [RANK_HIERARCHY[i] for i in range(current_index + 1, target_index)]
+    skipped_ranks = []
+    if is_special_rank:
+        if current_index < 0:
+            skipped_ranks = ["Sergeant"]
+    else:
+        target_index = RANK_HIERARCHY.index(target_rank)
+        skipped_ranks = [RANK_HIERARCHY[i] for i in range(current_index + 1, target_index)]
 
     if not skipped_ranks:
         return
 
-    # Determine what to call their current rank status
     if current_index >= 0:
         current_rank_display = RANK_HIERARCHY[current_index]
     elif discord.utils.get(ticket_creator.roles, name="Corporal"):
@@ -697,18 +706,25 @@ async def on_thread_create(thread: discord.Thread):
     else:
         current_rank_display = "None"
 
-    # Build and send the embed with ONLY the skipped ranks
+    if is_special_rank:
+        desc = (
+            f"Hey {ticket_creator.mention}! I see you're applying for **{target_rank}**.\n\n"
+            f"Since your current clan rank is **{current_rank_display}**, you are missing the base rank requirement for this role. "
+            "Please make sure to include the screenshots for the prerequisite rank in this ticket as well:"
+        )
+    else:
+        desc = (
+            f"Hey {ticket_creator.mention}! I see you're applying for **{target_rank}**.\n\n"
+            f"Since your current clan rank is **{current_rank_display}**, you are skipping ranks. "
+            "Please make sure to include the screenshots for these skipped ranks in this ticket as well:"
+        )
+
     embed = discord.Embed(
         title="⚠️ Skipped Rank Requirements",
-        description=(
-            f"Hey {ticket_creator.mention}! I see you're applying for **{target_rank}**.\n\n"
-            f"Since your current clan rank is **{current_rank_display}**, "
-            "you are skipping ranks. Please make sure to include the screenshots for these skipped ranks in this ticket as well:"
-        ),
+        description=desc,
         color=discord.Color.orange()
     )
     
-    # Loop through skipped ranks and attach custom emojis to the headers
     for rank_name in skipped_ranks:
         emoji = RANK_EMOJIS.get(rank_name, "")
         embed.add_field(name=f"{emoji} {rank_name}", value=RANK_REQS[rank_name], inline=False)
