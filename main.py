@@ -453,6 +453,19 @@ For large-scale events, such as bingo or team competitions, winners will be able
    
     await interaction.channel.send("https://i.postimg.cc/qgfnZ0Pq/img.png")
     await asyncio.sleep(0.5)
+
+    # --- Maxed Embed ---
+    maxed_embed = discord.Embed(
+        title="Maxed - <:maxed:1426589648141946992>",
+        description="""
+✦ 5 Weeks in the Clan
+✦ 2376 total level
+        """,
+        color=discord.Color.from_rgb(160, 40, 40)
+    )
+    await interaction.channel.send(embed=maxed_embed)
+    await asyncio.sleep(0.5)
+    
     # --- Pet Hunter Embed ---
     pet_hunter_embed = discord.Embed(
         title="Pet hunter - <:pethunter:1406225392989114378>",
@@ -489,18 +502,6 @@ For large-scale events, such as bingo or team competitions, winners will be able
         color=discord.Color.from_rgb(160, 40, 40)
     )
     await interaction.channel.send(embed=Curator_embed)
-    await asyncio.sleep(0.5)
-
-    # --- Maxed Embed ---
-    maxed_embed = discord.Embed(
-        title="Maxed - <:maxed:1426589648141946992>",
-        description="""
-✦ 5 Weeks in the Clan
-✦ 2376 total level
-        """,
-        color=discord.Color.from_rgb(160, 40, 40)
-    )
-    await interaction.channel.send(embed=maxed_embed)
     await asyncio.sleep(0.5)
 
     # --- Achiever Embed ---
