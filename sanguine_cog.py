@@ -46,6 +46,7 @@ SANG_SHEET_HEADER = [
 
 # Store last generated teams in memory
 last_generated_teams: List[List[Dict[str, Any]]] = []
+last_generated_vcs: List[int] = []
 
 # ---------------------------
 # 🔹 Helper Functions
@@ -1021,6 +1022,22 @@ class SanguineCog(commands.Cog):
             await interaction.response.send_message("⚠️ Error: The Sanguine Saturday sheet is not connected.", ephemeral=True)
             return
         await interaction.response.defer(ephemeral=False)
+
+        global last_generated_teams
+        global last_generated_vcs
+        last_generated_teams = teams
+        last_generated_vcs = []
+
+        for i, team in enumerate(teams):
+            try:
+                mentor_name = sanitize_nickname(team[0].get("user_name", f"Team{i+1}")) if team else f"Team{i+1}"
+                new_vc = await category.create_voice_channel(name=f"{prefix}{mentor_name}", overwrites=overwrites)
+                
+                # NEW: Save the exact ID of the newly created channel
+                last_generated_vcs.append(new_vc.id) 
+            except Exception as e: 
+                print(f"Error creating VC: {e}") 
+                last_generated_vcs.append(None)
         
         voice_channel = self.bot.get_channel(SANG_MATCHMAKING_VC_ID)
         if not voice_channel or not isinstance(voice_channel, discord.VoiceChannel):
@@ -1233,44 +1250,41 @@ class SanguineCog(commands.Cog):
     @app_commands.checks.has_any_role("Administrators", "Clan Staff", "Senior Staff", "Staff", "Trial Staff")
     async def sangmove(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
+        
         global last_generated_teams
+        global last_generated_vcs
+        
         teams = last_generated_teams
-        if not teams:
+        vc_ids = last_generated_vcs
+        
+        if not teams or not vc_ids:
             await interaction.followup.send("⚠️ No teams have been generated. Run `/sangmatch` first.", ephemeral=True)
             return
             
         guild = interaction.guild
-        category = guild.get_channel(SANG_VC_CATEGORY_ID)
-        if not category or not isinstance(category, discord.CategoryChannel):
-            await interaction.followup.send("⚠️ Could not find the Sanguine VC category.", ephemeral=True)
-            return
-            
         matchmaking_vc = self.bot.get_channel(SANG_MATCHMAKING_VC_ID)
+        
         if not matchmaking_vc or not isinstance(matchmaking_vc, discord.VoiceChannel):
             await interaction.followup.send("⚠️ Could not find the Matchmaking VC.", ephemeral=True)
             return
             
         members_in_matchmaking_vc = matchmaking_vc.members
-        team_vcs = {vc.name: vc for vc in category.voice_channels if vc.name.startswith("SanSat")}
-                
-        if not team_vcs:
-            await interaction.followup.send("⚠️ No `SanSat...` voice channels found in the category. Run `/sangmatch` to create them.", ephemeral=True)
-            return
             
         moved_count, failed_count = 0, 0
         summary = []
 
         for i, team in enumerate(teams):
             if not team: continue
-            anchor_name = sanitize_nickname(team[0].get("user_name", f"Team{i+1}"))
-            vc_name = f"SanSat{anchor_name}"
-            target_vc = team_vcs.get(vc_name)
+            
+            target_vc_id = vc_ids[i] if i < len(vc_ids) else None
+            target_vc = guild.get_channel(target_vc_id) if target_vc_id else None
 
             if not target_vc:
-                summary.append(f"❌ Could not find VC named `{vc_name}` for Team {i+1}.")
+                summary.append(f"❌ Could not find the voice channel for Team {i+1}. (Was it manually deleted?)")
                 failed_count += len(team)
                 continue
                 
+            anchor_name = sanitize_nickname(team[0].get("user_name", f"Team{i+1}"))
             summary.append(f"✅ Moving Team {i+1} ({anchor_name}) to {target_vc.mention}...")
             
             for player in team:
