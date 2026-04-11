@@ -221,7 +221,9 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
     blocks = get_valid_blocks(available_raiders)
     
     mentor_blocks = [b for b in blocks if any(p['proficiency'] == 'mentor' for p in b)]
-    learner_blocks = [b for b in blocks if any(p['proficiency'] in ('learner', 'new') for p in b)]
+    
+    learner_blocks = [b for b in blocks if b not in mentor_blocks and any(p['proficiency'] in ('learner', 'new') for p in b)]
+    
     standard_blocks = [b for b in blocks if b not in mentor_blocks and b not in learner_blocks]
 
     teams = []
@@ -229,7 +231,7 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
 
     # 1. Initialize Mentor Teams
     for mb in mentor_blocks:
-        teams.append({'members': mb, 'is_mentor': True})
+        teams.append({'members': list(mb), 'is_mentor': True})
 
     # 2. Assign Learners
     learner_blocks.sort(key=len, reverse=True)
@@ -343,8 +345,7 @@ def matchmaking_algorithm(available_raiders: List[Dict[str, Any]]):
             if best_st is not None:
                 best_st['members'].extend(b)
             else:
-                # Fallback if no pre-allocated team can take them (e.g. blacklists)
-                standard_teams.append({'members': b, 'is_mentor': False})
+                standard_teams.append({'members': list(b), 'is_mentor': False})
 
     teams.extend([st for st in standard_teams if st['members']])
 
