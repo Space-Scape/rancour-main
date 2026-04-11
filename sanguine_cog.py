@@ -1016,6 +1016,10 @@ class SanguineCog(commands.Cog):
     @app_commands.command(name="sangmatch", description="Create ToB teams from users in the designated voice channel.")
     @app_commands.checks.has_role(STAFF_ROLE_ID)
     async def sangmatch(self, interaction: discord.Interaction):
+        # 1. Declare globals at the absolute top
+        global last_generated_teams
+        global last_generated_vcs
+
         prefix = "SanSat" if self.get_event_day() == "Saturday" else "SanSun"
         
         if not self.sang_sheet:
@@ -1023,22 +1027,7 @@ class SanguineCog(commands.Cog):
             return
         await interaction.response.defer(ephemeral=False)
 
-        global last_generated_teams
-        global last_generated_vcs
-        last_generated_teams = teams
-        last_generated_vcs = []
-
-        for i, team in enumerate(teams):
-            try:
-                mentor_name = sanitize_nickname(team[0].get("user_name", f"Team{i+1}")) if team else f"Team{i+1}"
-                new_vc = await category.create_voice_channel(name=f"{prefix}{mentor_name}", overwrites=overwrites)
-                
-                # NEW: Save the exact ID of the newly created channel
-                last_generated_vcs.append(new_vc.id) 
-            except Exception as e: 
-                print(f"Error creating VC: {e}") 
-                last_generated_vcs.append(None)
-        
+        # 2. Get the voice channel and validate members
         voice_channel = self.bot.get_channel(SANG_MATCHMAKING_VC_ID)
         if not voice_channel or not isinstance(voice_channel, discord.VoiceChannel):
             await interaction.followup.send("⚠️ Matchmaking voice channel not found or is not a voice channel.")
@@ -1048,11 +1037,13 @@ class SanguineCog(commands.Cog):
         if not voice_channel.members:
             await interaction.followup.send(f"⚠️ No users are in {voice_channel.mention}.")
             return
+            
         vc_member_ids = {str(member.id) for member in voice_channel.members if not member.bot}
         if not vc_member_ids:
             await interaction.followup.send(f"⚠️ No human users are in {voice_channel.mention}.")
             return
         
+        # 3. Get signups and parse data
         try:
             all_signups_records = self.sang_sheet.get_all_records()
             if not all_signups_records:
@@ -1101,7 +1092,12 @@ class SanguineCog(commands.Cog):
             await interaction.followup.send(f"⚠️ None of the users in {voice_channel.mention} have signed up for the event.")
             return
 
+        # 4. RUN ALGORITHM: This creates the 'teams' variable
         teams, stranded_players = matchmaking_algorithm(available_raiders)
+
+        # 5. NOW we can update globals and create VCs using 'teams'
+        last_generated_teams = teams
+        last_generated_vcs = []
 
         guild = interaction.guild
         category = guild.get_channel(SANG_VC_CATEGORY_ID)
@@ -1115,8 +1111,14 @@ class SanguineCog(commands.Cog):
                 try:
                     mentor_name = sanitize_nickname(team[0].get("user_name", f"Team{i+1}")) if team else f"Team{i+1}"
                     new_vc = await category.create_voice_channel(name=f"{prefix}{mentor_name}", overwrites=overwrites)
-                except Exception as e: print(f"Error creating VC: {e}") 
+                    
+                    # Save the exact ID of the newly created channel
+                    last_generated_vcs.append(new_vc.id) 
+                except Exception as e: 
+                    print(f"Error creating VC: {e}") 
+                    last_generated_vcs.append(None) 
 
+        # 6. Post the embeds
         post_channel = interaction.channel
         embed_title = f"Sanguine Saturday Teams - {channel_name}"
         embed_desc = f"Created {len(teams)} valid team(s) from {len(available_raiders)} available signed-up users.\n*Note: Team sizes strictly bounded to 3-5 players.*"
@@ -1125,9 +1127,6 @@ class SanguineCog(commands.Cog):
         
         team_embeds = await self._create_team_embeds(teams, embed_title, embed_desc, discord.Color.red(), guild, format_player_line_mention)
         
-        global last_generated_teams
-        last_generated_teams = teams
-
         for i, embed in enumerate(team_embeds):
             if i == 0: await interaction.followup.send(embed=embed)
             else: await post_channel.send(embed=embed)
@@ -1136,6 +1135,10 @@ class SanguineCog(commands.Cog):
     @app_commands.checks.has_role(STAFF_ROLE_ID)
     @app_commands.describe(voice_channel="Optional: The voice channel to pull users from. If omitted, uses all signups.")
     async def sangmatchtest(self, interaction: discord.Interaction, voice_channel: Optional[discord.VoiceChannel] = None):
+        # 1. Put globals at the absolute top!
+        global last_generated_teams
+        global last_generated_vcs
+
         if not self.sang_sheet:
             await interaction.response.send_message("⚠️ Error: The Sanguine Saturday sheet is not connected.", ephemeral=True)
             return
@@ -1194,15 +1197,16 @@ class SanguineCog(commands.Cog):
 
         teams, stranded_players = matchmaking_algorithm(available_raiders)
 
+        # 2. Update the globals here, AFTER the algorithm finishes
+        last_generated_teams = teams
+        last_generated_vcs = [] # Empty list ensures /sangmove knows no real VCs exist for this test
+
         embed_title = f"Sanguine Teams (Test, no pings/VC) - {channel_name}"
         embed_desc = f"Created {len(teams)} valid team(s) from {len(available_raiders)} available signed-up users."
         if stranded_players:
             embed_desc += f"\n\n⚠️ **Stranded Players:** {', '.join([p['user_name'] for p in stranded_players])}"
 
         team_embeds = await self._create_team_embeds(teams, embed_title, embed_desc, discord.Color.dark_gray(), interaction.guild, format_player_line_plain)
-
-        global last_generated_teams
-        last_generated_teams = teams
         
         for i, embed in enumerate(team_embeds):
             if i == 0: await interaction.followup.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
@@ -1249,10 +1253,11 @@ class SanguineCog(commands.Cog):
     @app_commands.command(name="sangmove", description="Move users from Matchmaking VC to their auto-created team VCs.")
     @app_commands.checks.has_any_role("Administrators", "Clan Staff", "Senior Staff", "Staff", "Trial Staff")
     async def sangmove(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        
+        # 1. Put globals at the absolute top of the function!
         global last_generated_teams
         global last_generated_vcs
+        
+        await interaction.response.defer(ephemeral=True, thinking=True)
         
         teams = last_generated_teams
         vc_ids = last_generated_vcs
@@ -1273,6 +1278,7 @@ class SanguineCog(commands.Cog):
         moved_count, failed_count = 0, 0
         summary = []
 
+        # 2. Iterate and move based on the saved IDs
         for i, team in enumerate(teams):
             if not team: continue
             
@@ -1307,7 +1313,7 @@ class SanguineCog(commands.Cog):
         summary_message = f"**Move Complete**\n- Moved {moved_count} members.\n- Failed to move {failed_count} members.\n\n" + "\n".join(summary)
         if len(summary_message) > 1900: summary_message = summary_message[:1900] + "\n... (message trimmed)"
         await interaction.followup.send(summary_message, ephemeral=True)
-
+        
     @app_commands.command(name="sangcleanup", description="Delete auto-created SanguineSaturday voice channels from the last run.")
     @app_commands.checks.has_any_role("Administrators", "Clan Staff", "Senior Staff", "Staff", "Trial Staff")
     async def sangcleanup(self, interaction: discord.Interaction):
